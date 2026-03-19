@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: psicoagente
+      POSTGRES_USER: psicoagente
+      POSTGRES_PASSWORD: psicoagente_dev
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://psicoagente:psicoagente_dev@postgres/psicoagente
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports: ["8000:8000"]
+    depends_on: [postgres]
+
+volumes:
+  pgdata:
