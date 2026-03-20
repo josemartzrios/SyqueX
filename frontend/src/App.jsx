@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ChatInput from './components/ChatInput'
 import NoteReview from './components/NoteReview'
-import { processSession, listPatients } from './api'
+import { processSession, listPatients, createPatient, getPatientSessions } from './api'
 
 // Asumimos un paciente por defecto para MVP de chat directo
 const DEFAULT_PATIENT_ID = "00000000-0000-0000-0000-000000000001";
@@ -11,13 +11,66 @@ function App() {
     {
       role: 'assistant',
       type: 'welcome',
-      text: 'SyqueX Inicializado.\n\nHola Doctor. ¿Sobre qué paciente deseas dictar la sesión de hoy? Escribe o dicta todos los detalles libremente y me encargaré de analizar los vectores y formatear la nota clínica.'
+      text: 'Hola Doctor. ¿Sobre qué paciente deseas dictar la sesión de hoy? '
     }
   ]);
 
   const [patients, setPatients] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState(DEFAULT_PATIENT_ID);
+  const [isCreatingPatient, setIsCreatingPatient] = useState(false);
+  const [newPatientName, setNewPatientName] = useState("");
   const scrollRef = useRef(null);
+
+  const resetChat = (patientName = "su paciente", history = []) => {
+    const welcomeMsg = {
+      role: 'assistant',
+      type: 'welcome',
+      text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy? `
+    };
+
+    if (history.length > 0) {
+      const historyMessages = [];
+      history.forEach(session => {
+        if (session.raw_dictation) {
+          historyMessages.push({ role: 'user', text: session.raw_dictation });
+        }
+        if (session.ai_response) {
+          historyMessages.push({ role: 'assistant', type: 'bot', text: session.ai_response });
+        }
+      });
+      setMessages([welcomeMsg, ...historyMessages]);
+    } else {
+      setMessages([welcomeMsg]);
+    }
+  };
+
+  const handlePatientChange = async (id) => {
+    const p = patients.find(x => x.id === id);
+    setSelectedPatientId(id);
+    try {
+      const history = await getPatientSessions(id);
+      resetChat(p?.name, history);
+    } catch (err) {
+      console.error("Error loading chat history:", err);
+      resetChat(p?.name);
+    }
+  };
+
+  const handleSavePatient = async () => {
+    if (!newPatientName.trim()) return;
+
+    try {
+      const resp = await createPatient(newPatientName);
+      const updated = await listPatients();
+      setPatients(updated);
+      setSelectedPatientId(resp.patient_id);
+      resetChat(newPatientName);
+      setIsCreatingPatient(false);
+      setNewPatientName("");
+    } catch (err) {
+      alert("Error al crear paciente: " + err.message);
+    }
+  };
 
   useEffect(() => {
     // Cargar lista de pacientes al iniciar
@@ -25,7 +78,11 @@ function App() {
       try {
         const data = await listPatients();
         setPatients(data);
-        if (data.length > 0) setSelectedPatientId(data[0].id);
+        if (data.length > 0) {
+          setSelectedPatientId(data[0].id);
+          const history = await getPatientSessions(data[0].id);
+          resetChat(data[0].name, history);
+        }
       } catch (err) {
         console.error("Error loading patients:", err);
       }
@@ -61,13 +118,6 @@ function App() {
     }
   };
 
-  const handleNoteConfirmed = () => {
-    setMessages(prev => [
-      ...prev,
-      { role: 'assistant', type: 'success', text: 'Nota cifrada y guardada firmemente en el expediente. El modelo RAG ha sido actualizado. Listo para el siguiente paciente.' }
-    ]);
-  };
-
   const isLoading = messages[messages.length - 1]?.type === 'loading';
 
   return (
@@ -78,20 +128,60 @@ function App() {
         <span className="font-bold tracking-tight text-slate-100 text-xl flex items-center gap-2">
           SyqueX <span className="text-cyan-500 font-normal text-sm opacity-80 font-mono">v1.2</span>
         </span>
-        
-        {/* Selector de Paciente */}
-        <div className="flex items-center gap-2 bg-[#111e38] border border-slate-700/50 rounded-full px-4 py-1.5 shadow-inner">
-          <label className="text-[11px] uppercase tracking-widest text-slate-500 font-bold">Paciente:</label>
-          <select 
-            value={selectedPatientId}
-            onChange={(e) => setSelectedPatientId(e.target.value)}
-            className="bg-transparent text-cyan-400 text-sm font-medium focus:outline-none cursor-pointer appearance-none hover:text-cyan-300 transition-colors pr-2"
-          >
-            {patients.map(p => (
-              <option key={p.id} value={p.id} className="bg-[#0a1122] text-slate-200">{p.name}</option>
-            ))}
-          </select>
-          <svg className="w-3 h-3 text-slate-600 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
+
+        {/* Selector o Creador de Paciente */}
+        <div className="flex items-center gap-3">
+          {isCreatingPatient ? (
+            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Nombre del paciente..."
+                className="bg-[#111e38] border border-cyan-800/50 rounded-full px-4 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition-all w-48 sm:w-64"
+                value={newPatientName}
+                onChange={(e) => setNewPatientName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSavePatient()}
+              />
+              <button
+                onClick={handleSavePatient}
+                className="text-cyan-400 hover:text-cyan-300 font-bold p-1"
+                title="Guardar"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+              </button>
+              <button
+                onClick={() => setIsCreatingPatient(false)}
+                className="text-slate-500 hover:text-slate-400 font-bold p-1"
+                title="Cancelar"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 bg-[#111e38] border border-slate-700/50 rounded-full px-4 py-1.5 shadow-inner transition-all hover:border-slate-600">
+                <label className="text-[11px] uppercase tracking-widest text-slate-500 font-bold">Paciente:</label>
+                <select
+                  value={selectedPatientId}
+                  onChange={(e) => handlePatientChange(e.target.value)}
+                  className="bg-transparent text-cyan-400 text-sm font-medium focus:outline-none cursor-pointer appearance-none hover:text-cyan-300 transition-colors pr-2"
+                >
+                  {patients.map(p => (
+                    <option key={p.id} value={p.id} className="bg-[#0a1122] text-slate-200">{p.name}</option>
+                  ))}
+                </select>
+                <svg className="w-3 h-3 text-slate-600 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+
+              <button
+                onClick={() => setIsCreatingPatient(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-cyan-950/40 border border-cyan-800/40 text-cyan-400 hover:bg-cyan-800/60 transition-all shadow-lg shadow-cyan-900/10 active:scale-95"
+                title="Nuevo Paciente"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"></path></svg>
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -113,9 +203,6 @@ function App() {
               {/* AI Bubble (Claude Style) */}
               {msg.role === 'assistant' && (
                 <div className="max-w-[100%] md:max-w-[95%] flex gap-3 md:gap-4 w-full">
-                  {/* AVATAR AI */}
-
-
                   <div className="flex-1 min-w-0">
 
                     {msg.type === 'welcome' && (
@@ -136,13 +223,6 @@ function App() {
                     {msg.type === 'error' && (
                       <div className="bg-red-950/20 border border-red-900/40 text-red-300 rounded-xl p-3 mt-1 text-sm inline-block">
                         <strong className="text-red-400">Error detectado:</strong> {msg.text}
-                      </div>
-                    )}
-
-                    {msg.type === 'success' && (
-                      <div className="bg-emerald-950/20 border border-emerald-900/30 text-emerald-300 rounded-xl p-3 mt-1 text-sm flex items-center gap-2 inline-flex">
-                        <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                        {msg.text}
                       </div>
                     )}
 

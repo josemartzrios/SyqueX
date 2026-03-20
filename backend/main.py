@@ -73,6 +73,7 @@ async def list_patients(db: AsyncSession = Depends(get_db)):
         return [{"id": default_patient.id, "name": default_patient.name}]
         
     return [{"id": p.id, "name": p.name} for p in patients]
+@app.post("/patients")
 async def create_patient(payload: PatientCreate, db: AsyncSession = Depends(get_db)):
     # Asume psicologo por defecto para MVP
     query = select(Psychologist).limit(1)
@@ -121,6 +122,7 @@ async def process_session_endpoint(patient_id: str, rec: ProcessSessionRequest, 
         session_number=current_session_number,
         session_date=date.today(),
         raw_dictation=rec.raw_dictation,
+        ai_response=response.get("text_fallback"),
         status="draft"
     )
     db.add(new_session)
@@ -196,25 +198,25 @@ async def get_patient_profile(patient_id: str, db: AsyncSession = Depends(get_db
     }
 
 @app.get("/patients/{patient_id}/sessions")
-async def get_patient_sessions(patient_id: str, limit: int = 20, offset: int = 0, db: AsyncSession = Depends(get_db)):
+async def get_patient_sessions(patient_id: str, limit: int = 50, offset: int = 0, db: AsyncSession = Depends(get_db)):
     puuid = uuid.UUID(patient_id)
     res = await db.execute(
-        select(Session, ClinicalNote)
-        .outerjoin(ClinicalNote, Session.id == ClinicalNote.session_id)
+        select(Session)
         .where(Session.patient_id == puuid)
-        .order_by(Session.session_date.desc())
+        .order_by(Session.created_at.asc()) # Orden cronológico para el chat
         .limit(limit)
         .offset(offset)
     )
     
     out = []
-    for s, c in res:
+    for s in res.scalars():
         out.append({
             "id": s.id,
             "session_number": s.session_number,
             "session_date": s.session_date,
-            "status": s.status,
-            "note": {"assessment": c.assessment if c else ""} if c else None
+            "raw_dictation": s.raw_dictation,
+            "ai_response": s.ai_response,
+            "status": s.status
         })
     return out
 

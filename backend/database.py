@@ -51,6 +51,7 @@ class Session(Base):
     session_number: Mapped[int] = mapped_column(Integer, nullable=False)
     session_date: Mapped[date] = mapped_column(Date, nullable=False)
     raw_dictation: Mapped[str] = mapped_column(Text, nullable=False)
+    ai_response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False) # CHECK IN ('draft','confirmed')
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

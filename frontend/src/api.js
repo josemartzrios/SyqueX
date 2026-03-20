@@ -43,3 +43,13 @@ export async function listPatients() {
   if (!res.ok) throw new Error('Error fetching patients');
   return res.json();
 }
+
+export async function createPatient(name) {
+  const res = await fetch(`${API_BASE}/patients`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, risk_level: 'low' })
+  });
+  if (!res.ok) throw new Error('Error creating patient');
+  return res.json();
+}
