@@ -1,0 +1,50 @@
+======================================================================
+               ARQUITECTURA DE SYQUEX (PSICOAGENTE)
+======================================================================
+
+  [ FRONTEND - VERCEL ]
+   (React 18 + Vite + TailwindCSS)
+    │
+    ├─ App.jsx
+    │   Interfaz principal que orquesta la vista clínica.
+    │
+    ├─ Componentes:
+    │   ├─ ChatInput.jsx       (Captura libre del dictado clínico)
+    │   ├─ NoteReview.jsx      (Edición y confirmación de la nota generada)
+    │   ├─ PatientCard.jsx     (Panel lateral con gráfico SVG y perfiles)
+    │   └─ SessionHistory.jsx  (Búsqueda semántica usando RAG)
+    │
+    └─ api.js                  (Conector HTTP apuntando a la VITE_API_URL)
+
+
+            ↑ ↓ (Peticiones HTTPS JSON)
+
+
+  [ BACKEND - RAILWAY ]
+   (Python 3.13 + FastAPI + Uvicorn Async)
+    │
+    ├─ main.py          (Rutas REST: /process, /confirm, /sessions...)
+    ├─ agent.py         (AgentRunner: Bucle conversacional con Claude-3)
+    ├─ tools.py         (Herramientas RAG inyectadas vía tool_use API)
+    ├─ embeddings.py    (Generador de Vectores HNSW, sin usar OpenAI)
+    ├─ config.py        (Gestor centralizado de variables y límites)
+    ├─ exceptions.py    (Manejador de dominios de error)
+    ├─ interfaces.py    (Reglas SOLID y dependencias puras)
+    └─ database.py      (Motor Asíncrono SQLAlchemy)
+
+
+            ↑ ↓ (Conexión TCP AsyncPG)
+
+
+  [ BASE DE DATOS - SUPABASE ]
+   (PostgreSQL 16 + Extensión pgvector HNSW habilitada)
+    │
+    ├─ psychologists     (Usuarios Doctores del sistema)
+    ├─ patients          (Ficha base del paciente)
+    ├─ patient_profiles  (Registro sumario evolutivo y analítico)
+    ├─ sessions          (Archivos Crudos / Transcripciones del dictado)
+    └─ clinical_notes    (Notas SOAP estructuradas + 1536d Vector Array)
+
+======================================================================
+     LLM COGNITIVO: Anthropic API (Claude-3 Opus/Sonnet)
+======================================================================

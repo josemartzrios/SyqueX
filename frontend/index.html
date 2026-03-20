@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>PsicoAgente MVP</title>
+  <title>SyqueX AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -11,15 +11,18 @@
           colors: {
             slate: {
               800: '#1e293b',
-              900: '#0f172a'
+              900: '#0f172a',
+              950: '#020617'
             },
-            teal: {
-              600: '#0d9488'
+            cyan: {
+              400: '#22d3ee',
+              500: '#06b6d4',
+              600: '#0891b2'
             }
           },
           fontFamily: {
-            sans: ['"IBM Plex Sans"', 'sans-serif'],
-            mono: ['"IBM Plex Mono"', 'monospace']
+            sans: ['"Inter"', 'sans-serif'],
+            mono: ['"Fira Code"', 'monospace']
           }
         }
       }
@@ -27,9 +30,14 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: 'IBM Plex Sans', sans-serif; }
+    body { background-color: #020617; color: #f8fafc; font-family: 'Inter', sans-serif; overflow: hidden; }
+    /* Estilos tech limpios para el scroll */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
   </style>
 </head>
 <body>

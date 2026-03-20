@@ -2,7 +2,7 @@ import json
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
-from .database import ClinicalNote, Session, PatientProfile
+from database import ClinicalNote, Session, PatientProfile
 
 # Anthropic Tools JSON Schemas
 AGENT_TOOLS = [
@@ -87,7 +87,7 @@ async def create_or_update_clinical_note(db: AsyncSession, **kwargs):
     # Por ahora actua devolviendo status ok.
     return {"note_id": kwargs["session_id"], "status": "staged"}
 
-from .embeddings import get_embedding # We will create this in phase 2/3
+from embeddings import get_embedding
 
 async def search_patient_history(db: AsyncSession, patient_id: str, query: str, limit: int = 5, date_from: str = None):
     query_embedding = await get_embedding(query)

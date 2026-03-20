@@ -37,3 +37,9 @@ export async function searchHistory(patientId, query) {
   if (!res.ok) throw new Error('Error searching history');
   return res.json();
 }
+
+export async function listPatients() {
+  const res = await fetch(`${API_BASE}/patients`);
+  if (!res.ok) throw new Error('Error fetching patients');
+  return res.json();
+}

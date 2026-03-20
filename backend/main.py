@@ -41,7 +41,38 @@ class ProcessSessionRequest(BaseModel):
 class ConfirmNoteRequest(BaseModel):
     edited_note: Optional[Dict[str, Any]] = None
 
-@app.post("/patients")
+@app.get("/patients")
+async def list_patients(db: AsyncSession = Depends(get_db)):
+    query = select(Patient).order_by(Patient.name)
+    res = await db.execute(query)
+    patients = res.scalars().all()
+    
+    # Si no hay pacientes, crear uno por defecto para el MVP
+    if not patients:
+        # Reutilizamos la lógica de crear psicólogo si no hay
+        psy_query = select(Psychologist).limit(1)
+        psy_res = await db.execute(psy_query)
+        psy = psy_res.scalar_one_or_none()
+        if not psy:
+            psy = Psychologist(name="Dr. Default", email="dr@default.com")
+            db.add(psy)
+            await db.commit()
+            await db.refresh(psy)
+            
+        default_patient = Patient(
+            id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+            psychologist_id=psy.id,
+            name="Paciente de Prueba",
+            risk_level="low"
+        )
+        db.add(default_patient)
+        
+        # Profile
+        db.add(PatientProfile(patient_id=default_patient.id))
+        await db.commit()
+        return [{"id": default_patient.id, "name": default_patient.name}]
+        
+    return [{"id": p.id, "name": p.name} for p in patients]
 async def create_patient(payload: PatientCreate, db: AsyncSession = Depends(get_db)):
     # Asume psicologo por defecto para MVP
     query = select(Psychologist).limit(1)
@@ -78,10 +109,16 @@ async def process_session_endpoint(patient_id: str, rec: ProcessSessionRequest, 
     # Por ahora no guarda en DB hasta que no se confirme, pero guarda sesion en estado draft para tener ID
     
     patient_uuid = uuid.UUID(patient_id)
+    
+    # Calcular verdadero numero de sesion
+    res_last = await db.execute(select(Session).where(Session.patient_id == patient_uuid).order_by(Session.session_number.desc()).limit(1))
+    last_session = res_last.scalar_one_or_none()
+    current_session_number = (last_session.session_number + 1) if last_session else 1
+
     new_session = Session(
         id=uuid.UUID(session_id),
         patient_id=patient_uuid,
-        session_number=0, # deberia calcular max
+        session_number=current_session_number,
         session_date=date.today(),
         raw_dictation=rec.raw_dictation,
         status="draft"

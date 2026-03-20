@@ -1,70 +1,46 @@
-import { useState } from 'react'
-import { processSession } from '../api'
+import { useState } from 'react';
 
-export default function ChatInput({ patientId, onNoteGenerated }) {
+export default function ChatInput({ onSend, loading }) {
   const [dictation, setDictation] = useState('');
-  const [format, setFormat] = useState('SOAP');
-  const [loading, setLoading] = useState(false);
-  const [statusText, setStatusText] = useState('');
 
-  const handleProcess = async () => {
-    if (!dictation.trim()) return;
-    setLoading(true);
-    setStatusText('Recuperando historial... / Detectando patrones... / Generando nota...');
-    
-    try {
-      const result = await processSession(patientId, dictation, format);
-      onNoteGenerated(result, dictation);
-    } catch (err) {
-      alert("Error procesando sesión: " + err.message);
-    } finally {
-      setLoading(false);
+  const handleProcess = () => {
+    if (!dictation.trim() || loading) return;
+    onSend(dictation, "SOAP"); // Formato por defecto para el MVP austero
+    setDictation('');
+  };
+
+  const handleKeyDown = (e) => {
+    // Mandar con Enter, pero permitir salto de línea con Shift + Enter
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleProcess();
     }
-  }
+  };
 
   return (
-    <div className="bg-slate-800 p-6 rounded-lg shadow-md border border-slate-700">
-      <h2 className="text-xl font-semibold mb-4 text-teal-400">Dictado de Sesión</h2>
+    <div className="bg-[#0a1122]/90 backdrop-blur-xl border border-[#1a2d52] rounded-3xl px-4 py-2 flex flex-col gap-2 shadow-2xl relative overflow-hidden transition-all focus-within:border-cyan-900/80">
       
-      <textarea 
-        className="w-full h-40 p-3 bg-slate-900 border border-slate-600 rounded text-slate-100 placeholder-slate-400 font-sans focus:outline-none focus:border-teal-500 transition-colors"
-        placeholder="Describe libremente cómo fue la sesión..."
-        value={dictation}
-        onChange={(e) => setDictation(e.target.value)}
-        disabled={loading}
-      />
+      <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent"></div>
       
-      <div className="flex items-center justify-between mt-4">
-        <select 
-          className="bg-slate-900 border border-slate-600 text-slate-200 p-2 rounded focus:outline-none focus:border-teal-500"
-          value={format} 
-          onChange={(e) => setFormat(e.target.value)}
+      <div className="flex items-center gap-3">
+        <textarea 
+          className="flex-1 bg-transparent text-slate-100 placeholder-slate-600 font-sans text-[15px] focus:outline-none resize-none max-h-48 overflow-y-auto py-2"
+          placeholder="Escribe tu mensaje a SyqueX..."
+          value={dictation}
+          onChange={(e) => setDictation(e.target.value)}
+          onKeyDown={handleKeyDown}
           disabled={loading}
-        >
-          <option value="SOAP">Formato SOAP</option>
-          <option value="DAP">Formato DAP</option>
-          <option value="BIRP">Formato BIRP</option>
-        </select>
+          rows={Math.min(5, Math.max(1, dictation.split('\n').length))}
+        />
         
         <button 
           onClick={handleProcess}
           disabled={loading || !dictation.trim()}
-          className="bg-teal-600 hover:bg-teal-500 text-white font-medium py-2 px-6 rounded transition-colors disabled:opacity-50 flex items-center gap-2"
+          className="bg-slate-100 hover:bg-white text-slate-900 p-2 rounded-full flex-shrink-0 transition-opacity disabled:opacity-20 disabled:hover:bg-slate-100"
         >
-          {loading ? (
-            <>
-              <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span>{statusText.split('/')[0]}</span>
-            </>
-          ) : (
-            "Procesar sesión →"
-          )}
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
         </button>
       </div>
-      {loading && <p className="text-sm text-slate-400 mt-3 text-center animate-pulse">{statusText}</p>}
     </div>
   )
 }
