@@ -1,9 +1,37 @@
+import re
 import logging
 from anthropic import AsyncAnthropic
+from fastapi import HTTPException
 from sqlalchemy import select
 from config import settings, ClinicalNoteConfig
 
 logger = logging.getLogger(__name__)
+
+# Patrones de prompt injection conocidos
+_INJECTION_PATTERNS = [
+    r"ignore\s+(previous|all|prior)\s+instructions",
+    r"system\s+prompt",
+    r"jailbreak",
+    r"you\s+are\s+now",
+    r"forget\s+your",
+    r"new\s+instructions",
+    r"\[INST\]",
+    r"<\|im_start\|>",
+    r"<\|im_end\|>",
+    r"disregard\s+(all|previous)",
+    r"override\s+(your|the)\s+(instructions|rules)",
+]
+_INJECTION_RE = re.compile("|".join(_INJECTION_PATTERNS), re.IGNORECASE)
+
+def _sanitizar_dictado(texto: str) -> str:
+    """Valida que el dictado no contenga intentos de prompt injection."""
+    if _INJECTION_RE.search(texto):
+        logger.warning("Prompt injection attempt detected in dictation input")
+        raise HTTPException(
+            status_code=400,
+            detail="El dictado contiene contenido no válido para procesamiento clínico.",
+        )
+    return texto[:settings.MAX_DICTATION_LENGTH].strip()
 
 SYSTEM_PROMPT = """Eres SyqueX, un asistente de IA clínico especializado en salud mental.
 Tu principal tarea es ayudar a los psicólogos a organizar sus sesiones, analizar síntomas, y dialogar profesionalmente.
@@ -158,11 +186,14 @@ async def process_session(db, patient_id: str, raw_dictation: str, session_id: s
     if len(raw_dictation) > ClinicalNoteConfig.MAX_DICTATION_LENGTH:
         raise ValueError("Dictation exceeds maximum allowed length.")
 
+    # Sanitizar contra prompt injection antes de enviar al LLM
+    dictado_seguro = _sanitizar_dictado(raw_dictation)
+
     # Load persistent context from previous sessions
     context_messages = await _get_patient_context(db, patient_id)
 
     # Append the current user message to the full conversation history
-    messages = context_messages + [{"role": "user", "content": raw_dictation}]
+    messages = context_messages + [{"role": "user", "content": dictado_seguro}]
 
     try:
         anthropic_client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
@@ -178,15 +209,17 @@ async def process_session(db, patient_id: str, raw_dictation: str, session_id: s
 
         # Store only this session's turn — previous context comes from their own sessions
         session_messages = [
-            {"role": "user", "content": raw_dictation},
+            {"role": "user", "content": dictado_seguro},
             {"role": "assistant", "content": reply_text},
         ]
 
         return {"text_fallback": reply_text, "session_messages": session_messages}
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error calling Anthropic API: {e}")
+        logger.error("Error calling Anthropic API: %s", e, exc_info=True)
         return {
-            "text_fallback": f"Error de red o API en SyqueX: {str(e)}",
-            "session_messages": [{"role": "user", "content": raw_dictation}],
+            "text_fallback": "Error al procesar el dictado. Por favor intenta nuevamente.",
+            "session_messages": [{"role": "user", "content": dictado_seguro}],
         }

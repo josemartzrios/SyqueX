@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8000") + "/api/v1";
 
 export async function processSession(patientId, dictation, format = 'SOAP') {
   const res = await fetch(`${API_BASE}/sessions/${patientId}/process`, {
@@ -29,7 +29,8 @@ export async function getPatientProfile(patientId) {
 export async function getPatientSessions(patientId) {
   const res = await fetch(`${API_BASE}/patients/${patientId}/sessions`);
   if (!res.ok) throw new Error('Error fetching sessions');
-  return res.json();
+  const data = await res.json();
+  return data.items;
 }
 
 export async function searchHistory(patientId, query) {
@@ -57,7 +58,8 @@ export async function createPatient(name) {
 export async function listConversations() {
   const res = await fetch(`${API_BASE}/conversations`);
   if (!res.ok) throw new Error('Error fetching conversations');
-  return res.json();
+  const data = await res.json();
+  return data.items;
 }
 
 export async function archiveSession(sessionId) {

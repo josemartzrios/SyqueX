@@ -23,9 +23,26 @@ class Psychologist(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    password_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # bcrypt hash
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     patients = relationship("Patient", back_populates="psychologist")
+
+
+class AuditLog(Base):
+    """Tabla de auditoría inmutable — solo recibe INSERTs, nunca UPDATEs."""
+    __tablename__ = 'audit_logs'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    psychologist_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    action: Mapped[str] = mapped_column(String(50), nullable=False)  # CREATE | READ | UPDATE | DELETE | LOGIN | ACCESS_DENIED
+    entity: Mapped[str] = mapped_column(String(50), nullable=False)  # patient | session | clinical_note | auth
+    entity_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    # IMPORTANTE: nunca guardar datos clínicos aquí — solo IDs y contadores
+    extra: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
 class Patient(Base):
     __tablename__ = 'patients'
@@ -107,6 +124,9 @@ async def init_db():
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;"))
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS messages JSONB NOT NULL DEFAULT '[]';"))
         await conn.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS patient_summary TEXT;"))
+        # Auth columns — nullable para compatibilidad con datos existentes
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS password_hash TEXT;"))
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;"))
         # Create hnsw index
         await conn.execute(text("CREATE INDEX IF NOT EXISTS clinical_notes_embedding_idx ON clinical_notes USING hnsw (embedding vector_cosine_ops);"))
 

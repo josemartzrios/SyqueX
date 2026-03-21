@@ -166,7 +166,7 @@ function App() {
       const resp = await createPatient(newPatientName);
       setIsCreatingPatient(false);
       setNewPatientName("");
-      loadPatientChat(resp.patient_id, newPatientName);
+      loadPatientChat(resp.id, newPatientName);
       fetchConversations();
     } catch (err) {
       alert("Error al crear paciente: " + err.message);
