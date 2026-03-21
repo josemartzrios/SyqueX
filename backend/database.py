@@ -94,6 +94,7 @@ class PatientProfile(Base):
     protective_factors: Mapped[List[str]] = mapped_column(ARRAY(Text), default=list)
     risk_factors: Mapped[List[str]] = mapped_column(ARRAY(Text), default=list)
     progress_indicators: Mapped[dict] = mapped_column(JSONB, default=dict)
+    patient_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_updated: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     patient = relationship("Patient", back_populates="profile")
@@ -105,6 +106,7 @@ async def init_db():
         # Migrate existing tables with new columns (safe — IF NOT EXISTS)
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;"))
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS messages JSONB NOT NULL DEFAULT '[]';"))
+        await conn.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS patient_summary TEXT;"))
         # Create hnsw index
         await conn.execute(text("CREATE INDEX IF NOT EXISTS clinical_notes_embedding_idx ON clinical_notes USING hnsw (embedding vector_cosine_ops);"))
 

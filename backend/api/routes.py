@@ -8,7 +8,7 @@ from datetime import date, datetime
 
 from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist
 from sqlalchemy import update
-from agent import process_session
+from agent import process_session, update_patient_profile_summary
 from agent.tools import generate_evolution_report, search_patient_history
 from agent.embeddings import get_embedding
 
@@ -154,13 +154,17 @@ async def confirm_session(session_id: str, req: ConfirmNoteRequest, db: AsyncSes
     )
     db.add(cn)
 
-    # Update PatientProfile MVP
-    pres = await db.execute(select(PatientProfile).where(PatientProfile.patient_id == sess.patient_id))
-    profile = pres.scalar_one_or_none()
-    if profile:
-        profile.recurring_themes = list(set(profile.recurring_themes + note_data.get("detected_patterns", [])))
-
     await db.commit()
+
+    # Generate/update compact clinical summary and profile fields async
+    summary_data = {
+        "text_fallback": sess.ai_response or "",
+        "detected_patterns": note_data.get("detected_patterns", []),
+        "alerts": note_data.get("alerts", []),
+        "suggested_next_steps": note_data.get("suggested_next_steps", []),
+    }
+    await update_patient_profile_summary(db, sess.patient_id, summary_data)
+
     return {"status": "ok", "note_id": cn.id}
 
 @router.get("/patients/{patient_id}/profile")

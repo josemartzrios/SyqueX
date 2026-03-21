@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'
 import { processSession, createPatient, getPatientSessions, listConversations, archiveSession } from './api'
 
 function App() {
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [messages, setMessages] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [selectedPatientName, setSelectedPatientName] = useState(null);
@@ -117,6 +118,28 @@ function App() {
   return (
     <div className="h-screen bg-slate-50 text-slate-800 font-sans flex flex-col overflow-hidden selection:bg-cyan-500/30">
 
+      {/* Demo disclaimer modal */}
+      {showDisclaimer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-8 flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] uppercase tracking-widest text-cyan-500 font-bold">Versión demo</span>
+              <h2 className="text-slate-800 text-lg font-bold leading-snug">Esta es una versión demo de SyqueX</h2>
+            </div>
+            <div className="text-slate-600 text-sm leading-relaxed flex flex-col gap-3">
+              <p>Todos los pacientes y datos mostrados son ficticios y generados para fines de demostración únicamente.</p>
+              <p className="font-medium text-slate-700">No introduzcas datos reales de pacientes en esta versión.</p>
+            </div>
+            <button
+              onClick={() => setShowDisclaimer(false)}
+              className="mt-1 w-full bg-cyan-500 hover:bg-cyan-400 active:scale-95 transition-all text-white font-semibold rounded-xl py-3 text-sm shadow-sm"
+            >
+              Entendido, continuar al demo
+            </button>
+          </div>
+        </div>
+      )}
+
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -205,7 +228,7 @@ function App() {
 
         {/* Message feed */}
         {hasActivePatient && (
-          <div ref={scrollRef} className="flex-1 overflow-y-auto w-full max-w-5xl mx-auto p-3 sm:p-4 md:p-6 space-y-5 sm:space-y-7 z-10 will-change-scroll pb-10">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto w-full max-w-3xl mx-auto p-3 sm:p-4 md:p-6 space-y-5 sm:space-y-7 z-10 will-change-scroll pb-10">
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
 
@@ -275,7 +298,7 @@ function App() {
         {/* Input area — only when patient is active */}
         {hasActivePatient && (
           <div className="p-2 sm:p-3 pb-5 sm:pb-6 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent z-20 w-full relative">
-            <div className="max-w-5xl mx-auto relative px-1 sm:px-2 md:px-0">
+            <div className="max-w-3xl mx-auto relative px-1 sm:px-2 md:px-0">
               <ChatInput onSend={handleSendDictation} loading={isLoading} />
               <div className="text-center mt-3 text-[10px] text-slate-400 font-sans tracking-wide">
                 SyqueX Clinical AI puede cometer errores. El contenido debe ser revisado por el profesional.

@@ -37,12 +37,42 @@ REGLAS FUNDAMENTALES Y DE SEGURIDAD (CRÍTICAS):
 
 async def _get_patient_context(db, patient_id: str) -> list:
     """
-    Retrieves the stored conversation messages from the patient's recent sessions
-    and builds a message list to pass as context to Claude.
-    This is SyqueX's core differentiator: grounded, persistent clinical memory.
+    Builds the full context message list for a patient:
+    1. A clinical profile block (patient_summary + risk/protective factors + recurring themes)
+    2. Verbatim turns from the last N confirmed sessions (for recency)
     """
-    from database import Session as SessionModel
+    from database import Session as SessionModel, PatientProfile
 
+    # --- 1. Load clinical profile ---
+    profile_result = await db.execute(
+        select(PatientProfile).where(PatientProfile.patient_id == patient_id)
+    )
+    profile = profile_result.scalar_one_or_none()
+
+    profile_block_parts = []
+    if profile:
+        if profile.patient_summary:
+            profile_block_parts.append(f"Resumen clínico del paciente:\n{profile.patient_summary}")
+        if profile.recurring_themes:
+            profile_block_parts.append(f"Temas recurrentes: {', '.join(profile.recurring_themes)}")
+        if profile.risk_factors:
+            profile_block_parts.append(f"Factores de riesgo: {', '.join(profile.risk_factors)}")
+        if profile.protective_factors:
+            profile_block_parts.append(f"Factores protectores: {', '.join(profile.protective_factors)}")
+
+    context = []
+    if profile_block_parts:
+        profile_text = "\n".join(profile_block_parts)
+        context.append({
+            "role": "user",
+            "content": f"[CONTEXTO CLÍNICO DEL PACIENTE — solo para referencia, no es un dictado nuevo]\n{profile_text}"
+        })
+        context.append({
+            "role": "assistant",
+            "content": "Entendido. Tengo en cuenta el historial clínico del paciente para esta sesión."
+        })
+
+    # --- 2. Load verbatim turns from last N sessions ---
     result = await db.execute(
         select(SessionModel)
         .where(
@@ -55,12 +85,73 @@ async def _get_patient_context(db, patient_id: str) -> list:
     )
     sessions = result.scalars().all()
 
-    context = []
     for session in reversed(sessions):  # Oldest first for correct temporal order
         if session.messages:
             context.extend(session.messages)
 
     return context
+
+
+async def update_patient_profile_summary(db, patient_id: str, session_note: dict) -> None:
+    """
+    After a session is confirmed, asks Claude to generate/update a compact clinical
+    summary of the patient (max ~300 words). Also extracts risk_factors,
+    protective_factors, and progress_indicators from the new note and persists them.
+    """
+    from database import PatientProfile, Session as SessionModel
+
+    profile_result = await db.execute(
+        select(PatientProfile).where(PatientProfile.patient_id == patient_id)
+    )
+    profile = profile_result.scalar_one_or_none()
+    if not profile:
+        return
+
+    # Build context for Claude: existing summary + new session data
+    existing_summary = profile.patient_summary or "Sin resumen previo."
+    new_note_text = session_note.get("text_fallback", "")
+    detected_patterns = session_note.get("detected_patterns", [])
+    alerts = session_note.get("alerts", [])
+
+    summary_prompt = (
+        f"Resumen clínico previo del paciente:\n{existing_summary}\n\n"
+        f"Nueva sesión registrada:\n{new_note_text}\n\n"
+        f"Patrones detectados: {', '.join(detected_patterns) if detected_patterns else 'Ninguno'}\n"
+        f"Alertas: {', '.join(alerts) if alerts else 'Ninguna'}\n\n"
+        "Con base en todo lo anterior, genera un resumen clínico actualizado del paciente "
+        "en texto plano, sin Markdown, de máximo 300 palabras. "
+        "El resumen debe incluir: motivo de consulta principal, evolución observada, "
+        "temas recurrentes, factores de riesgo activos y factores protectores. "
+        "Escribe solo el resumen, sin encabezados ni etiquetas."
+    )
+
+    try:
+        anthropic_client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        response = await anthropic_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=600,
+            temperature=0,
+            system="Eres un asistente clínico especializado. Responde exclusivamente en texto plano sin Markdown.",
+            messages=[{"role": "user", "content": summary_prompt}],
+        )
+        new_summary = "\n".join([b.text for b in response.content if b.type == "text"]).strip()
+        profile.patient_summary = new_summary
+    except Exception as e:
+        logger.error(f"Error generating patient summary: {e}")
+
+    # Update structured profile fields from the new session
+    if detected_patterns:
+        profile.recurring_themes = list(set((profile.recurring_themes or []) + detected_patterns))
+    if alerts:
+        profile.risk_factors = list(set((profile.risk_factors or []) + alerts))
+
+    suggested_next = session_note.get("suggested_next_steps", [])
+    if suggested_next:
+        indicators = profile.progress_indicators or {}
+        indicators["last_suggested_steps"] = suggested_next
+        profile.progress_indicators = indicators
+
+    await db.commit()
 
 
 async def process_session(db, patient_id: str, raw_dictation: str, session_id: str, format_: str = "SOAP") -> dict:
