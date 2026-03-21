@@ -3,7 +3,7 @@ import os
 from datetime import datetime, date
 from typing import List, Optional
 
-from sqlalchemy import Column, String, Integer, DateTime, Date, ForeignKey, Text, Enum, JSON
+from sqlalchemy import Column, String, Integer, DateTime, Date, ForeignKey, Text, Enum, JSON, Boolean
 from sqlalchemy.orm import declarative_base, relationship, mapped_column, Mapped
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -53,6 +53,8 @@ class Session(Base):
     raw_dictation: Mapped[str] = mapped_column(Text, nullable=False)
     ai_response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False) # CHECK IN ('draft','confirmed')
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    messages: Mapped[list] = mapped_column(JSONB, default=list)  # Full conversation turns [{role, content}]
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     patient = relationship("Patient", back_populates="sessions")
@@ -100,6 +102,9 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
+        # Migrate existing tables with new columns (safe — IF NOT EXISTS)
+        await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;"))
+        await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS messages JSONB NOT NULL DEFAULT '[]';"))
         # Create hnsw index
         await conn.execute(text("CREATE INDEX IF NOT EXISTS clinical_notes_embedding_idx ON clinical_notes USING hnsw (embedding vector_cosine_ops);"))
 

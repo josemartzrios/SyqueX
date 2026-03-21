@@ -53,3 +53,15 @@ export async function createPatient(name) {
   if (!res.ok) throw new Error('Error creating patient');
   return res.json();
 }
+
+export async function listConversations() {
+  const res = await fetch(`${API_BASE}/conversations`);
+  if (!res.ok) throw new Error('Error fetching conversations');
+  return res.json();
+}
+
+export async function archiveSession(sessionId) {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/archive`, { method: 'PATCH' });
+  if (!res.ok) throw new Error('Error archiving session');
+  return res.json();
+}

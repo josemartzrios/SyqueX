@@ -1,4 +1,4 @@
-from interfaces import IEmbeddingService
+from .interfaces import IEmbeddingService
 from openai import AsyncOpenAI
 from config import settings
 import logging

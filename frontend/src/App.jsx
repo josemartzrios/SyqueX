@@ -1,97 +1,84 @@
 import { useState, useEffect, useRef } from 'react'
 import ChatInput from './components/ChatInput'
-import NoteReview from './components/NoteReview'
-import { processSession, listPatients, createPatient, getPatientSessions } from './api'
-
-// Asumimos un paciente por defecto para MVP de chat directo
-const DEFAULT_PATIENT_ID = "00000000-0000-0000-0000-000000000001";
+import Sidebar from './components/Sidebar'
+import { processSession, createPatient, getPatientSessions, listConversations, archiveSession } from './api'
 
 function App() {
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      type: 'welcome',
-      text: 'Hola Doctor. ¿Sobre qué paciente deseas dictar la sesión de hoy? '
-    }
-  ]);
-
-  const [patients, setPatients] = useState([]);
-  const [selectedPatientId, setSelectedPatientId] = useState(DEFAULT_PATIENT_ID);
+  const [messages, setMessages] = useState([]);
+  const [selectedPatientId, setSelectedPatientId] = useState(null);
+  const [selectedPatientName, setSelectedPatientName] = useState(null);
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
   const [newPatientName, setNewPatientName] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [conversations, setConversations] = useState([]);
   const scrollRef = useRef(null);
 
-  const resetChat = (patientName = "su paciente", history = []) => {
-    const welcomeMsg = {
-      role: 'assistant',
-      type: 'welcome',
-      text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy? `
-    };
-
-    if (history.length > 0) {
-      const historyMessages = [];
-      history.forEach(session => {
-        if (session.raw_dictation) {
-          historyMessages.push({ role: 'user', text: session.raw_dictation });
-        }
-        if (session.ai_response) {
-          historyMessages.push({ role: 'assistant', type: 'bot', text: session.ai_response });
-        }
-      });
-      setMessages([welcomeMsg, ...historyMessages]);
-    } else {
-      setMessages([welcomeMsg]);
+  const fetchConversations = async () => {
+    try {
+      const data = await listConversations();
+      setConversations(data);
+    } catch (err) {
+      console.error("Error loading conversations:", err);
     }
   };
 
-  const handlePatientChange = async (id) => {
-    const p = patients.find(x => x.id === id);
-    setSelectedPatientId(id);
+  const loadPatientChat = (patientId, patientName, history = []) => {
+    setSelectedPatientId(patientId);
+    setSelectedPatientName(patientName);
+
+    if (history.length === 0) {
+      setMessages([{
+        role: 'assistant',
+        type: 'welcome',
+        text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?`
+      }]);
+      return;
+    }
+
+    const historyMessages = [];
+    history.forEach(session => {
+      if (session.raw_dictation) historyMessages.push({ role: 'user', text: session.raw_dictation });
+      if (session.ai_response) historyMessages.push({ role: 'assistant', type: 'bot', text: session.ai_response });
+    });
+    setMessages(historyMessages);
+  };
+
+  const handleSelectConversation = async (conv) => {
     try {
-      const history = await getPatientSessions(id);
-      resetChat(p?.name, history);
+      const history = await getPatientSessions(conv.patient_id);
+      loadPatientChat(conv.patient_id, conv.patient_name, history);
     } catch (err) {
-      console.error("Error loading chat history:", err);
-      resetChat(p?.name);
+      loadPatientChat(conv.patient_id, conv.patient_name);
+    }
+  };
+
+  const handleDeleteConversation = async (sessionId) => {
+    try {
+      await archiveSession(sessionId);
+      setConversations(prev => prev.filter(c => c.id !== sessionId));
+    } catch (err) {
+      console.error("Error archiving conversation:", err);
     }
   };
 
   const handleSavePatient = async () => {
     if (!newPatientName.trim()) return;
-
     try {
       const resp = await createPatient(newPatientName);
-      const updated = await listPatients();
-      setPatients(updated);
-      setSelectedPatientId(resp.patient_id);
-      resetChat(newPatientName);
       setIsCreatingPatient(false);
       setNewPatientName("");
+      loadPatientChat(resp.patient_id, newPatientName);
+      fetchConversations();
     } catch (err) {
       alert("Error al crear paciente: " + err.message);
     }
   };
 
   useEffect(() => {
-    // Cargar lista de pacientes al iniciar
-    const fetchPatients = async () => {
-      try {
-        const data = await listPatients();
-        setPatients(data);
-        if (data.length > 0) {
-          setSelectedPatientId(data[0].id);
-          const history = await getPatientSessions(data[0].id);
-          resetChat(data[0].name, history);
-        }
-      } catch (err) {
-        console.error("Error loading patients:", err);
-      }
-    };
-    fetchPatients();
+    fetchConversations();
   }, []);
 
   useEffect(() => {
-    // Auto-scroll al fondo estilo chat
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -108,8 +95,14 @@ function App() {
       const noteData = await processSession(selectedPatientId, dictation, format);
       setMessages(prev => [
         ...prev.slice(0, -1),
-        { role: 'assistant', type: 'bot', text: noteData.text_fallback || "Sin respuesta recibida." }
+        {
+          role: 'assistant',
+          type: 'bot',
+          text: noteData.text_fallback || "Sin respuesta recibida.",
+          sessionId: noteData.session_id,
+        }
       ]);
+      fetchConversations();
     } catch (err) {
       setMessages(prev => [
         ...prev.slice(0, -1),
@@ -119,154 +112,177 @@ function App() {
   };
 
   const isLoading = messages[messages.length - 1]?.type === 'loading';
+  const hasActivePatient = !!selectedPatientId;
 
   return (
-    <div className="h-screen bg-[#060d1a] text-slate-200 font-sans flex flex-col overflow-hidden selection:bg-cyan-500/30">
+    <div className="h-screen bg-slate-50 text-slate-800 font-sans flex flex-col overflow-hidden selection:bg-cyan-500/30">
 
-      {/* Header Centrado y Limpio */}
-      <header className="px-6 py-4 border-b border-[#111e38] bg-[#0a1122]/95 backdrop-blur z-20 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
-        <span className="font-bold tracking-tight text-slate-100 text-xl flex items-center gap-2">
-          SyqueX <span className="text-cyan-500 font-normal text-sm opacity-80 font-mono">v1.2</span>
-        </span>
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        conversations={conversations}
+        onSelectConversation={handleSelectConversation}
+        onDeleteConversation={handleDeleteConversation}
+      />
 
-        {/* Selector o Creador de Paciente */}
-        <div className="flex items-center gap-3">
+      {/* Header */}
+      <header className="px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-200 bg-white/95 backdrop-blur z-20 flex items-center justify-between gap-2 sm:gap-4 shadow-sm min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors relative flex-shrink-0"
+            title="Bandeja de conversaciones"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            {conversations.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full"></span>
+            )}
+          </button>
+          <span className="font-bold tracking-tight text-slate-800 text-lg sm:text-xl flex items-center gap-1.5 truncate">
+            SyqueX <span className="text-cyan-500 font-normal text-xs sm:text-sm opacity-80 font-mono flex-shrink-0">v1.2</span>
+          </span>
+        </div>
+
+        {/* Right side: patient name or create form */}
+        <div className="flex items-center gap-2 min-w-0">
           {isCreatingPatient ? (
-            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="flex items-center gap-1.5">
               <input
                 autoFocus
                 type="text"
-                placeholder="Nombre del paciente..."
-                className="bg-[#111e38] border border-cyan-800/50 rounded-full px-4 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 transition-all w-48 sm:w-64"
+                placeholder="Nombre..."
+                className="bg-slate-50 border border-cyan-400/60 rounded-full px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-cyan-500 transition-all w-32 sm:w-52"
                 value={newPatientName}
                 onChange={(e) => setNewPatientName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSavePatient()}
               />
-              <button
-                onClick={handleSavePatient}
-                className="text-cyan-400 hover:text-cyan-300 font-bold p-1"
-                title="Guardar"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+              <button onClick={handleSavePatient} className="text-cyan-500 hover:text-cyan-400 p-1.5 flex-shrink-0" title="Guardar">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
               </button>
-              <button
-                onClick={() => setIsCreatingPatient(false)}
-                className="text-slate-500 hover:text-slate-400 font-bold p-1"
-                title="Cancelar"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+              <button onClick={() => { setIsCreatingPatient(false); setNewPatientName(""); }} className="text-slate-400 hover:text-slate-500 p-1.5 flex-shrink-0" title="Cancelar">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
           ) : (
-            <>
-              <div className="flex items-center gap-2 bg-[#111e38] border border-slate-700/50 rounded-full px-4 py-1.5 shadow-inner transition-all hover:border-slate-600">
-                <label className="text-[11px] uppercase tracking-widest text-slate-500 font-bold">Paciente:</label>
-                <select
-                  value={selectedPatientId}
-                  onChange={(e) => handlePatientChange(e.target.value)}
-                  className="bg-transparent text-cyan-400 text-sm font-medium focus:outline-none cursor-pointer appearance-none hover:text-cyan-300 transition-colors pr-2"
-                >
-                  {patients.map(p => (
-                    <option key={p.id} value={p.id} className="bg-[#0a1122] text-slate-200">{p.name}</option>
-                  ))}
-                </select>
-                <svg className="w-3 h-3 text-slate-600 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
-              </div>
-
+            <div className="flex items-center gap-2 min-w-0">
+              {selectedPatientName && (
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm min-w-0 max-w-[140px] sm:max-w-[220px]">
+                  <span className="hidden sm:inline text-[11px] uppercase tracking-widest text-slate-400 font-bold flex-shrink-0">Paciente:</span>
+                  <span className="text-cyan-500 text-sm font-medium truncate">{selectedPatientName}</span>
+                </div>
+              )}
               <button
                 onClick={() => setIsCreatingPatient(true)}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-cyan-950/40 border border-cyan-800/40 text-cyan-400 hover:bg-cyan-800/60 transition-all shadow-lg shadow-cyan-900/10 active:scale-95"
+                className="w-8 h-8 sm:w-9 sm:h-9 flex-shrink-0 flex items-center justify-center rounded-full bg-cyan-50 border border-cyan-200 text-cyan-500 hover:bg-cyan-100 transition-all shadow-sm active:scale-95"
                 title="Nuevo Paciente"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"></path></svg>
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
               </button>
-            </>
+            </div>
           )}
         </div>
       </header>
 
-      {/* Feed Chat Principal */}
+      {/* Chat */}
       <main className="flex-1 flex flex-col relative bg-transparent min-h-0">
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto w-full max-w-5xl mx-auto p-4 md:p-6 space-y-7 z-10 will-change-scroll pb-10">
-
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
-
-              {/* User Bubble (Mobile iMessage style) */}
-              {msg.role === 'user' && (
-                <div className="max-w-[90%] md:max-w-[85%] bg-cyan-900/40 border border-cyan-800/60 text-slate-100 rounded-3xl rounded-br-md px-5 py-3 shadow-[0_2px_10px_rgba(6,182,212,0.05)] text-[15px] leading-relaxed backdrop-blur-sm">
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
-                </div>
-              )}
-
-              {/* AI Bubble (Claude Style) */}
-              {msg.role === 'assistant' && (
-                <div className="max-w-[100%] md:max-w-[95%] flex gap-3 md:gap-4 w-full">
-                  <div className="flex-1 min-w-0">
-
-                    {msg.type === 'welcome' && (
-                      <div className="text-slate-200 font-sans text-[15.5px] leading-relaxed pt-1.5 whitespace-pre-wrap">
-                        {msg.text}
-                        <span className="inline-block w-2h-2 h-2 bg-cyan-500 rounded-full animate-pulse ml-2 mb-0.5"></span>
-                      </div>
-                    )}
-
-                    {msg.type === 'loading' && (
-                      <div className="text-slate-400 py-2 flex items-center gap-2 mt-1">
-                        <span className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce"></span>
-                        <span className="w-2 h-2 bg-cyan-500/70 rounded-full animate-bounce delay-75"></span>
-                        <span className="w-2 h-2 bg-cyan-500/40 rounded-full animate-bounce delay-150"></span>
-                      </div>
-                    )}
-
-                    {msg.type === 'error' && (
-                      <div className="bg-red-950/20 border border-red-900/40 text-red-300 rounded-xl p-3 mt-1 text-sm inline-block">
-                        <strong className="text-red-400">Error detectado:</strong> {msg.text}
-                      </div>
-                    )}
-
-                    {msg.type === 'bot' && (
-                      <div className="w-full">
-                        <div className="text-slate-200 font-sans text-[15.5px] leading-relaxed pt-1.5 whitespace-pre-wrap">
-                          {msg.text}
-                        </div>
-                        <div className="flex gap-2 pt-4 mt-4 border-t border-slate-800/80">
-                          <button
-                            onClick={() => {
-                              const blob = new Blob([msg.text], { type: 'text/plain' });
-                              const url = URL.createObjectURL(blob);
-                              const link = document.createElement('a');
-                              link.href = url;
-                              link.download = `SyqueX_Nota_${new Date().toISOString().split('T')[0]}.txt`;
-                              link.click();
-                              URL.revokeObjectURL(url);
-                            }}
-                            className="text-[13px] font-medium bg-[#111e38] hover:bg-[#1a2d52] text-slate-300 py-1.5 px-4 rounded-lg flex items-center gap-2 transition-colors border border-cyan-800/40 shadow-sm"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                            Descargar en .TXT
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+        {/* Empty state — no conversation selected */}
+        {!hasActivePatient && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-8">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+              <svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
             </div>
-          ))}
-
-        </div>
-
-        {/* Zona Inferior Flotante - ChatInput area */}
-        <div className="p-3 pb-6 bg-gradient-to-t from-[#060d1a] via-[#060d1a] to-transparent z-20 w-full relative">
-          <div className="max-w-5xl mx-auto relative px-2 md:px-0">
-            <ChatInput onSend={handleSendDictation} loading={isLoading} />
-            <div className="text-center mt-3 text-[10px] text-slate-500 font-sans tracking-wide">
-              SyqueX Clinical AI puede cometer errores. El contenido debe ser revisado por el profesional.
+            <div>
+              <p className="text-slate-500 text-sm font-medium">No hay conversación activa</p>
+              <p className="text-slate-400 text-xs mt-1">Selecciona una conversación de la bandeja o crea un nuevo paciente</p>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Message feed */}
+        {hasActivePatient && (
+          <div ref={scrollRef} className="flex-1 overflow-y-auto w-full max-w-5xl mx-auto p-3 sm:p-4 md:p-6 space-y-5 sm:space-y-7 z-10 will-change-scroll pb-10">
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+
+                {msg.role === 'user' && (
+                  <div className="max-w-[90%] md:max-w-[85%] bg-cyan-500 text-white rounded-3xl rounded-br-md px-5 py-3 shadow-sm text-[15px] leading-relaxed">
+                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                  </div>
+                )}
+
+                {msg.role === 'assistant' && (
+                  <div className="max-w-[100%] md:max-w-[95%] flex w-full">
+                    <div className="flex-1 min-w-0">
+
+                      {msg.type === 'welcome' && (
+                        <div className="text-slate-600 font-sans text-[15.5px] leading-relaxed pt-1.5 whitespace-pre-wrap">
+                          {msg.text}
+                          <span className="inline-block w-2 h-2 bg-cyan-500 rounded-full animate-pulse ml-2 mb-0.5"></span>
+                        </div>
+                      )}
+
+                      {msg.type === 'loading' && (
+                        <div className="py-2 flex items-center gap-2 mt-1 ml-1">
+                          <span className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce"></span>
+                          <span className="w-2 h-2 bg-cyan-500/70 rounded-full animate-bounce delay-75"></span>
+                          <span className="w-2 h-2 bg-cyan-500/40 rounded-full animate-bounce delay-150"></span>
+                        </div>
+                      )}
+
+                      {msg.type === 'error' && (
+                        <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 mt-1 text-sm inline-block">
+                          <strong className="text-red-500">Error detectado:</strong> {msg.text}
+                        </div>
+                      )}
+
+                      {msg.type === 'bot' && (
+                        <div className="w-full">
+                          <div className="text-slate-700 font-sans text-[15.5px] leading-relaxed pt-1.5 whitespace-pre-wrap">
+                            {msg.text}
+                          </div>
+                          <div className="flex gap-2 pt-4 mt-4 border-t border-slate-200">
+                            <button
+                              onClick={() => {
+                                const blob = new Blob([msg.text], { type: 'text/plain' });
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = `SyqueX_Nota_${new Date().toISOString().split('T')[0]}.txt`;
+                                link.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                              className="text-[13px] font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 py-1.5 px-4 rounded-lg flex items-center gap-2 transition-colors border border-slate-200 shadow-sm"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                              Descargar en .TXT
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Input area — only when patient is active */}
+        {hasActivePatient && (
+          <div className="p-2 sm:p-3 pb-5 sm:pb-6 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent z-20 w-full relative">
+            <div className="max-w-5xl mx-auto relative px-1 sm:px-2 md:px-0">
+              <ChatInput onSend={handleSendDictation} loading={isLoading} />
+              <div className="text-center mt-3 text-[10px] text-slate-400 font-sans tracking-wide">
+                SyqueX Clinical AI puede cometer errores. El contenido debe ser revisado por el profesional.
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
     </div>

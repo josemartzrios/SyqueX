@@ -3,6 +3,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from database import ClinicalNote, Session, PatientProfile
+from .embeddings import get_embedding
 
 # Anthropic Tools JSON Schemas
 AGENT_TOOLS = [
@@ -82,19 +83,17 @@ AGENT_TOOLS = [
 
 # Implementations (mocked to logic expected by agent flow, but database logic works where specified)
 async def create_or_update_clinical_note(db: AsyncSession, **kwargs):
-    # En phase 3 y 4 esto se usa para devolver el JSON al frontend 
-    # y en el POST /confirm se guarda realmente. 
+    # En phase 3 y 4 esto se usa para devolver el JSON al frontend
+    # y en el POST /confirm se guarda realmente.
     # Por ahora actua devolviendo status ok.
     return {"note_id": kwargs["session_id"], "status": "staged"}
 
-from embeddings import get_embedding
-
 async def search_patient_history(db: AsyncSession, patient_id: str, query: str, limit: int = 5, date_from: str = None):
     query_embedding = await get_embedding(query)
-    
+
     # Query using pgvector cosine similarity (<=>)
     stmt = text("""
-        SELECT s.session_number, s.session_date, cn.assessment, 
+        SELECT s.session_number, s.session_date, cn.assessment,
                1 - (cn.embedding <=> :embedding::vector) as relevance_score
         FROM clinical_notes cn
         JOIN sessions s ON cn.session_id = s.id
@@ -103,11 +102,11 @@ async def search_patient_history(db: AsyncSession, patient_id: str, query: str, 
         LIMIT :limit
     """)
     result = await db.execute(stmt, {
-        "embedding": str(query_embedding), 
-        "patient_id": patient_id, 
+        "embedding": str(query_embedding),
+        "patient_id": patient_id,
         "limit": limit
     })
-    
+
     docs = []
     for row in result:
         docs.append({
@@ -119,9 +118,6 @@ async def search_patient_history(db: AsyncSession, patient_id: str, query: str, 
     return docs
 
 async def detect_patterns_between_sessions(db: AsyncSession, patient_id: str, new_session_text: str, last_n_sessions: int = 6):
-    # Recupera las ultimas sesiones
-    # En la implementacion real llamaría a un minimodelo o el agente lo genera localmente.
-    # Dado que es un sub-tool para proporcionar contexto, enviaremos los datos para que el agente infiera.
     stmt = text("""
         SELECT s.session_number, s.session_date, cn.subjective, cn.assessment
         FROM clinical_notes cn
@@ -132,7 +128,7 @@ async def detect_patterns_between_sessions(db: AsyncSession, patient_id: str, ne
     """)
     result = await db.execute(stmt, {"patient_id": patient_id, "limit": last_n_sessions})
     history = "\n".join([f"Session {row[0]} ({row[1]}): {row[2][:100]}..." for row in result])
-    
+
     # Fake pattern processing for the MVP structure
     return {
         "patterns": ["Menciona recurrentemente problemas con figura materna"],
