@@ -5,42 +5,53 @@ export default function ChatInput({ onSend, loading }) {
 
   const handleProcess = () => {
     if (!dictation.trim() || loading) return;
-    onSend(dictation, "SOAP"); // Formato por defecto para el MVP austero
+    onSend(dictation, "SOAP");
     setDictation('');
   };
 
   const handleKeyDown = (e) => {
-    // Mandar con Enter, pero permitir salto de línea con Shift + Enter
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleProcess();
     }
   };
 
+  const wordCount = dictation.trim() ? dictation.trim().split(/\s+/).length : 0;
+
   return (
-    <div className="bg-white border border-slate-200 rounded-3xl px-4 py-2 flex flex-col gap-2 shadow-md relative overflow-hidden transition-all focus-within:border-cyan-400/60 focus-within:shadow-cyan-100">
-
-      <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent"></div>
-
-      <div className="flex items-center gap-3">
+    <div className={`bg-white border rounded-2xl px-4 py-3 flex flex-col gap-2 transition-all
+      ${loading
+        ? 'border-ink/[0.07]'
+        : 'border-ink/[0.10] focus-within:border-sage/50 focus-within:shadow-sm focus-within:shadow-sage/10'
+      }`}
+    >
+      <div className="flex items-start gap-3">
         <textarea
-          className="flex-1 bg-transparent text-slate-800 placeholder-slate-400 font-sans text-[16px] sm:text-[15px] focus:outline-none resize-none max-h-36 sm:max-h-48 overflow-y-auto py-2"
-          placeholder="Escribe tu mensaje a SyqueX..."
+          className="flex-1 bg-transparent text-ink placeholder-ink-tertiary font-sans text-[14px] leading-relaxed focus:outline-none resize-none max-h-40 overflow-y-auto pt-0.5"
+          placeholder="Dictar nota de sesión... (Enter para enviar)"
           value={dictation}
           onChange={(e) => setDictation(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={loading}
-          rows={Math.min(5, Math.max(1, dictation.split('\n').length))}
+          rows={Math.min(5, Math.max(2, dictation.split('\n').length))}
         />
-        
-        <button 
+        <button
           onClick={handleProcess}
           disabled={loading || !dictation.trim()}
-          className="bg-cyan-500 hover:bg-cyan-400 text-white p-2 rounded-full flex-shrink-0 transition-all disabled:opacity-30 active:scale-95"
+          className="bg-sage hover:bg-sage-dark text-white p-2 rounded-xl flex-shrink-0 transition-all disabled:opacity-25 active:scale-95 mt-0.5"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+          </svg>
         </button>
       </div>
+
+      {wordCount > 0 && (
+        <div className="flex items-center justify-between text-[10px] text-ink-muted border-t border-ink/[0.05] pt-2">
+          <span>{wordCount} {wordCount === 1 ? 'palabra' : 'palabras'}</span>
+          <span>Shift+Enter para nueva línea</span>
+        </div>
+      )}
     </div>
-  )
+  );
 }

@@ -3,6 +3,110 @@ import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
 import { processSession, createPatient, getPatientSessions, listConversations, archiveSession } from './api'
 
+// ── Clinical note renderer ───────────────────────────────────────────────────
+function ClinicalNote({ text }) {
+  const lines = text.split('\n');
+  const result = [];
+
+  lines.forEach((line, i) => {
+    // SOAP section header: **S —, **O —, **A —, **P —
+    const soapMatch = line.match(/^\*\*(S|O|A|P)\s*[—–\-]/i) ||
+                      line.match(/^##\s*(S|O|A|P)\s*[—–\-]/i);
+    if (soapMatch) {
+      const clean = line.replace(/^\*\*/, '').replace(/\*\*$/, '').replace(/^#+\s*/, '');
+      result.push(
+        <div key={i} className={`${result.length > 0 ? 'mt-5' : ''} mb-2`}>
+          <span className="text-[10px] font-bold text-sage tracking-[0.14em] uppercase">{clean}</span>
+          <div className="h-px bg-sage/20 mt-1.5" />
+        </div>
+      );
+      return;
+    }
+
+    // Bold full line = subheader
+    if (/^\*\*[^*]+\*\*\s*$/.test(line)) {
+      const clean = line.replace(/\*\*/g, '').trim();
+      result.push(
+        <p key={i} className="font-semibold text-ink text-[13px] mt-4 mb-1 leading-snug">{clean}</p>
+      );
+      return;
+    }
+
+    // Empty line
+    if (!line.trim()) {
+      result.push(<div key={i} className="h-1.5" />);
+      return;
+    }
+
+    // Regular line — render inline **bold**
+    const parts = line.split(/\*\*([^*]+)\*\*/);
+    result.push(
+      <p key={i} className="text-ink-secondary text-[14px] leading-relaxed">
+        {parts.map((part, j) =>
+          j % 2 === 1
+            ? <strong key={j} className="font-medium text-ink">{part}</strong>
+            : part
+        )}
+      </p>
+    );
+  });
+
+  return <div>{result}</div>;
+}
+
+// ── Desktop conversation item ────────────────────────────────────────────────
+function DesktopConvItem({ conv, active, onClick, onDelete }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (confirmDelete) {
+      onDelete();
+    } else {
+      setConfirmDelete(true);
+      setTimeout(() => setConfirmDelete(false), 3000);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClick}
+      className={`group px-3 py-2.5 mx-2 mb-0.5 rounded-xl cursor-pointer transition-colors relative
+        ${active ? 'bg-sage-light' : 'hover:bg-parchment-dark/70'}`}
+    >
+      <div className="pr-6">
+        <p className={`text-[13px] font-medium truncate leading-snug ${active ? 'text-ink' : 'text-ink-secondary'}`}>
+          {conv.patient_name}
+        </p>
+        <p className="text-[11px] text-ink-tertiary mt-0.5">
+          Sesión #{conv.session_number} · {formatDate(conv.session_date)}
+        </p>
+        {conv.dictation_preview && (
+          <p className="text-[11px] text-ink-muted mt-0.5 line-clamp-1">{conv.dictation_preview}</p>
+        )}
+      </div>
+      <button
+        onClick={handleDelete}
+        title={confirmDelete ? 'Confirmar' : 'Archivar'}
+        className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md transition-all opacity-0 group-hover:opacity-100
+          ${confirmDelete ? 'bg-red-50 text-red-400 !opacity-100' : 'text-ink-muted hover:text-red-400 hover:bg-red-50'}`}
+      >
+        {confirmDelete
+          ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+          : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+        }
+      </button>
+    </div>
+  );
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('es', { day: '2-digit', month: 'short' });
+}
+
+// ── App ──────────────────────────────────────────────────────────────────────
 function App() {
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [messages, setMessages] = useState([]);
@@ -26,16 +130,10 @@ function App() {
   const loadPatientChat = (patientId, patientName, history = []) => {
     setSelectedPatientId(patientId);
     setSelectedPatientName(patientName);
-
     if (history.length === 0) {
-      setMessages([{
-        role: 'assistant',
-        type: 'welcome',
-        text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?`
-      }]);
+      setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?` }]);
       return;
     }
-
     const historyMessages = [];
     history.forEach(session => {
       if (session.raw_dictation) historyMessages.push({ role: 'user', text: session.raw_dictation });
@@ -75,14 +173,10 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    fetchConversations();
-  }, []);
+  useEffect(() => { fetchConversations(); }, []);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
   const handleSendDictation = async (dictation, format) => {
@@ -91,17 +185,11 @@ function App() {
       { role: 'user', text: dictation },
       { role: 'assistant', type: 'loading' }
     ]);
-
     try {
       const noteData = await processSession(selectedPatientId, dictation, format);
       setMessages(prev => [
         ...prev.slice(0, -1),
-        {
-          role: 'assistant',
-          type: 'bot',
-          text: noteData.text_fallback || "Sin respuesta recibida.",
-          sessionId: noteData.session_id,
-        }
+        { role: 'assistant', type: 'bot', text: noteData.text_fallback || "Sin respuesta recibida.", sessionId: noteData.session_id }
       ]);
       fetchConversations();
     } catch (err) {
@@ -116,23 +204,23 @@ function App() {
   const hasActivePatient = !!selectedPatientId;
 
   return (
-    <div className="h-screen bg-slate-50 text-slate-800 font-sans flex flex-col overflow-hidden selection:bg-cyan-500/30">
+    <div className="h-screen bg-parchment font-sans flex flex-col overflow-hidden">
 
-      {/* Demo disclaimer modal */}
+      {/* Disclaimer modal */}
       {showDisclaimer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-sm w-full p-8 flex flex-col gap-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm px-4">
+          <div className="bg-white border border-ink/[0.08] rounded-2xl shadow-xl max-w-sm w-full p-8 flex flex-col gap-5">
             <div className="flex flex-col gap-1">
-              <span className="text-[11px] uppercase tracking-widest text-cyan-500 font-bold">Versión demo</span>
-              <h2 className="text-slate-800 text-lg font-bold leading-snug">Esta es una versión demo de SyqueX</h2>
+              <span className="text-[10px] uppercase tracking-[0.15em] text-sage font-bold">Versión demo</span>
+              <h2 className="text-ink text-lg font-semibold leading-snug">Esta es una versión demo de SyqueX</h2>
             </div>
-            <div className="text-slate-600 text-sm leading-relaxed flex flex-col gap-3">
+            <div className="text-ink-secondary text-sm leading-relaxed flex flex-col gap-3">
               <p>Todos los pacientes y datos mostrados son ficticios y generados para fines de demostración únicamente.</p>
-              <p className="font-medium text-slate-700">No introduzcas datos reales de pacientes en esta versión.</p>
+              <p className="font-medium text-ink">No introduzcas datos reales de pacientes en esta versión.</p>
             </div>
             <button
               onClick={() => setShowDisclaimer(false)}
-              className="mt-1 w-full bg-cyan-500 hover:bg-cyan-400 active:scale-95 transition-all text-white font-semibold rounded-xl py-3 text-sm shadow-sm"
+              className="mt-1 w-full bg-sage hover:bg-sage-dark active:scale-[0.98] transition-all text-white font-medium rounded-xl py-3 text-sm"
             >
               Entendido, continuar al demo
             </button>
@@ -140,6 +228,7 @@ function App() {
         </div>
       )}
 
+      {/* Mobile slide-over sidebar */}
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -148,168 +237,214 @@ function App() {
         onDeleteConversation={handleDeleteConversation}
       />
 
-      {/* Header */}
-      <header className="px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-200 bg-white/95 backdrop-blur z-20 flex items-center justify-between gap-2 sm:gap-4 shadow-sm min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors relative flex-shrink-0"
-            title="Bandeja de conversaciones"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-            {conversations.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-cyan-500 rounded-full"></span>
-            )}
-          </button>
-          <span className="font-bold tracking-tight text-slate-800 text-lg sm:text-xl flex items-center gap-1.5 truncate">
-            SyqueX <span className="text-cyan-500 font-normal text-xs sm:text-sm opacity-80 font-mono flex-shrink-0">v1.2</span>
-          </span>
-        </div>
+      {/* Main layout */}
+      <div className="flex-1 flex overflow-hidden">
 
-        {/* Right side: patient name or create form */}
-        <div className="flex items-center gap-2 min-w-0">
-          {isCreatingPatient ? (
-            <div className="flex items-center gap-1.5">
-              <input
-                autoFocus
-                type="text"
-                placeholder="Nombre..."
-                className="bg-slate-50 border border-cyan-400/60 rounded-full px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-cyan-500 transition-all w-32 sm:w-52"
-                value={newPatientName}
-                onChange={(e) => setNewPatientName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSavePatient()}
-              />
-              <button onClick={handleSavePatient} className="text-cyan-500 hover:text-cyan-400 p-1.5 flex-shrink-0" title="Guardar">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-              </button>
-              <button onClick={() => { setIsCreatingPatient(false); setNewPatientName(""); }} className="text-slate-400 hover:text-slate-500 p-1.5 flex-shrink-0" title="Cancelar">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-          ) : (
+        {/* Desktop persistent left panel */}
+        <aside className="hidden md:flex w-60 flex-col border-r border-ink/[0.07] bg-white/40 flex-shrink-0">
+          <div className="px-4 py-4 border-b border-ink/[0.07] flex items-center justify-between flex-shrink-0">
+            <span className="font-semibold text-ink text-[15px] tracking-tight">SyqueX</span>
+            <span className="text-[10px] text-ink-tertiary font-mono">v1.2</span>
+          </div>
+          <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-tertiary font-bold">Sesiones</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {conversations.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-ink-tertiary text-[13px]">Sin sesiones aún.</p>
+                <p className="text-ink-muted text-xs mt-1">Crea un paciente para comenzar.</p>
+              </div>
+            ) : (
+              conversations.map(conv => (
+                <DesktopConvItem
+                  key={conv.id}
+                  conv={conv}
+                  active={conv.patient_id === selectedPatientId}
+                  onClick={() => handleSelectConversation(conv)}
+                  onDelete={() => handleDeleteConversation(conv.id)}
+                />
+              ))
+            )}
+          </div>
+        </aside>
+
+        {/* Right workspace */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+          {/* Top bar */}
+          <header className="px-3 sm:px-5 py-3 border-b border-ink/[0.07] bg-white/60 backdrop-blur z-20 flex items-center justify-between gap-3 flex-shrink-0">
             <div className="flex items-center gap-2 min-w-0">
+              {/* Mobile menu */}
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden p-2 rounded-lg text-ink-secondary hover:text-ink hover:bg-ink/[0.05] transition-colors flex-shrink-0"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              {/* Logo — mobile only */}
+              <span className="md:hidden font-semibold text-ink text-[15px] tracking-tight">SyqueX</span>
+              {/* Patient breadcrumb — desktop */}
               {selectedPatientName && (
-                <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm min-w-0 max-w-[140px] sm:max-w-[220px]">
-                  <span className="hidden sm:inline text-[11px] uppercase tracking-widest text-slate-400 font-bold flex-shrink-0">Paciente:</span>
-                  <span className="text-cyan-500 text-sm font-medium truncate">{selectedPatientName}</span>
+                <div className="hidden md:flex items-center gap-2">
+                  <span className="text-ink-muted text-[13px]">/</span>
+                  <span className="text-ink text-[14px] font-medium">{selectedPatientName}</span>
                 </div>
               )}
-              <button
-                onClick={() => setIsCreatingPatient(true)}
-                className="w-8 h-8 sm:w-9 sm:h-9 flex-shrink-0 flex items-center justify-center rounded-full bg-cyan-50 border border-cyan-200 text-cyan-500 hover:bg-cyan-100 transition-all shadow-sm active:scale-95"
-                title="Nuevo Paciente"
-              >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
-              </button>
             </div>
-          )}
-        </div>
-      </header>
 
-      {/* Chat */}
-      <main className="flex-1 flex flex-col relative bg-transparent min-h-0">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Mobile patient badge */}
+              {selectedPatientName && (
+                <div className="md:hidden flex items-center gap-1.5 bg-parchment-dark border border-ink/[0.08] rounded-full px-3 py-1.5 min-w-0 max-w-[140px]">
+                  <span className="text-ink-secondary text-[12px] font-medium truncate">{selectedPatientName}</span>
+                </div>
+              )}
 
-        {/* Empty state — no conversation selected */}
-        {!hasActivePatient && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-8">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
-              <svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
+              {isCreatingPatient ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Nombre del paciente..."
+                    className="bg-parchment border border-ink/[0.15] rounded-full px-3 py-1.5 text-sm text-ink placeholder-ink-tertiary focus:outline-none focus:border-sage/60 transition-all w-36 sm:w-52"
+                    value={newPatientName}
+                    onChange={(e) => setNewPatientName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSavePatient()}
+                  />
+                  <button onClick={handleSavePatient} className="text-sage hover:text-sage-dark p-1.5 flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                  </button>
+                  <button onClick={() => { setIsCreatingPatient(false); setNewPatientName(""); }} className="text-ink-tertiary hover:text-ink-secondary p-1.5 flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsCreatingPatient(true)}
+                  className="flex items-center gap-1.5 text-sage hover:text-sage-dark border border-sage/30 hover:border-sage/60 bg-sage-light/50 hover:bg-sage-light rounded-full px-3 py-1.5 transition-all text-[13px] font-medium flex-shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+                  <span className="hidden sm:inline">Nuevo paciente</span>
+                </button>
+              )}
             </div>
-            <div>
-              <p className="text-slate-500 text-sm font-medium">No hay conversación activa</p>
-              <p className="text-slate-400 text-xs mt-1">Selecciona una conversación de la bandeja o crea un nuevo paciente</p>
-            </div>
-          </div>
-        )}
+          </header>
 
-        {/* Message feed */}
-        {hasActivePatient && (
-          <div ref={scrollRef} className="flex-1 overflow-y-auto w-full max-w-3xl mx-auto p-3 sm:p-4 md:p-6 space-y-5 sm:space-y-7 z-10 will-change-scroll pb-10">
-            {messages.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+          {/* Workspace */}
+          <main className="flex-1 flex flex-col relative min-h-0 overflow-hidden">
 
-                {msg.role === 'user' && (
-                  <div className="max-w-[90%] md:max-w-[85%] bg-cyan-500 text-white rounded-3xl rounded-br-md px-5 py-3 shadow-sm text-[15px] leading-relaxed">
-                    <p className="whitespace-pre-wrap">{msg.text}</p>
-                  </div>
-                )}
+            {/* Empty state */}
+            {!hasActivePatient && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
+                <div className="w-14 h-14 rounded-2xl bg-parchment-dark border border-ink/[0.07] flex items-center justify-center">
+                  <svg className="w-7 h-7 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-ink-secondary text-sm font-medium">Sin expediente activo</p>
+                  <p className="text-ink-tertiary text-xs mt-1">Selecciona una sesión o crea un nuevo paciente para comenzar</p>
+                </div>
+              </div>
+            )}
 
-                {msg.role === 'assistant' && (
-                  <div className="max-w-[100%] md:max-w-[95%] flex w-full">
-                    <div className="flex-1 min-w-0">
+            {/* Message feed */}
+            {hasActivePatient && (
+              <div ref={scrollRef} className="flex-1 overflow-y-auto w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-7 pb-10">
+                {messages.map((msg, idx) => (
+                  <div key={idx} className="w-full">
 
-                      {msg.type === 'welcome' && (
-                        <div className="text-slate-600 font-sans text-[15.5px] leading-relaxed pt-1.5 whitespace-pre-wrap">
-                          {msg.text}
-                          <span className="inline-block w-2 h-2 bg-cyan-500 rounded-full animate-pulse ml-2 mb-0.5"></span>
+                    {msg.role === 'user' && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2.5">
+                          <span className="text-[10px] uppercase tracking-[0.13em] text-ink-tertiary font-bold">Dictado</span>
+                          <div className="flex-1 h-px bg-ink/[0.06]" />
                         </div>
-                      )}
+                        <p className="text-ink-secondary text-[14px] leading-relaxed pl-3 border-l-2 border-parchment-dark whitespace-pre-wrap">{msg.text}</p>
+                      </div>
+                    )}
 
-                      {msg.type === 'loading' && (
-                        <div className="py-2 flex items-center gap-2 mt-1 ml-1">
-                          <span className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce"></span>
-                          <span className="w-2 h-2 bg-cyan-500/70 rounded-full animate-bounce delay-75"></span>
-                          <span className="w-2 h-2 bg-cyan-500/40 rounded-full animate-bounce delay-150"></span>
-                        </div>
-                      )}
-
-                      {msg.type === 'error' && (
-                        <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 mt-1 text-sm inline-block">
-                          <strong className="text-red-500">Error detectado:</strong> {msg.text}
-                        </div>
-                      )}
-
-                      {msg.type === 'bot' && (
-                        <div className="w-full">
-                          <div className="text-slate-700 font-sans text-[15.5px] leading-relaxed pt-1.5 whitespace-pre-wrap">
+                    {msg.role === 'assistant' && (
+                      <div>
+                        {msg.type === 'welcome' && (
+                          <p className="text-ink-secondary text-[15px] leading-relaxed">
                             {msg.text}
+                            <span className="inline-block w-1.5 h-1.5 bg-sage rounded-full animate-pulse ml-2 mb-0.5 align-middle"></span>
+                          </p>
+                        )}
+
+                        {msg.type === 'loading' && (
+                          <div className="flex items-center gap-1.5 py-2">
+                            <span className="w-1.5 h-1.5 bg-sage rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                            <span className="w-1.5 h-1.5 bg-sage/70 rounded-full animate-bounce" style={{ animationDelay: '120ms' }}></span>
+                            <span className="w-1.5 h-1.5 bg-sage/40 rounded-full animate-bounce" style={{ animationDelay: '240ms' }}></span>
                           </div>
-                          <div className="flex gap-2 pt-4 mt-4 border-t border-slate-200">
-                            <button
-                              onClick={() => {
-                                const blob = new Blob([msg.text], { type: 'text/plain' });
-                                const url = URL.createObjectURL(blob);
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = `SyqueX_Nota_${new Date().toISOString().split('T')[0]}.txt`;
-                                link.click();
-                                URL.revokeObjectURL(url);
-                              }}
-                              className="text-[13px] font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 py-1.5 px-4 rounded-lg flex items-center gap-2 transition-colors border border-slate-200 shadow-sm"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                              Descargar en .TXT
-                            </button>
+                        )}
+
+                        {msg.type === 'error' && (
+                          <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                            <strong className="font-medium">Error:</strong> {msg.text}
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        )}
+
+                        {msg.type === 'bot' && (
+                          <div className="w-full">
+                            {/* Clinical note document */}
+                            <div className="bg-white border border-ink/[0.07] rounded-2xl p-5 sm:p-6">
+                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-ink/[0.06]">
+                                <span className="text-[10px] uppercase tracking-[0.14em] text-sage font-bold">Nota Clínica · SOAP</span>
+                                <span className="text-[11px] text-ink-tertiary font-mono">
+                                  {new Date().toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </span>
+                              </div>
+                              <ClinicalNote text={msg.text} />
+                            </div>
+                            {/* Actions */}
+                            <div className="flex gap-2 mt-3 pl-1">
+                              <button
+                                onClick={() => {
+                                  const blob = new Blob([msg.text], { type: 'text/plain' });
+                                  const url = URL.createObjectURL(blob);
+                                  const link = document.createElement('a');
+                                  link.href = url;
+                                  link.download = `SyqueX_Nota_${new Date().toISOString().split('T')[0]}.txt`;
+                                  link.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                                className="text-[12px] font-medium text-ink-secondary hover:text-ink border border-ink/[0.10] hover:border-ink/20 bg-parchment hover:bg-parchment-dark py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                Descargar .TXT
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {/* Input area — only when patient is active */}
-        {hasActivePatient && (
-          <div className="p-2 sm:p-3 pb-5 sm:pb-6 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent z-20 w-full relative">
-            <div className="max-w-3xl mx-auto relative px-1 sm:px-2 md:px-0">
-              <ChatInput onSend={handleSendDictation} loading={isLoading} />
-              <div className="text-center mt-3 text-[10px] text-slate-400 font-sans tracking-wide">
-                SyqueX Clinical AI puede cometer errores. El contenido debe ser revisado por el profesional.
+            {/* Dictation input */}
+            {hasActivePatient && (
+              <div className="px-3 sm:px-6 pb-5 sm:pb-6 pt-2 bg-gradient-to-t from-parchment via-parchment/95 to-transparent z-20 flex-shrink-0">
+                <div className="max-w-2xl mx-auto">
+                  <ChatInput onSend={handleSendDictation} loading={isLoading} />
+                  <p className="text-center mt-3 text-[10px] text-ink-muted tracking-wide">
+                    SyqueX Clinical AI puede cometer errores. El contenido debe ser revisado por el profesional.
+                  </p>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
-      </main>
-
+            )}
+          </main>
+        </div>
+      </div>
     </div>
-  )
+  );
 }
 
 export default App
