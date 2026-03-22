@@ -1,9 +1,9 @@
 import re
 import logging
-from anthropic import AsyncAnthropic
-from fastapi import HTTPException
+from anthropic import AsyncAnthropic, APIStatusError, APIConnectionError, APITimeoutError
 from sqlalchemy import select
 from config import settings, ClinicalNoteConfig
+from exceptions import DictationTooLongError, PromptInjectionError, LLMServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +27,9 @@ def _sanitizar_dictado(texto: str) -> str:
     """Valida que el dictado no contenga intentos de prompt injection."""
     if _INJECTION_RE.search(texto):
         logger.warning("Prompt injection attempt detected in dictation input")
-        raise HTTPException(
-            status_code=400,
-            detail="El dictado contiene contenido no válido para procesamiento clínico.",
+        raise PromptInjectionError(
+            "El dictado contiene contenido no válido para procesamiento clínico.",
+            code="PROMPT_INJECTION",
         )
     return texto[:settings.MAX_DICTATION_LENGTH].strip()
 
@@ -184,7 +184,11 @@ async def update_patient_profile_summary(db, patient_id: str, session_note: dict
 
 async def process_session(db, patient_id: str, raw_dictation: str, session_id: str, format_: str = "SOAP") -> dict:
     if len(raw_dictation) > ClinicalNoteConfig.MAX_DICTATION_LENGTH:
-        raise ValueError("Dictation exceeds maximum allowed length.")
+        raise DictationTooLongError(
+            f"El dictado excede el límite de {ClinicalNoteConfig.MAX_DICTATION_LENGTH} caracteres.",
+            code="DICTATION_TOO_LONG",
+            details={"max_length": ClinicalNoteConfig.MAX_DICTATION_LENGTH, "received": len(raw_dictation)},
+        )
 
     # Sanitizar contra prompt injection antes de enviar al LLM
     dictado_seguro = _sanitizar_dictado(raw_dictation)
@@ -215,10 +219,34 @@ async def process_session(db, patient_id: str, raw_dictation: str, session_id: s
 
         return {"text_fallback": reply_text, "session_messages": session_messages}
 
-    except HTTPException:
+    except (DictationTooLongError, PromptInjectionError):
         raise
+    except APIStatusError as e:
+        if e.status_code in (401, 403):
+            logger.error("Anthropic auth error (status %s): %s", e.status_code, e.message)
+            raise LLMServiceError(
+                "Error de autenticación con el servicio de IA. Contacta al administrador.",
+                code="LLM_AUTH_ERROR",
+            ) from e
+        if e.status_code == 429:
+            logger.warning("Anthropic rate limit reached: %s", e.message)
+            return {
+                "text_fallback": "El servicio de IA está temporalmente ocupado. Intenta en unos momentos.",
+                "session_messages": [{"role": "user", "content": dictado_seguro}],
+            }
+        logger.error("Anthropic API error (status %s): %s", e.status_code, e.message, exc_info=True)
+        return {
+            "text_fallback": "Error al procesar el dictado. Por favor intenta nuevamente.",
+            "session_messages": [{"role": "user", "content": dictado_seguro}],
+        }
+    except (APIConnectionError, APITimeoutError) as e:
+        logger.warning("Anthropic connectivity issue: %s", e)
+        return {
+            "text_fallback": "No se pudo conectar al servicio de IA. Por favor intenta nuevamente.",
+            "session_messages": [{"role": "user", "content": dictado_seguro}],
+        }
     except Exception as e:
-        logger.error("Error calling Anthropic API: %s", e, exc_info=True)
+        logger.error("Unexpected error calling Anthropic API: %s", e, exc_info=True)
         return {
             "text_fallback": "Error al procesar el dictado. Por favor intenta nuevamente.",
             "session_messages": [{"role": "user", "content": dictado_seguro}],

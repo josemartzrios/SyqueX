@@ -1,5 +1,5 @@
 from .interfaces import IEmbeddingService
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, AuthenticationError, PermissionDeniedError
 from config import settings
 import logging
 
@@ -19,16 +19,26 @@ class OpenAIEmbeddingService(IEmbeddingService):
 
     async def get_embedding(self, text: str) -> list[float]:
         """Get embedding from OpenAI API."""
+        if not text or not text.strip():
+            return [0.0] * 1536
+
         try:
             response = await self.openai_client.embeddings.create(
                 input=text,
                 model="text-embedding-3-small"
             )
             return response.data[0].embedding
-        except Exception as e:
-            logger.error(f"Error generando embedding con OpenAI: {e}")
-            # Fallback a zero_vector para evitar crashes en runtime durante pruebas sin LLave
+        except (AuthenticationError, PermissionDeniedError) as e:
+            # Config error — don't silently degrade, alert loudly so ops notices
+            logger.error(
+                "OPENAI_API_KEY inválida o sin permisos. La búsqueda semántica no funcionará: %s", e
+            )
             return [0.0] * 1536
+        except Exception as e:
+            # Transient error (network, rate limit, etc.) — log and degrade gracefully
+            logger.warning("Error generando embedding (fallo transitorio): %s", e)
+            return [0.0] * 1536
+
 
 # Instancia global para compatibilidad
 embedding_service = OpenAIEmbeddingService()

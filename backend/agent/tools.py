@@ -1,9 +1,12 @@
 import json
+import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from database import ClinicalNote, Session, PatientProfile
 from .embeddings import get_embedding
+
+logger = logging.getLogger(__name__)
 
 # Anthropic Tools JSON Schemas
 AGENT_TOOLS = [
@@ -89,45 +92,57 @@ async def create_or_update_clinical_note(db: AsyncSession, **kwargs):
     return {"note_id": kwargs["session_id"], "status": "staged"}
 
 async def search_patient_history(db: AsyncSession, patient_id: str, query: str, limit: int = 5, date_from: str = None):
-    query_embedding = await get_embedding(query)
+    try:
+        query_embedding = await get_embedding(query)
 
-    # Query using pgvector cosine similarity (<=>)
-    stmt = text("""
-        SELECT s.session_number, s.session_date, cn.assessment,
-               1 - (cn.embedding <=> :embedding::vector) as relevance_score
-        FROM clinical_notes cn
-        JOIN sessions s ON cn.session_id = s.id
-        WHERE s.patient_id = :patient_id
-        ORDER BY cn.embedding <=> :embedding::vector
-        LIMIT :limit
-    """)
-    result = await db.execute(stmt, {
-        "embedding": str(query_embedding),
-        "patient_id": patient_id,
-        "limit": limit
-    })
-
-    docs = []
-    for row in result:
-        docs.append({
-            "session_number": row[0],
-            "date": str(row[1]),
-            "summary_fragment": row[2] if row[2] else "",
-            "relevance_score": row[3]
+        # Query using pgvector cosine similarity (<=>)
+        stmt = text("""
+            SELECT s.session_number, s.session_date, cn.assessment,
+                   1 - (cn.embedding <=> :embedding::vector) as relevance_score
+            FROM clinical_notes cn
+            JOIN sessions s ON cn.session_id = s.id
+            WHERE s.patient_id = :patient_id
+            ORDER BY cn.embedding <=> :embedding::vector
+            LIMIT :limit
+        """)
+        result = await db.execute(stmt, {
+            "embedding": str(query_embedding),
+            "patient_id": patient_id,
+            "limit": limit
         })
-    return docs
+
+        docs = []
+        for row in result:
+            docs.append({
+                "session_number": row[0],
+                "date": str(row[1]),
+                "summary_fragment": row[2] if row[2] else "",
+                "relevance_score": row[3]
+            })
+        return docs
+    except Exception as e:
+        logger.error("Error en búsqueda semántica para patient_id=%s: %s", patient_id, e, exc_info=True)
+        return []
 
 async def detect_patterns_between_sessions(db: AsyncSession, patient_id: str, new_session_text: str, last_n_sessions: int = 6):
-    stmt = text("""
-        SELECT s.session_number, s.session_date, cn.subjective, cn.assessment
-        FROM clinical_notes cn
-        JOIN sessions s ON cn.session_id = s.id
-        WHERE s.patient_id = :patient_id
-        ORDER BY s.session_date DESC
-        LIMIT :limit
-    """)
-    result = await db.execute(stmt, {"patient_id": patient_id, "limit": last_n_sessions})
-    history = "\n".join([f"Session {row[0]} ({row[1]}): {row[2][:100]}..." for row in result])
+    try:
+        stmt = text("""
+            SELECT s.session_number, s.session_date, cn.subjective, cn.assessment
+            FROM clinical_notes cn
+            JOIN sessions s ON cn.session_id = s.id
+            WHERE s.patient_id = :patient_id
+            ORDER BY s.session_date DESC
+            LIMIT :limit
+        """)
+        result = await db.execute(stmt, {"patient_id": patient_id, "limit": last_n_sessions})
+        rows = result.fetchall()
+        history = "\n".join([
+            f"Session {row[0]} ({row[1]}): {(row[2] or '')[:100]}..."
+            for row in rows
+        ])
+    except Exception as e:
+        logger.error("Error consultando historial para patient_id=%s: %s", patient_id, e, exc_info=True)
+        history = ""
 
     # Fake pattern processing for the MVP structure
     return {

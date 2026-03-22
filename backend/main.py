@@ -9,6 +9,7 @@ from api.limiter import limiter
 from api.routes import router
 from api.auth import router as auth_router
 from config import settings
+from exceptions import DomainError
 
 logger = logging.getLogger("syquex")
 
@@ -49,6 +50,20 @@ async def security_headers(request: Request, call_next):
 # Rate limit exceeded — respuesta sin revelar detalles internos
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# Domain errors — mapeados a su http_status correspondiente
+@app.exception_handler(DomainError)
+async def domain_error_handler(request: Request, exc: DomainError):
+    logger.warning(
+        "Domain error [%s]: %s — %s %s",
+        exc.code, exc.message, request.method, request.url.path,
+    )
+    return JSONResponse(
+        status_code=exc.http_status,
+        content={"detail": exc.message, "code": exc.code},
+    )
+
 
 # Manejador global — nunca exponer stack traces al cliente
 @app.exception_handler(Exception)

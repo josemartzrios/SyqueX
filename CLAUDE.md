@@ -119,3 +119,30 @@ Tailwind is loaded via CDN in `index.html` (not npm), so no `tailwind.config.js`
 - `MAX_DICTATION_LENGTH`: 5000 chars
 - `MAX_SESSIONS_CONTEXT`: 6 sessions passed as context to Claude
 - `EMBEDDING_DIMENSIONS`: 1536
+
+## Branching Strategy
+
+Git Flow simplificado para un solo desarrollador con CI/CD automático.
+
+| Rama | Entorno | Deploy |
+|------|---------|--------|
+| `main` | Producción | Auto → Vercel prod + Railway prod |
+| `dev` | Staging | Auto → Vercel preview + Railway staging |
+| `feature/*` | Preview | Vercel preview URL por branch |
+| `hotfix/*` | — | Merge directo a `main`, luego backport a `dev` |
+
+**Flujo normal:**
+```
+feature/nombre → dev → main
+```
+
+**Flujo hotfix:**
+```
+hotfix/nombre → main (fix urgente) → dev (backport)
+```
+
+**Reglas:**
+- Nunca commitear directo a `main`
+- `dev` es la rama base para todo trabajo nuevo
+- Los `feature/*` salen de `dev` y vuelven a `dev` via PR
+- Los `hotfix/*` salen de `main` y se mergean a `main` + `dev`

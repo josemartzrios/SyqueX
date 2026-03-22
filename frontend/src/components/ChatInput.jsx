@@ -1,5 +1,8 @@
 import { useState } from 'react';
 
+const WHITESPACE_RE = /\s+/;
+const NEWLINE_RE = /\n/;
+
 export default function ChatInput({ onSend, loading }) {
   const [dictation, setDictation] = useState('');
 
@@ -16,7 +19,8 @@ export default function ChatInput({ onSend, loading }) {
     }
   };
 
-  const wordCount = dictation.trim() ? dictation.trim().split(/\s+/).length : 0;
+  const trimmed = dictation.trim();
+  const wordCount = trimmed ? trimmed.split(WHITESPACE_RE).length : 0;
 
   return (
     <div className={`bg-white border rounded-2xl px-4 py-3 flex flex-col gap-2 transition-all
@@ -33,7 +37,7 @@ export default function ChatInput({ onSend, loading }) {
           onChange={(e) => setDictation(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={loading}
-          rows={Math.min(5, Math.max(2, dictation.split('\n').length))}
+          rows={Math.min(5, Math.max(2, dictation.split(NEWLINE_RE).length))}
         />
         <button
           onClick={handleProcess}

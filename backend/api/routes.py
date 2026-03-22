@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -11,6 +11,19 @@ from agent import process_session, update_patient_profile_summary
 from agent.tools import generate_evolution_report, search_patient_history
 from agent.embeddings import get_embedding
 from api.limiter import limiter
+from exceptions import InvalidUUIDError, SessionNotFoundError, PatientNotFoundError
+
+
+def _parse_uuid(value: str, label: str = "ID") -> uuid.UUID:
+    """Parse a UUID string, raising a domain error on invalid format."""
+    try:
+        return uuid.UUID(value)
+    except (ValueError, AttributeError):
+        raise InvalidUUIDError(
+            f"{label} no es un UUID válido.",
+            code="INVALID_UUID",
+            details={"value": value},
+        )
 
 router = APIRouter(tags=["clinical"])
 
@@ -102,7 +115,7 @@ class ProfileOut(BaseModel):
 
 @router.get("/patients", response_model=List[PatientOut], tags=["patients"])
 async def list_patients(db: AsyncSession = Depends(get_db)):
-    query = select(Patient).order_by(Patient.name)
+    query = select(Patient).where(Patient.deleted_at.is_(None)).order_by(Patient.name)
     res = await db.execute(query)
     patients = res.scalars().all()
 
@@ -166,7 +179,7 @@ async def create_patient(payload: PatientCreate, db: AsyncSession = Depends(get_
 
 @router.get("/patients/{patient_id}/profile", response_model=ProfileOut, tags=["patients"])
 async def get_patient_profile(patient_id: str, db: AsyncSession = Depends(get_db)):
-    puuid = uuid.UUID(patient_id)
+    puuid = _parse_uuid(patient_id, "patient_id")
     res = await db.execute(select(PatientProfile).where(PatientProfile.patient_id == puuid))
     profile = res.scalar_one_or_none()
 
@@ -197,7 +210,7 @@ async def get_patient_sessions(
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    puuid = uuid.UUID(patient_id)
+    puuid = _parse_uuid(patient_id, "patient_id")
     offset = (page - 1) * page_size
 
     total_res = await db.execute(
@@ -251,10 +264,9 @@ async def process_session_endpoint(
     rec: ProcessSessionRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    patient_uuid = _parse_uuid(patient_id, "patient_id")
     session_id = str(uuid.uuid4())
     response = await process_session(db, patient_id, rec.raw_dictation, session_id, rec.format)
-
-    patient_uuid = uuid.UUID(patient_id)
 
     res_last = await db.execute(
         select(Session)
@@ -286,12 +298,12 @@ async def process_session_endpoint(
 
 @router.post("/sessions/{session_id}/confirm", response_model=ConfirmNoteOut, tags=["sessions"])
 async def confirm_session(session_id: str, req: ConfirmNoteRequest, db: AsyncSession = Depends(get_db)):
-    session_uuid = uuid.UUID(session_id)
+    session_uuid = _parse_uuid(session_id, "session_id")
     res = await db.execute(select(Session).where(Session.id == session_uuid))
     sess = res.scalar_one_or_none()
 
     if not sess:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        raise SessionNotFoundError("Sesión no encontrada.", code="SESSION_NOT_FOUND", details={"session_id": session_id})
 
     sess.status = "confirmed"
     note_data = req.edited_note or {}
@@ -328,12 +340,12 @@ async def confirm_session(session_id: str, req: ConfirmNoteRequest, db: AsyncSes
 
 @router.patch("/sessions/{session_id}/archive", response_model=ArchiveOut, tags=["sessions"])
 async def archive_session(session_id: str, db: AsyncSession = Depends(get_db)):
-    session_uuid = uuid.UUID(session_id)
+    session_uuid = _parse_uuid(session_id, "session_id")
     res = await db.execute(select(Session).where(Session.id == session_uuid))
     sess = res.scalar_one_or_none()
 
     if not sess:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        raise SessionNotFoundError("Sesión no encontrada.", code="SESSION_NOT_FOUND", details={"session_id": session_id})
 
     sess.is_archived = True
     await db.commit()

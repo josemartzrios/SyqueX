@@ -3,6 +3,35 @@ import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
 import { processSession, createPatient, getPatientSessions, listConversations, archiveSession } from './api'
 
+// ── Module-level constants ─────────────────────────────────────────────────
+const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
+const SOAP_HEADER_MD_RE   = /^##\s*(S|O|A|P)\s*[—–\-]/i;
+const BOLD_LINE_RE        = /^\*\*[^*]+\*\*\s*$/;
+const BOLD_INLINE_RE      = /\*\*([^*]+)\*\*/;
+
+// ── Static JSX (hoisted outside components to avoid recreation on render) ──
+const EMPTY_STATE = (
+  <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
+    <div className="w-14 h-14 rounded-2xl bg-parchment-dark border border-ink/[0.07] flex items-center justify-center">
+      <svg className="w-7 h-7 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    </div>
+    <div>
+      <p className="text-ink-secondary text-sm font-medium">Sin expediente activo</p>
+      <p className="text-ink-tertiary text-xs mt-1">Selecciona una sesión o crea un nuevo paciente para comenzar</p>
+    </div>
+  </div>
+);
+
+const LOADING_DOTS = (
+  <div className="flex items-center gap-1.5 py-2">
+    <span className="w-1.5 h-1.5 bg-sage rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+    <span className="w-1.5 h-1.5 bg-sage/70 rounded-full animate-bounce" style={{ animationDelay: '120ms' }}></span>
+    <span className="w-1.5 h-1.5 bg-sage/40 rounded-full animate-bounce" style={{ animationDelay: '240ms' }}></span>
+  </div>
+);
+
 // ── Clinical note renderer ───────────────────────────────────────────────────
 function ClinicalNote({ text }) {
   const lines = text.split('\n');
@@ -10,8 +39,7 @@ function ClinicalNote({ text }) {
 
   lines.forEach((line, i) => {
     // SOAP section header: **S —, **O —, **A —, **P —
-    const soapMatch = line.match(/^\*\*(S|O|A|P)\s*[—–\-]/i) ||
-                      line.match(/^##\s*(S|O|A|P)\s*[—–\-]/i);
+    const soapMatch = line.match(SOAP_HEADER_BOLD_RE) || line.match(SOAP_HEADER_MD_RE);
     if (soapMatch) {
       const clean = line.replace(/^\*\*/, '').replace(/\*\*$/, '').replace(/^#+\s*/, '');
       result.push(
@@ -24,7 +52,7 @@ function ClinicalNote({ text }) {
     }
 
     // Bold full line = subheader
-    if (/^\*\*[^*]+\*\*\s*$/.test(line)) {
+    if (BOLD_LINE_RE.test(line)) {
       const clean = line.replace(/\*\*/g, '').trim();
       result.push(
         <p key={i} className="font-semibold text-ink text-[13px] mt-4 mb-1 leading-snug">{clean}</p>
@@ -39,7 +67,7 @@ function ClinicalNote({ text }) {
     }
 
     // Regular line — render inline **bold**
-    const parts = line.split(/\*\*([^*]+)\*\*/);
+    const parts = line.split(BOLD_INLINE_RE);
     result.push(
       <p key={i} className="text-ink-secondary text-[14px] leading-relaxed">
         {parts.map((part, j) =>
@@ -337,19 +365,7 @@ function App() {
           <main className="flex-1 flex flex-col relative min-h-0 overflow-hidden">
 
             {/* Empty state */}
-            {!hasActivePatient && (
-              <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
-                <div className="w-14 h-14 rounded-2xl bg-parchment-dark border border-ink/[0.07] flex items-center justify-center">
-                  <svg className="w-7 h-7 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-ink-secondary text-sm font-medium">Sin expediente activo</p>
-                  <p className="text-ink-tertiary text-xs mt-1">Selecciona una sesión o crea un nuevo paciente para comenzar</p>
-                </div>
-              </div>
-            )}
+            {!hasActivePatient && EMPTY_STATE}
 
             {/* Message feed */}
             {hasActivePatient && (
@@ -376,13 +392,7 @@ function App() {
                           </p>
                         )}
 
-                        {msg.type === 'loading' && (
-                          <div className="flex items-center gap-1.5 py-2">
-                            <span className="w-1.5 h-1.5 bg-sage rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                            <span className="w-1.5 h-1.5 bg-sage/70 rounded-full animate-bounce" style={{ animationDelay: '120ms' }}></span>
-                            <span className="w-1.5 h-1.5 bg-sage/40 rounded-full animate-bounce" style={{ animationDelay: '240ms' }}></span>
-                          </div>
-                        )}
+                        {msg.type === 'loading' && LOADING_DOTS}
 
                         {msg.type === 'error' && (
                           <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
