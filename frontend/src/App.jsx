@@ -216,11 +216,11 @@ function App() {
     ]);
     try {
       const noteData = await processSession(selectedPatientId, dictation, format);
-      setMessages(prev => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
-      ]);
-      fetchConversations();
+      const botMessage = format === 'SOAP'
+        ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
+        : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
+      setMessages(prev => [...prev.slice(0, -1), botMessage]);
+      if (format === 'SOAP') fetchConversations();
     } catch (err) {
       setMessages(prev => [
         ...prev.slice(0, -1),
@@ -391,6 +391,10 @@ function App() {
                             {msg.text}
                             <span className="inline-block w-1.5 h-1.5 bg-sage rounded-full animate-pulse ml-2 mb-0.5 align-middle"></span>
                           </p>
+                        )}
+
+                        {msg.type === 'chat' && (
+                          <p className="text-ink-secondary text-[14px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                         )}
 
                         {msg.type === 'loading' && LOADING_DOTS}
