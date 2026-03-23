@@ -159,15 +159,50 @@ function App() {
   const loadPatientChat = (patientId, patientName, history = []) => {
     setSelectedPatientId(patientId);
     setSelectedPatientName(patientName);
+
     if (history.length === 0) {
       setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?` }]);
       return;
     }
+
     const historyMessages = [];
     history.forEach(session => {
-      if (session.raw_dictation) historyMessages.push({ role: 'user', text: session.raw_dictation });
-      if (session.ai_response) historyMessages.push({ role: 'assistant', type: 'bot', text: session.ai_response });
+      if (session.raw_dictation) {
+        historyMessages.push({ role: 'user', text: session.raw_dictation });
+      }
+
+      const hasStructuredNote = session.status === 'confirmed' && session.structured_note;
+
+      if (hasStructuredNote) {
+        historyMessages.push({
+          role: 'assistant',
+          type: 'bot',
+          noteData: {
+            clinical_note: {
+              structured_note: session.structured_note,
+              detected_patterns: session.detected_patterns || [],
+              alerts: session.alerts || [],
+              session_id: String(session.id),
+            },
+            text_fallback: session.ai_response,
+          },
+          sessionId: String(session.id),
+          readOnly: true,
+        });
+      } else if (session.ai_response) {
+        historyMessages.push({
+          role: 'assistant',
+          type: 'bot',
+          noteData: {
+            clinical_note: null,
+            text_fallback: session.ai_response,
+          },
+          sessionId: String(session.id),
+          readOnly: false,
+        });
+      }
     });
+
     setMessages(historyMessages);
   };
 
@@ -417,7 +452,7 @@ function App() {
                         )}
 
                         {msg.type === 'bot' && msg.noteData && (
-                          <NoteReview noteData={msg.noteData} onConfirm={fetchConversations} />
+                          <NoteReview noteData={msg.noteData} onConfirm={fetchConversations} readOnly={msg.readOnly} />
                         )}
                         {msg.type === 'bot' && !msg.noteData && msg.text && (
                           <ClinicalNote text={msg.text} />
