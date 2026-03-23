@@ -7,3 +7,5 @@
 
 *.agents
 .superpowers/
+backend/.coverage
+backend/htmlcov/
