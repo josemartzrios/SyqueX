@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
+import NoteReview from './components/NoteReview'
 import { processSession, createPatient, getPatientSessions, listConversations, archiveSession } from './api'
 
 // ── Module-level constants ─────────────────────────────────────────────────
@@ -217,7 +218,7 @@ function App() {
       const noteData = await processSession(selectedPatientId, dictation, format);
       setMessages(prev => [
         ...prev.slice(0, -1),
-        { role: 'assistant', type: 'bot', text: noteData.text_fallback || "Sin respuesta recibida.", sessionId: noteData.session_id }
+        { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
       ]);
       fetchConversations();
     } catch (err) {
@@ -400,37 +401,8 @@ function App() {
                           </div>
                         )}
 
-                        {msg.type === 'bot' && (
-                          <div className="w-full">
-                            {/* Clinical note document */}
-                            <div className="bg-white border border-ink/[0.07] rounded-2xl p-5 sm:p-6">
-                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-ink/[0.06]">
-                                <span className="text-[10px] uppercase tracking-[0.14em] text-sage font-bold">Nota Clínica · SOAP</span>
-                                <span className="text-[11px] text-ink-tertiary font-mono">
-                                  {new Date().toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                </span>
-                              </div>
-                              <ClinicalNote text={msg.text} />
-                            </div>
-                            {/* Actions */}
-                            <div className="flex gap-2 mt-3 pl-1">
-                              <button
-                                onClick={() => {
-                                  const blob = new Blob([msg.text], { type: 'text/plain' });
-                                  const url = URL.createObjectURL(blob);
-                                  const link = document.createElement('a');
-                                  link.href = url;
-                                  link.download = `SyqueX_Nota_${new Date().toISOString().split('T')[0]}.txt`;
-                                  link.click();
-                                  URL.revokeObjectURL(url);
-                                }}
-                                className="text-[12px] font-medium text-ink-secondary hover:text-ink border border-ink/[0.10] hover:border-ink/20 bg-parchment hover:bg-parchment-dark py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-colors"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                Descargar .TXT
-                              </button>
-                            </div>
-                          </div>
+                        {msg.type === 'bot' && msg.noteData && (
+                          <NoteReview noteData={msg.noteData} onConfirm={fetchConversations} />
                         )}
                       </div>
                     )}
