@@ -1,6 +1,26 @@
 import { useState } from 'react'
 import { confirmNote } from '../api'
 
+function parseSoapText(text) {
+  if (!text) return null
+  const labels = { subjective: 'Subjetivo', objective: 'Objetivo', assessment: 'Análisis', plan: 'Plan' }
+  const keys = Object.keys(labels)
+  const result = {}
+  keys.forEach((key, i) => {
+    const label = labels[key]
+    const nextLabel = i < keys.length - 1 ? labels[keys[i + 1]] : null
+    const pattern = nextLabel
+      ? new RegExp(`${label}:\\s*([\\s\\S]*?)(?=${nextLabel}:)`, 'i')
+      : new RegExp(`${label}:\\s*([\\s\\S]*)`, 'i')
+    const match = text.match(pattern)
+    if (match) {
+      const value = match[1].trim()
+      if (value && value.toLowerCase() !== 'no mencionado') result[key] = value
+    }
+  })
+  return Object.keys(result).length > 0 ? { structured_note: result } : null
+}
+
 const SOAP_SECTIONS = [
   {
     key: 'subjective',
@@ -37,7 +57,11 @@ const SOAP_SECTIONS = [
 ]
 
 export default function NoteReview({ noteData, onConfirm }) {
-  const noteContent = noteData.clinical_note?.structured_note || {}
+  const parsedNote = !noteData.clinical_note && noteData.text_fallback
+    ? parseSoapText(noteData.text_fallback)
+    : null
+  const clinicalNote = noteData.clinical_note || parsedNote
+  const noteContent = clinicalNote?.structured_note || {}
   const alerts = noteData.clinical_note?.alerts || []
   const patterns = noteData.clinical_note?.detected_patterns || []
   const evolutionReport = noteData.evolution_report
@@ -99,7 +123,7 @@ export default function NoteReview({ noteData, onConfirm }) {
       )}
 
       {/* Documento clínico — solo cuando hay clinical_note */}
-      {noteData.clinical_note && (
+      {clinicalNote && (
         <div className="bg-white border border-ink/[0.07] rounded-2xl p-5 sm:p-6">
 
           {/* Header del documento */}
@@ -211,7 +235,7 @@ export default function NoteReview({ noteData, onConfirm }) {
       )}
 
       {/* Caso: solo evolutionReport sin clinical_note */}
-      {!noteData.clinical_note && evolutionReport && (
+      {!clinicalNote && evolutionReport && (
         <div className="flex items-center justify-between gap-3 pt-2">
           <button
             onClick={handleDownload}
