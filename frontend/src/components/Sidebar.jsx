@@ -46,7 +46,7 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
           ) : (
             conversations.map(conv => (
               <ConversationItem
-                key={conv.id}
+                key={conv.patient_id}
                 conv={conv}
                 onClick={() => { onSelectConversation(conv); onClose(); }}
                 onDelete={() => onDeleteConversation(conv.id, conv.patient_id)}

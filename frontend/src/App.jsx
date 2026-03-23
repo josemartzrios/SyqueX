@@ -196,7 +196,18 @@ function App() {
       setIsCreatingPatient(false);
       setNewPatientName("");
       loadPatientChat(resp.id, newPatientName);
-      fetchConversations();
+      // Add placeholder immediately so the patient is visible in sidebar before their first SOAP session.
+      // fetchConversations() would overwrite this with an empty result (INNER JOIN, no sessions yet).
+      setConversations(prev => [{
+        id: null,
+        patient_id: String(resp.id),
+        patient_name: newPatientName,
+        session_number: null,
+        session_date: null,
+        dictation_preview: null,
+        status: null,
+        message_count: 0,
+      }, ...prev]);
     } catch (err) {
       alert("Error al crear paciente: " + err.message);
     }
@@ -287,7 +298,7 @@ function App() {
             ) : (
               conversations.map(conv => (
                 <DesktopConvItem
-                  key={conv.id}
+                  key={conv.patient_id}
                   conv={conv}
                   active={conv.patient_id === selectedPatientId}
                   onClick={() => handleSelectConversation(conv)}
@@ -407,6 +418,9 @@ function App() {
 
                         {msg.type === 'bot' && msg.noteData && (
                           <NoteReview noteData={msg.noteData} onConfirm={fetchConversations} />
+                        )}
+                        {msg.type === 'bot' && !msg.noteData && msg.text && (
+                          <ClinicalNote text={msg.text} />
                         )}
                       </div>
                     )}
