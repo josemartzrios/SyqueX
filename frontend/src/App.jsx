@@ -180,10 +180,10 @@ function App() {
     }
   };
 
-  const handleDeleteConversation = async (sessionId) => {
+  const handleDeleteConversation = async (sessionId, patientId) => {
     try {
-      await archiveSession(sessionId);
-      setConversations(prev => prev.filter(c => c.id !== sessionId));
+      if (sessionId) await archiveSession(sessionId);
+      setConversations(prev => prev.filter(c => c.patient_id !== patientId));
     } catch (err) {
       console.error("Error archiving conversation:", err);
     }
@@ -291,7 +291,7 @@ function App() {
                   conv={conv}
                   active={conv.patient_id === selectedPatientId}
                   onClick={() => handleSelectConversation(conv)}
-                  onDelete={() => handleDeleteConversation(conv.id)}
+                  onDelete={() => handleDeleteConversation(conv.id, conv.patient_id)}
                 />
               ))
             )}

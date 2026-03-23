@@ -115,8 +115,8 @@ export default function NoteReview({ noteData, onConfirm }) {
   return (
     <div className="font-sans">
 
-      {/* Texto conversacional libre */}
-      {noteData.text_fallback && (
+      {/* Texto conversacional libre — solo cuando no hay nota estructurada */}
+      {noteData.text_fallback && !clinicalNote && (
         <p className="text-[14px] leading-relaxed text-ink-secondary whitespace-pre-wrap mb-4">
           {noteData.text_fallback}
         </p>
@@ -181,24 +181,23 @@ export default function NoteReview({ noteData, onConfirm }) {
           )}
 
           {/* CTA bar — último hijo del contenedor */}
-          <div className="flex items-center justify-between gap-3 border-t border-ink/[0.06] pt-4 mt-4">
+          <div className="flex flex-wrap items-center gap-2 border-t border-ink/[0.06] pt-4 mt-4">
 
-            {/* Izquierda: Descargar historial */}
-            <button
-              onClick={handleDownload}
-              disabled={!evolutionReport}
-              className={`border border-ink/[0.10] text-ink-secondary text-[13px] font-medium rounded-xl px-4 py-2 flex items-center gap-2 transition-colors ${
-                evolutionReport ? 'hover:bg-parchment-dark' : 'opacity-40 cursor-not-allowed'
-              }`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              {evolutionReport ? 'Descargar Historial TXT' : 'Historial no solicitado'}
-            </button>
+            {/* Descargar historial — solo cuando existe */}
+            {evolutionReport && (
+              <button
+                onClick={handleDownload}
+                className="border border-ink/[0.10] text-ink-secondary text-[13px] font-medium rounded-xl px-4 py-2 flex items-center gap-2 hover:bg-parchment-dark transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Descargar Historial TXT
+              </button>
+            )}
 
-            {/* Derecha: BORRADOR pill + Confirmar */}
-            <div className="flex items-center gap-2">
+            {/* BORRADOR pill + Confirmar — empuja a la derecha en desktop */}
+            <div className="flex items-center gap-2 ml-auto">
               {!confirmed && (
                 <span className="bg-parchment-dark text-ink-tertiary text-[11px] font-semibold tracking-[0.06em] rounded-full px-3 py-1">
                   BORRADOR
