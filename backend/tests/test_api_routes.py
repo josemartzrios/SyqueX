@@ -247,9 +247,11 @@ class TestGetPatientProfile:
 class TestGetPatientSessions:
     @pytest.mark.asyncio
     async def test_returns_paginated_structure(self, app, mock_db, patient_uuid):
+        join_result = MagicMock()
+        join_result.all.return_value = []
         mock_db.execute.side_effect = [
-            _result(scalar_one=0),   # count
-            _result(scalars_all=[]), # sessions
+            _result(scalar_one=0),  # count
+            join_result,            # outerjoin sessions+notes
         ]
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -265,9 +267,11 @@ class TestGetPatientSessions:
 
     @pytest.mark.asyncio
     async def test_default_page_is_1(self, app, mock_db, patient_uuid):
+        join_result = MagicMock()
+        join_result.all.return_value = []
         mock_db.execute.side_effect = [
             _result(scalar_one=0),
-            _result(scalars_all=[]),
+            join_result,
         ]
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -292,9 +296,11 @@ class TestGetPatientSessions:
         session.ai_response = "Respuesta de prueba"
         session.status = "confirmed"
 
+        join_result = MagicMock()
+        join_result.all.return_value = [(session, None)]
         mock_db.execute.side_effect = [
             _result(scalar_one=1),
-            _result(scalars_all=[session]),
+            join_result,
         ]
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -729,3 +735,93 @@ class TestParseUUID:
 
         # 200 means UUID was accepted
         assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/patients/{id}/sessions — enriched with ClinicalNote
+# ---------------------------------------------------------------------------
+
+class TestGetPatientSessionsEnriched:
+    """Verifica que GET /patients/{id}/sessions devuelve campos de ClinicalNote."""
+
+    @pytest.mark.asyncio
+    async def test_confirmed_session_includes_structured_note(self, app, mock_db, patient_uuid, session_uuid):
+        """Una sesión confirmada con ClinicalNote retorna structured_note con campos SOAP."""
+        from datetime import date
+
+        session_obj = MagicMock()
+        session_obj.id = session_uuid
+        session_obj.session_number = 1
+        session_obj.session_date = date(2026, 3, 1)
+        session_obj.raw_dictation = "Paciente refiere ansiedad."
+        session_obj.ai_response = "**S — ...**"
+        session_obj.status = "confirmed"
+
+        note_obj = MagicMock()
+        note_obj.id = uuid.uuid4()
+        note_obj.subjective = "Ansiedad laboral"
+        note_obj.objective = "Afecto ansioso"
+        note_obj.assessment = "TAG leve"
+        note_obj.plan = "TCC semanal"
+        note_obj.detected_patterns = ["ansiedad recurrente"]
+        note_obj.alerts = []
+        note_obj.suggested_next_steps = ["Registro de pensamientos"]
+
+        count_result = _result(scalar_one=1)
+        join_result = MagicMock()
+        join_result.all.return_value = [(session_obj, note_obj)]
+        mock_db.execute.side_effect = [count_result, join_result]
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"/api/v1/patients/{patient_uuid}/sessions")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 1
+        item = data["items"][0]
+        assert item["structured_note"]["subjective"] == "Ansiedad laboral"
+        assert item["structured_note"]["plan"] == "TCC semanal"
+        assert item["detected_patterns"] == ["ansiedad recurrente"]
+        assert item["alerts"] == []
+        assert item["clinical_note_id"] is not None
+
+    @pytest.mark.asyncio
+    async def test_draft_session_structured_note_is_null(self, app, mock_db, patient_uuid, session_uuid):
+        """Una sesión draft sin ClinicalNote retorna structured_note como null."""
+        from datetime import date
+
+        session_obj = MagicMock()
+        session_obj.id = session_uuid
+        session_obj.session_number = 1
+        session_obj.session_date = date(2026, 3, 1)
+        session_obj.raw_dictation = "Paciente refiere tristeza."
+        session_obj.ai_response = "**S — ...**"
+        session_obj.status = "draft"
+
+        count_result = _result(scalar_one=1)
+        join_result = MagicMock()
+        join_result.all.return_value = [(session_obj, None)]
+        mock_db.execute.side_effect = [count_result, join_result]
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"/api/v1/patients/{patient_uuid}/sessions")
+
+        assert response.status_code == 200
+        data = response.json()
+        item = data["items"][0]
+        assert item["structured_note"] is None
+        assert item["clinical_note_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_empty_patient_sessions_returns_empty_list(self, app, mock_db, patient_uuid):
+        """Total 0 retorna lista vacía sin error."""
+        count_result = _result(scalar_one=0)
+        join_result = MagicMock()
+        join_result.all.return_value = []
+        mock_db.execute.side_effect = [count_result, join_result]
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"/api/v1/patients/{patient_uuid}/sessions")
+
+        assert response.status_code == 200
+        assert response.json()["items"] == []
