@@ -56,7 +56,7 @@ const SOAP_SECTIONS = [
   },
 ]
 
-export default function NoteReview({ noteData, onConfirm }) {
+export default function NoteReview({ noteData, onConfirm, readOnly = false }) {
   const parsedNote = !noteData.clinical_note && noteData.text_fallback
     ? parseSoapText(noteData.text_fallback)
     : null
@@ -180,7 +180,8 @@ export default function NoteReview({ noteData, onConfirm }) {
             </div>
           )}
 
-          {/* CTA bar — último hijo del contenedor */}
+          {/* CTA bar — oculto en modo solo lectura */}
+          {!readOnly && (
           <div className="flex flex-wrap items-center gap-2 border-t border-ink/[0.06] pt-4 mt-4">
 
             {/* Descargar historial — solo cuando existe */}
@@ -212,12 +213,7 @@ export default function NoteReview({ noteData, onConfirm }) {
                     saving ? 'opacity-70 cursor-not-allowed' : 'hover:bg-sage-dark'
                   }`}
                 >
-                  {saving ? 'Registrando...' : (
-                    <>
-                      <span className="sm:hidden">✓ Confirmar</span>
-                      <span className="hidden sm:inline">✓ Confirmar en Expediente</span>
-                    </>
-                  )}
+                  {saving ? 'Registrando...' : '✓ Confirmar en Expediente'}
                 </button>
               ) : (
                 <span className="text-emerald-600 text-[13px] font-medium flex items-center gap-1 px-4 py-2">
@@ -229,6 +225,7 @@ export default function NoteReview({ noteData, onConfirm }) {
               )}
             </div>
           </div>
+          )}
 
         </div>
       )}
