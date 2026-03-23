@@ -95,11 +95,6 @@ function ConversationItem({ conv, onClick, onDelete }) {
             <span className="w-1 h-1 bg-emerald-500 rounded-full inline-block"></span>Confirmada
           </span>
         )}
-        {conv.status === 'draft' && (
-          <span className="text-[10px] text-amber-600 font-medium flex items-center gap-1">
-            <span className="w-1 h-1 bg-amber-500 rounded-full inline-block"></span>Borrador
-          </span>
-        )}
       </div>
 
       <button

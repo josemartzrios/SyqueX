@@ -326,7 +326,7 @@ function App() {
 
             <div className="flex items-center gap-2 min-w-0">
               {/* Mobile patient badge */}
-              {selectedPatientName && (
+              {selectedPatientName && !isCreatingPatient && (
                 <div className="md:hidden flex items-center gap-1.5 bg-parchment-dark border border-ink/[0.08] rounded-full px-3 py-1.5 min-w-0 max-w-[140px]">
                   <span className="text-ink-secondary text-[12px] font-medium truncate">{selectedPatientName}</span>
                 </div>
