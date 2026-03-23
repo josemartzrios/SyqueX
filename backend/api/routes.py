@@ -371,8 +371,8 @@ async def list_conversations(
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    # One entry per patient: most recent Session preview via DISTINCT ON (PostgreSQL)
-    # LEFT JOIN ensures patients with zero Sessions still appear
+    # One entry per patient: most recent Session with real content via DISTINCT ON (PostgreSQL)
+    # INNER JOIN ensures only patients with at least one non-empty, non-archived session appear
     sql = text("""
         SELECT DISTINCT ON (p.id)
             p.id            AS patient_id,
@@ -384,9 +384,11 @@ async def list_conversations(
             s.status,
             s.messages
         FROM patients p
-        LEFT JOIN sessions s
+        INNER JOIN sessions s
             ON s.patient_id = p.id
             AND s.is_archived = FALSE
+            AND s.raw_dictation IS NOT NULL
+        WHERE p.deleted_at IS NULL
         ORDER BY p.id, s.created_at DESC NULLS LAST
     """)
 
