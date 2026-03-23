@@ -2,7 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
@@ -77,14 +77,17 @@ class PaginatedSessions(BaseModel):
     pages: int
 
 class ConversationOut(BaseModel):
-    id: str
+    id: Optional[str]             # session id — None if patient has no sessions
     patient_id: str
     patient_name: str
-    session_number: int
+    session_number: Optional[int]
     session_date: Optional[date]
     dictation_preview: Optional[str]
-    status: str
-    message_count: int
+    status: Optional[str]
+    message_count: Optional[int]
+
+    class Config:
+        from_attributes = True
 
 class PaginatedConversations(BaseModel):
     items: List[ConversationOut]
@@ -95,7 +98,7 @@ class PaginatedConversations(BaseModel):
 
 class ProcessSessionOut(BaseModel):
     text_fallback: Optional[str]
-    session_id: str
+    session_id: Optional[str] = None
 
 class ConfirmNoteOut(BaseModel):
     id: uuid.UUID
@@ -265,8 +268,14 @@ async def process_session_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     patient_uuid = _parse_uuid(patient_id, "patient_id")
+    response = await process_session(db, patient_id, rec.raw_dictation, None, rec.format)
+
+    # Chat messages are ephemeral — no Session created in DB
+    if rec.format == "chat":
+        return ProcessSessionOut(text_fallback=response.get("text_fallback"))
+
+    # SOAP and other formats: persist as draft Session
     session_id = str(uuid.uuid4())
-    response = await process_session(db, patient_id, rec.raw_dictation, session_id, rec.format)
 
     res_last = await db.execute(
         select(Session)
@@ -362,36 +371,50 @@ async def list_conversations(
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    base_where = Session.is_archived == False
+    # One entry per patient: most recent Session preview via DISTINCT ON (PostgreSQL)
+    # LEFT JOIN ensures patients with zero Sessions still appear
+    sql = text("""
+        SELECT DISTINCT ON (p.id)
+            p.id            AS patient_id,
+            p.name          AS patient_name,
+            s.id            AS session_id,
+            s.session_number,
+            s.session_date,
+            s.raw_dictation AS dictation_preview,
+            s.status,
+            s.messages
+        FROM patients p
+        LEFT JOIN sessions s
+            ON s.patient_id = p.id
+            AND s.is_archived = FALSE
+        ORDER BY p.id, s.created_at DESC NULLS LAST
+    """)
 
-    total_res = await db.execute(
-        select(func.count()).select_from(Session).where(base_where)
-    )
-    total = total_res.scalar_one()
+    res = await db.execute(sql)
+    rows = res.mappings().all()
 
+    items = []
+    for row in rows:
+        raw = row.get("dictation_preview")
+        preview = (raw[:120] + "...") if raw and len(raw) > 120 else raw
+        messages = row.get("messages") or []
+
+        items.append(ConversationOut(
+            id=str(row["session_id"]) if row["session_id"] else None,
+            patient_id=str(row["patient_id"]),
+            patient_name=row["patient_name"],
+            session_number=row.get("session_number"),
+            session_date=row.get("session_date"),
+            dictation_preview=preview,
+            status=row.get("status"),
+            message_count=len(messages) if isinstance(messages, list) else 0,
+        ))
+
+    total = len(items)
     offset = (page - 1) * page_size
-    res = await db.execute(
-        select(Session, Patient.name.label("patient_name"))
-        .join(Patient, Session.patient_id == Patient.id)
-        .where(base_where)
-        .order_by(Session.created_at.desc())
-        .limit(page_size)
-        .offset(offset)
-    )
-
-    items = [
-        ConversationOut(
-            id=str(s.id),
-            patient_id=str(s.patient_id),
-            patient_name=patient_name,
-            session_number=s.session_number,
-            session_date=s.session_date,
-            dictation_preview=(s.raw_dictation[:120] + "...") if s.raw_dictation and len(s.raw_dictation) > 120 else s.raw_dictation,
-            status=s.status,
-            message_count=len(s.messages) if s.messages else 0,
-        )
-        for s, patient_name in res.all()
-    ]
-
+    paged = items[offset: offset + page_size]
     pages = max(1, (total + page_size - 1) // page_size)
-    return PaginatedConversations(items=items, total=total, page=page, page_size=page_size, pages=pages)
+
+    return PaginatedConversations(
+        items=paged, total=total, page=page, page_size=page_size, pages=pages
+    )
