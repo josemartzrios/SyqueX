@@ -65,6 +65,11 @@ class SessionOut(BaseModel):
     raw_dictation: Optional[str]
     ai_response: Optional[str]
     status: str
+    structured_note: Optional[Dict[str, Any]] = None
+    detected_patterns: Optional[List[str]] = None
+    alerts: Optional[List[str]] = None
+    suggested_next_steps: Optional[List[str]] = None
+    clinical_note_id: Optional[uuid.UUID] = None
 
     class Config:
         from_attributes = True
@@ -223,24 +228,34 @@ async def get_patient_sessions(
     total = total_res.scalar_one()
 
     res = await db.execute(
-        select(Session)
+        select(Session, ClinicalNote)
+        .outerjoin(ClinicalNote, Session.id == ClinicalNote.session_id)
         .where(Session.patient_id == puuid, Session.is_archived == False)
         .order_by(Session.created_at.asc())
         .limit(page_size)
         .offset(offset)
     )
 
-    items = [
-        SessionOut(
+    items = []
+    for s, cn in res.all():
+        items.append(SessionOut(
             id=s.id,
             session_number=s.session_number,
             session_date=s.session_date,
             raw_dictation=s.raw_dictation,
             ai_response=s.ai_response,
             status=s.status,
-        )
-        for s in res.scalars()
-    ]
+            structured_note={
+                "subjective": cn.subjective,
+                "objective": cn.objective,
+                "assessment": cn.assessment,
+                "plan": cn.plan,
+            } if cn else None,
+            detected_patterns=list(cn.detected_patterns) if cn and cn.detected_patterns is not None else None,
+            alerts=list(cn.alerts) if cn and cn.alerts is not None else None,
+            suggested_next_steps=list(cn.suggested_next_steps) if cn and cn.suggested_next_steps is not None else None,
+            clinical_note_id=cn.id if cn else None,
+        ))
 
     pages = max(1, (total + page_size - 1) // page_size)
     return PaginatedSessions(items=items, total=total, page=page, page_size=page_size, pages=pages)
