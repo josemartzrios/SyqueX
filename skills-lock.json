@@ -26,6 +26,11 @@
       "sourceType": "github",
       "computedHash": "bf0cc90f11c0b249036666117a8b1dd1490cbbc252103e2f7882f64a833a8004"
     },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "computedHash": "645b891da1edbae76ab79c7b088d4e73397464f8396edaf773c0e01971ce75d6"
+    },
     "interface-design": {
       "source": "dammyjay93/interface-design",
       "sourceType": "github",
@@ -40,6 +45,11 @@
       "source": "wshobson/agents",
       "sourceType": "github",
       "computedHash": "45c36d56b92b0bdb99c86052b45e0c7e5e424c4ec7a4b2f45604e195dc80289c"
+    },
+    "subagent-driven-development": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "computedHash": "a197f8e5fba5ea59013e1adbaa90dd42db35de8f074feca200c8038de584a83b"
     },
     "systematic-debugging": {
       "source": "obra/superpowers",
