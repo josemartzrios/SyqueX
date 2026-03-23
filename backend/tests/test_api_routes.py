@@ -69,6 +69,10 @@ def _result(scalars_all=None, scalar_one_or_none=None, scalar_one=0, all_rows=No
     r.scalar_one_or_none.return_value = scalar_one_or_none
     r.scalar_one.return_value = scalar_one
     r.all.return_value = all_rows or []
+    # Support .mappings().all() for raw SQL queries
+    mappings_mock = MagicMock()
+    mappings_mock.all.return_value = all_rows or []
+    r.mappings.return_value = mappings_mock
     return r
 
 
@@ -503,16 +507,13 @@ class TestArchiveSession:
 
 
 # ---------------------------------------------------------------------------
-# GET /api/v1/conversations
+# GET /api/v1/conversations — one entry per patient
 # ---------------------------------------------------------------------------
 
 class TestListConversations:
     @pytest.mark.asyncio
     async def test_returns_200(self, app, mock_db):
-        mock_db.execute.side_effect = [
-            _result(scalar_one=0),
-            _result(all_rows=[]),
-        ]
+        mock_db.execute.return_value = _result(all_rows=[])
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/conversations")
@@ -521,10 +522,7 @@ class TestListConversations:
 
     @pytest.mark.asyncio
     async def test_returns_paginated_structure(self, app, mock_db):
-        mock_db.execute.side_effect = [
-            _result(scalar_one=0),
-            _result(all_rows=[]),
-        ]
+        mock_db.execute.return_value = _result(all_rows=[])
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/conversations")
@@ -538,16 +536,161 @@ class TestListConversations:
 
     @pytest.mark.asyncio
     async def test_empty_conversations_returns_empty_list(self, app, mock_db):
-        mock_db.execute.side_effect = [
-            _result(scalar_one=0),
-            _result(all_rows=[]),
-        ]
+        mock_db.execute.return_value = _result(all_rows=[])
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/conversations")
 
         assert response.json()["items"] == []
         assert response.json()["total"] == 0
+
+    @pytest.mark.asyncio
+    async def test_returns_one_entry_per_patient(self, app, mock_db):
+        """Two patients with sessions → two entries."""
+        import uuid as uuid_mod
+        from datetime import date
+
+        p1_id = uuid_mod.uuid4()
+        p2_id = uuid_mod.uuid4()
+        s1_id = uuid_mod.uuid4()
+        s2_id = uuid_mod.uuid4()
+
+        row1 = {
+            "patient_id": p1_id, "patient_name": "Ana García",
+            "session_id": s1_id, "session_number": 3,
+            "session_date": date.today(), "dictation_preview": "Dictado Ana",
+            "status": "draft", "messages": [],
+        }
+        row2 = {
+            "patient_id": p2_id, "patient_name": "Luis Pérez",
+            "session_id": s2_id, "session_number": 1,
+            "session_date": date.today(), "dictation_preview": None,
+            "status": "confirmed", "messages": [{}, {}],
+        }
+        mock_db.execute.return_value = _result(all_rows=[row1, row2])
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/conversations")
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert len(items) == 2
+        patient_names = {item["patient_name"] for item in items}
+        assert patient_names == {"Ana García", "Luis Pérez"}
+
+    @pytest.mark.asyncio
+    async def test_patient_with_no_sessions_appears(self, app, mock_db):
+        """Patient with zero Sessions (chat-only) still appears with nulls."""
+        import uuid as uuid_mod
+
+        p_id = uuid_mod.uuid4()
+        row = {
+            "patient_id": p_id, "patient_name": "María Sin Notas",
+            "session_id": None, "session_number": None,
+            "session_date": None, "dictation_preview": None,
+            "status": None, "messages": None,
+        }
+        mock_db.execute.return_value = _result(all_rows=[row])
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/conversations")
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert len(items) == 1
+        assert items[0]["patient_name"] == "María Sin Notas"
+        assert items[0]["id"] is None
+        assert items[0]["session_number"] is None
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/sessions/{patient_id}/process — chat vs SOAP format
+# ---------------------------------------------------------------------------
+
+class TestProcessSessionFormat:
+    """Chat format must not create a Session; SOAP format must."""
+
+    def _mock_claude(self, text="Respuesta del agente"):
+        """Returns a patcher that patches AsyncAnthropic."""
+        from unittest.mock import patch, AsyncMock, MagicMock
+        mock_block = MagicMock()
+        mock_block.type = "text"
+        mock_block.text = text
+        mock_resp = MagicMock()
+        mock_resp.content = [mock_block]
+
+        patcher = patch("agent.agent.AsyncAnthropic")
+        mock_cls = patcher.start()
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_resp)
+        mock_cls.return_value = mock_client
+        return patcher
+
+    @pytest.mark.asyncio
+    async def test_chat_format_returns_no_session_id(self, app, mock_db, patient_uuid):
+        """format='chat' → response has no session_id."""
+        mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=None),  # _get_patient_context: profile
+            _result(scalars_all=[]),            # _get_patient_context: sessions
+        ]
+
+        patcher = self._mock_claude()
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    f"/api/v1/sessions/{patient_uuid}/process",
+                    json={"raw_dictation": "El paciente llegó tranquilo.", "format": "chat"},
+                )
+        finally:
+            patcher.stop()
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["text_fallback"] is not None
+        assert data.get("session_id") is None
+
+    @pytest.mark.asyncio
+    async def test_chat_format_does_not_persist_session(self, app, mock_db, patient_uuid):
+        """format='chat' → db.add() is never called."""
+        mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=None),
+            _result(scalars_all=[]),
+        ]
+
+        patcher = self._mock_claude()
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                await client.post(
+                    f"/api/v1/sessions/{patient_uuid}/process",
+                    json={"raw_dictation": "Sesión de seguimiento.", "format": "chat"},
+                )
+        finally:
+            patcher.stop()
+
+        mock_db.add.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_soap_format_returns_session_id(self, app, mock_db, patient_uuid):
+        """format='SOAP' → response includes session_id (existing behavior preserved)."""
+        mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=None),  # profile
+            _result(scalars_all=[]),            # sessions history
+            _result(scalar_one_or_none=None),  # last session (session_number)
+        ]
+
+        patcher = self._mock_claude("Subjetivo:\nPaciente ansiosa.")
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    f"/api/v1/sessions/{patient_uuid}/process",
+                    json={"raw_dictation": "Paciente ansiosa.", "format": "SOAP"},
+                )
+        finally:
+            patcher.stop()
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("session_id") is not None
 
 
 # ---------------------------------------------------------------------------

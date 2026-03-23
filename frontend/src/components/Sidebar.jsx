@@ -49,7 +49,7 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
                 key={conv.id}
                 conv={conv}
                 onClick={() => { onSelectConversation(conv); onClose(); }}
-                onDelete={() => onDeleteConversation(conv.id)}
+                onDelete={() => onDeleteConversation(conv.id, conv.patient_id)}
               />
             ))
           )}
