@@ -120,6 +120,25 @@ Tailwind is loaded via CDN in `index.html` (not npm), so no `tailwind.config.js`
 - `MAX_SESSIONS_CONTEXT`: 6 sessions passed as context to Claude
 - `EMBEDDING_DIMENSIONS`: 1536
 
+## Roadmap
+
+### MVP (lanzamiento)
+
+| # | Feature | Descripción |
+|---|---------|-------------|
+| 1 | **Jerarquía visual SOAP** | Badges de color por sección S/O/A/P, separadores y peso tipográfico diferenciado |
+| 2 | **CTA confirmar nota** | Botón visible "Confirmar nota / Guardar en expediente" con estado Borrador explícito |
+| 3 | **Evolución del paciente** | Vista de historial de sesiones con tendencias y progreso longitudinal |
+| 4 | **Descargar nota en PDF** | Exportar nota SOAP confirmada como PDF con membrete profesional |
+
+### Post-MVP (Fase 2)
+
+| # | Feature | Descripción |
+|---|---------|-------------|
+| 1 | **Dictado por voz** | Transcripción de audio en tiempo real directamente en el campo de dictado |
+| 2 | **Google Drive** | Guardar notas automáticamente en carpetas del psicólogo en Drive |
+| 3 | **Google Calendar** | Vincular sesiones con eventos del calendario del psicólogo |
+
 ## Branching Strategy
 
 Git Flow simplificado para un solo desarrollador con CI/CD automático.
