@@ -15,7 +15,7 @@ const THREE_CONVS = [
   { id: 'sess-3', patient_id: 'p3', patient_name: 'Ana Gómez',     session_date: '2026-01-29', session_number: 3, status: 'confirmed', dictation_preview: 'C' },
 ]
 
-const noop = vi.fn()
+const noop = () => {}
 
 describe('Sidebar', () => {
   it('open=false: panel tiene clase -translate-x-full', () => {
