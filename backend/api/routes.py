@@ -297,7 +297,8 @@ async def process_session_endpoint(
     current_session_number = (last_session.session_number + 1) if last_session else 1
 
     # Chat sessions are confirmed immediately (no confirmation step needed)
-    session_status = "confirmed" if rec.format == "chat" else "draft"
+    format_normalized = (rec.format or "SOAP").lower()
+    session_status = "confirmed" if format_normalized == "chat" else "draft"
 
     new_session = Session(
         id=uuid.UUID(session_id),
@@ -305,7 +306,7 @@ async def process_session_endpoint(
         session_number=current_session_number,
         session_date=date.today(),
         raw_dictation=rec.raw_dictation,
-        format=rec.format or "SOAP",
+        format=format_normalized,
         ai_response=response.get("text_fallback"),
         messages=response.get("session_messages", []),
         status=session_status,
