@@ -17,7 +17,7 @@ class TestSettings:
 
     def test_default_embedding_dimensions(self):
         s = Settings()
-        assert s.EMBEDDING_DIMENSIONS == 1536
+        assert s.EMBEDDING_DIMENSIONS == 1024
 
     def test_default_environment_is_development(self):
         s = Settings()
@@ -90,6 +90,6 @@ class TestClinicalNoteConfig:
     def test_max_sessions_context_is_positive(self):
         assert ClinicalNoteConfig.MAX_SESSIONS_CONTEXT > 0
 
-    def test_embedding_dimensions_is_1536(self):
-        # OpenAI text-embedding-3-small uses 1536 dimensions
-        assert ClinicalNoteConfig.EMBEDDING_DIMENSIONS == 1536
+    def test_embedding_dimensions_is_1024(self):
+        # BAAI/bge-m3 uses 1024 dimensions
+        assert ClinicalNoteConfig.EMBEDDING_DIMENSIONS == 1024

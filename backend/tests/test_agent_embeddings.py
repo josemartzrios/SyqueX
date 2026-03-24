@@ -1,203 +1,134 @@
 """
-Unit tests for the OpenAI embedding service (agent/embeddings.py).
+Unit tests for the FastEmbed embedding service (agent/embeddings.py).
 """
+import asyncio
+import numpy as np
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from openai import AuthenticationError, PermissionDeniedError
+from unittest.mock import MagicMock, patch
 
-from agent.embeddings import OpenAIEmbeddingService
-
-
-ZERO_VECTOR = [0.0] * 1536
-FAKE_EMBEDDING = [0.1] * 1536
+from agent.embeddings import FastEmbedService, embedding_service, get_embedding, EMBEDDING_DIMENSIONS
 
 
-def _make_openai_response(embedding: list[float]):
-    """Build a mock OpenAI embeddings response object."""
-    response = MagicMock()
-    response.data = [MagicMock(embedding=embedding)]
-    return response
+FAKE_EMBEDDING = [0.1] * EMBEDDING_DIMENSIONS
+ZERO_VECTOR = [0.0] * EMBEDDING_DIMENSIONS
 
 
-def _make_auth_error():
-    """Build an AuthenticationError-compatible mock."""
-    mock_response = MagicMock()
-    mock_response.status_code = 401
-    mock_response.headers = {}
-    return AuthenticationError(
-        message="Invalid API Key",
-        response=mock_response,
-        body={"error": {"message": "Invalid API Key", "type": "invalid_request_error"}},
-    )
+def _make_fake_embed_result(vector: list[float]):
+    """Return a generator that yields a numpy array, mimicking FastEmbed output."""
+    def _gen(*args, **kwargs):
+        yield np.array(vector)
+    return _gen
 
 
-class TestGetEmbeddingEmptyInput:
-    @pytest.mark.asyncio
-    async def test_empty_string_returns_zero_vector(self):
-        svc = OpenAIEmbeddingService()
-        result = await svc.get_embedding("")
-        assert result == ZERO_VECTOR
+class TestFastEmbedServiceSingleton:
+    def test_model_is_none_before_first_call(self):
+        svc = FastEmbedService()
+        # Class-level _model starts None for a freshly created instance
+        # (shared class attribute — may already be set if another test ran first)
+        assert hasattr(svc, '_model')
 
-    @pytest.mark.asyncio
-    async def test_whitespace_only_returns_zero_vector(self):
-        svc = OpenAIEmbeddingService()
-        result = await svc.get_embedding("   ")
-        assert result == ZERO_VECTOR
+    def test_get_model_instantiates_text_embedding(self):
+        svc = FastEmbedService()
+        with patch("agent.embeddings.TextEmbedding") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            svc._model = None  # reset for this test
+            model = svc._get_model()
+            mock_cls.assert_called_once_with("BAAI/bge-m3")
+            assert model is mock_cls.return_value
 
-    @pytest.mark.asyncio
-    async def test_none_like_empty_string_returns_zero_vector(self):
-        svc = OpenAIEmbeddingService()
-        result = await svc.get_embedding("")
-        assert len(result) == 1536
-        assert all(v == 0.0 for v in result)
+    def test_get_model_called_only_once(self):
+        svc = FastEmbedService()
+        with patch("agent.embeddings.TextEmbedding") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            svc._model = None  # reset for this test
+            _ = svc._get_model()
+            _ = svc._get_model()
+            assert mock_cls.call_count == 1
 
 
-class TestGetEmbeddingSuccess:
-    @pytest.mark.asyncio
-    async def test_returns_embedding_from_api(self):
-        svc = OpenAIEmbeddingService()
-        mock_client = AsyncMock()
-        mock_client.embeddings.create = AsyncMock(
-            return_value=_make_openai_response(FAKE_EMBEDDING)
-        )
-        svc._openai_client = mock_client
+class TestEmbedSync:
+    def test_embed_sync_returns_list_of_float(self):
+        svc = FastEmbedService()
+        mock_model = MagicMock()
+        mock_model.embed = _make_fake_embed_result(FAKE_EMBEDDING)
+        svc._model = mock_model
 
-        result = await svc.get_embedding("Paciente refiere ansiedad")
+        result = svc._embed_sync("texto clínico")
+        assert isinstance(result, list)
+        assert all(isinstance(v, float) for v in result)
+
+    def test_embed_sync_converts_numpy_to_list(self):
+        """FastEmbed returns numpy.ndarray — must be converted to list[float]."""
+        svc = FastEmbedService()
+        mock_model = MagicMock()
+        mock_model.embed = _make_fake_embed_result(FAKE_EMBEDDING)
+        svc._model = mock_model
+
+        result = svc._embed_sync("texto clínico")
         assert result == FAKE_EMBEDDING
 
+    def test_embed_sync_returns_1024_dimensions(self):
+        svc = FastEmbedService()
+        mock_model = MagicMock()
+        mock_model.embed = _make_fake_embed_result(FAKE_EMBEDDING)
+        svc._model = mock_model
+
+        result = svc._embed_sync("texto")
+        assert len(result) == EMBEDDING_DIMENSIONS
+
+
+class TestGetEmbeddingAsync:
     @pytest.mark.asyncio
-    async def test_calls_correct_model(self):
-        svc = OpenAIEmbeddingService()
-        mock_client = AsyncMock()
-        mock_client.embeddings.create = AsyncMock(
-            return_value=_make_openai_response(FAKE_EMBEDDING)
-        )
-        svc._openai_client = mock_client
+    async def test_get_embedding_returns_list_float(self):
+        svc = FastEmbedService()
+        mock_model = MagicMock()
+        mock_model.embed = _make_fake_embed_result(FAKE_EMBEDDING)
+        svc._model = mock_model
 
-        await svc.get_embedding("texto de prueba")
-        call_kwargs = mock_client.embeddings.create.call_args.kwargs
-        assert call_kwargs["model"] == "text-embedding-3-small"
-
-    @pytest.mark.asyncio
-    async def test_passes_text_as_input(self):
-        svc = OpenAIEmbeddingService()
-        mock_client = AsyncMock()
-        mock_client.embeddings.create = AsyncMock(
-            return_value=_make_openai_response(FAKE_EMBEDDING)
-        )
-        svc._openai_client = mock_client
-
-        await svc.get_embedding("texto de prueba")
-        call_kwargs = mock_client.embeddings.create.call_args.kwargs
-        assert call_kwargs["input"] == "texto de prueba"
-
-    @pytest.mark.asyncio
-    async def test_returns_1536_dimensions(self):
-        svc = OpenAIEmbeddingService()
-        mock_client = AsyncMock()
-        mock_client.embeddings.create = AsyncMock(
-            return_value=_make_openai_response(FAKE_EMBEDDING)
-        )
-        svc._openai_client = mock_client
-
-        result = await svc.get_embedding("texto")
-        assert len(result) == 1536
-
-
-class TestGetEmbeddingAuthErrors:
-    @pytest.mark.asyncio
-    async def test_authentication_error_returns_zero_vector(self):
-        svc = OpenAIEmbeddingService()
-        mock_client = AsyncMock()
-        mock_client.embeddings.create.side_effect = _make_auth_error()
-        svc._openai_client = mock_client
-
-        result = await svc.get_embedding("texto")
-        assert result == ZERO_VECTOR
-
-    @pytest.mark.asyncio
-    async def test_permission_denied_returns_zero_vector(self):
-        svc = OpenAIEmbeddingService()
-        mock_client = AsyncMock()
-        mock_response = MagicMock()
-        mock_response.status_code = 403
-        mock_response.headers = {}
-        mock_client.embeddings.create.side_effect = PermissionDeniedError(
-            message="Permission denied",
-            response=mock_response,
-            body={"error": {"message": "Permission denied"}},
-        )
-        svc._openai_client = mock_client
-
-        result = await svc.get_embedding("texto")
-        assert result == ZERO_VECTOR
-
-    @pytest.mark.asyncio
-    async def test_auth_error_does_not_raise(self):
-        svc = OpenAIEmbeddingService()
-        mock_client = AsyncMock()
-        mock_client.embeddings.create.side_effect = _make_auth_error()
-        svc._openai_client = mock_client
-
-        # Should NOT raise — must degrade gracefully
-        result = await svc.get_embedding("texto")
+        result = await svc.get_embedding("Paciente refiere ansiedad")
         assert isinstance(result, list)
-
-
-class TestGetEmbeddingTransientErrors:
-    @pytest.mark.asyncio
-    async def test_generic_exception_returns_zero_vector(self):
-        svc = OpenAIEmbeddingService()
-        mock_client = AsyncMock()
-        mock_client.embeddings.create.side_effect = Exception("network timeout")
-        svc._openai_client = mock_client
-
-        result = await svc.get_embedding("texto")
-        assert result == ZERO_VECTOR
+        assert all(isinstance(v, float) for v in result)
 
     @pytest.mark.asyncio
-    async def test_transient_error_does_not_raise(self):
-        svc = OpenAIEmbeddingService()
-        mock_client = AsyncMock()
-        mock_client.embeddings.create.side_effect = ConnectionError("timeout")
-        svc._openai_client = mock_client
+    async def test_get_embedding_returns_1024_dimensions(self):
+        svc = FastEmbedService()
+        mock_model = MagicMock()
+        mock_model.embed = _make_fake_embed_result(FAKE_EMBEDDING)
+        svc._model = mock_model
 
         result = await svc.get_embedding("texto")
-        assert isinstance(result, list)
-        assert len(result) == 1536
+        assert len(result) == 1024
 
+    @pytest.mark.asyncio
+    async def test_get_embedding_uses_run_in_executor(self):
+        """get_embedding must offload sync work to thread pool, not block event loop."""
+        svc = FastEmbedService()
+        mock_model = MagicMock()
+        mock_model.embed = _make_fake_embed_result(FAKE_EMBEDDING)
+        svc._model = mock_model
 
-class TestClientLazyInitialization:
-    def test_client_is_none_on_init(self):
-        svc = OpenAIEmbeddingService()
-        assert svc._openai_client is None
+        loop = asyncio.get_running_loop()
+        executed_in_executor = []
 
-    @patch("agent.embeddings.settings")
-    def test_client_created_on_first_access(self, mock_settings):
-        mock_settings.OPENAI_API_KEY = "test-key"
-        svc = OpenAIEmbeddingService()
-        with patch("agent.embeddings.AsyncOpenAI") as mock_openai_cls:
-            mock_openai_cls.return_value = MagicMock()
-            _ = svc.openai_client
-            mock_openai_cls.assert_called_once_with(api_key="test-key")
+        original_run_in_executor = loop.run_in_executor
 
-    @patch("agent.embeddings.settings")
-    def test_client_not_recreated_on_second_access(self, mock_settings):
-        mock_settings.OPENAI_API_KEY = "test-key"
-        svc = OpenAIEmbeddingService()
-        with patch("agent.embeddings.AsyncOpenAI") as mock_openai_cls:
-            mock_openai_cls.return_value = MagicMock()
-            _ = svc.openai_client
-            _ = svc.openai_client
-            # Created only once
-            assert mock_openai_cls.call_count == 1
+        async def mock_executor(executor, func, *args):
+            executed_in_executor.append(func)
+            return await original_run_in_executor(executor, func, *args)
+
+        with patch.object(loop, 'run_in_executor', side_effect=mock_executor):
+            await svc.get_embedding("texto")
+
+        assert len(executed_in_executor) == 1
 
 
 class TestModuleLevelExports:
-    def test_module_exports_get_embedding_function(self):
-        from agent.embeddings import get_embedding
+    def test_embedding_service_is_fastembed_instance(self):
+        assert isinstance(embedding_service, FastEmbedService)
+
+    @pytest.mark.asyncio
+    async def test_get_embedding_function_is_callable(self):
         assert callable(get_embedding)
 
-    def test_module_exports_embedding_service_instance(self):
-        from agent.embeddings import embedding_service
-        assert isinstance(embedding_service, OpenAIEmbeddingService)
+    def test_embedding_dimensions_constant(self):
+        assert EMBEDDING_DIMENSIONS == 1024

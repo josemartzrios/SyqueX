@@ -421,7 +421,7 @@ class TestConfirmSession:
 
         mock_db.add = MagicMock(side_effect=fake_add)
 
-        with patch("api.routes.get_embedding", new=AsyncMock(return_value=[0.0] * 1536)):
+        with patch("api.routes.get_embedding", new=AsyncMock(return_value=[0.0] * 1024)):  # BAAI/bge-m3 uses 1024 dimensions
             with patch("agent.agent.AsyncAnthropic") as mock_cls:
                 mock_client = AsyncMock()
                 block = MagicMock()
