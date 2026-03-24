@@ -31,7 +31,7 @@ class FastEmbedService(IEmbeddingService):
     async def get_embedding(self, text: str) -> list[float]:
         # FastEmbed is synchronous — run in default thread pool executor
         # to avoid blocking the FastAPI event loop
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._embed_sync, text)
 
 
