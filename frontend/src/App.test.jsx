@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { markPendingNotesReadOnly } from './App'
 
 // Lógica pura extraída de loadPatientChat para testear sin montar componente
 function buildChatMessages(sessions) {
@@ -110,15 +111,6 @@ describe('buildChatMessages', () => {
     expect(msgs[2].text).toBe('Sesión 2')
   })
 })
-
-// Inline temporal — se moverá a App.jsx en Task 2
-function markPendingNotesReadOnly(messages) {
-  return messages.map(msg =>
-    msg.type === 'bot' && msg.noteData
-      ? { ...msg, readOnly: true }
-      : msg
-  )
-}
 
 describe('markPendingNotesReadOnly', () => {
   it('pone readOnly:true en mensajes bot con noteData', () => {
