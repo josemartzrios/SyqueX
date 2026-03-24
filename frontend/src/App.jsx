@@ -196,6 +196,7 @@ function App() {
           noteData: {
             clinical_note: null,
             text_fallback: session.ai_response,
+            session_id: String(session.id),
           },
           sessionId: String(session.id),
           readOnly: false,
