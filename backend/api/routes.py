@@ -65,6 +65,7 @@ class SessionOut(BaseModel):
     raw_dictation: Optional[str]
     ai_response: Optional[str]
     status: str
+    format: str = "SOAP"
     structured_note: Optional[Dict[str, Any]] = None
     detected_patterns: Optional[List[str]] = None
     alerts: Optional[List[str]] = None
@@ -245,6 +246,7 @@ async def get_patient_sessions(
             raw_dictation=s.raw_dictation,
             ai_response=s.ai_response,
             status=s.status,
+            format=s.format,
             structured_note={
                 "subjective": cn.subjective,
                 "objective": cn.objective,
