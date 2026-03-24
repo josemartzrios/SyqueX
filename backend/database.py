@@ -144,7 +144,7 @@ class ClinicalNote(Base):
     suggested_next_steps: Mapped[List[str]] = mapped_column(ARRAY(Text), default=list)
     evolution_delta: Mapped[dict] = mapped_column(JSONB, default=dict)
 
-    embedding = mapped_column(Vector(1536))
+    embedding = mapped_column(Vector(1024))
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -265,6 +265,21 @@ async def init_db():
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity);"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_audit_logs_psych_timestamp ON audit_logs(psychologist_id, timestamp);"))
+
+        # ── Embedding dimension migration: 1536 → 1024 (FastEmbed BAAI/bge-m3) ──
+        await conn.execute(text("DROP INDEX IF EXISTS clinical_notes_embedding_idx;"))
+        await conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'clinical_notes'
+                      AND column_name = 'embedding'
+                ) THEN
+                    ALTER TABLE clinical_notes ALTER COLUMN embedding TYPE vector(1024);
+                END IF;
+            END$$;
+        """))
 
         # Vector search — HNSW (cosine distance)
         await conn.execute(text(
