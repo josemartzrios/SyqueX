@@ -41,20 +41,10 @@ export async function confirmNote(sessionId, noteData) {
   return _handleResponse(res);
 }
 
-export async function getPatientProfile(patientId) {
-  const res = await fetch(`${API_BASE}/patients/${patientId}/profile`);
-  return _handleResponse(res);
-}
-
 export async function getPatientSessions(patientId) {
   const res = await fetch(`${API_BASE}/patients/${patientId}/sessions`);
   const data = await _handleResponse(res);
   return data.items;
-}
-
-export async function searchHistory(patientId, query) {
-  const res = await fetch(`${API_BASE}/patients/${patientId}/search?q=${encodeURIComponent(query)}`);
-  return _handleResponse(res);
 }
 
 export async function listPatients() {
