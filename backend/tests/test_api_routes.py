@@ -295,6 +295,7 @@ class TestGetPatientSessions:
         session.raw_dictation = "Dictado de prueba"
         session.ai_response = "Respuesta de prueba"
         session.status = "confirmed"
+        session.format = "SOAP"
 
         join_result = MagicMock()
         join_result.all.return_value = [(session, None)]
@@ -758,6 +759,7 @@ class TestGetPatientSessionsEnriched:
         session_obj.raw_dictation = "Paciente refiere ansiedad."
         session_obj.ai_response = "**S — ...**"
         session_obj.status = "confirmed"
+        session_obj.format = "SOAP"
 
         note_obj = MagicMock()
         note_obj.id = uuid.uuid4()
@@ -799,6 +801,7 @@ class TestGetPatientSessionsEnriched:
         session_obj.raw_dictation = "Paciente refiere tristeza."
         session_obj.ai_response = "**S — ...**"
         session_obj.status = "draft"
+        session_obj.format = "SOAP"
 
         count_result = _result(scalar_one=1)
         join_result = MagicMock()
@@ -867,3 +870,64 @@ class TestChatSessionPersistence:
         assert added_session.status == "confirmed"
         assert added_session.format == "chat"
         mock_db.commit.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/patients/{patient_id}/sessions — format field
+# ---------------------------------------------------------------------------
+
+class TestSessionOutFormat:
+    """Verifica que GET /patients/{id}/sessions expone el campo format en cada sesión."""
+
+    @pytest.mark.asyncio
+    async def test_soap_session_returns_format_soap(self, app, mock_db, patient_uuid, session_uuid):
+        """Una sesión SOAP retorna format='SOAP'."""
+        from datetime import date
+
+        session_obj = MagicMock()
+        session_obj.id = session_uuid
+        session_obj.session_number = 1
+        session_obj.session_date = date(2026, 3, 1)
+        session_obj.raw_dictation = "Paciente refiere ansiedad."
+        session_obj.ai_response = "**S — Ansiedad**"
+        session_obj.status = "confirmed"
+        session_obj.format = "SOAP"
+
+        count_result = _result(scalar_one=1)
+        join_result = MagicMock()
+        join_result.all.return_value = [(session_obj, None)]
+        mock_db.execute.side_effect = [count_result, join_result]
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"/api/v1/patients/{patient_uuid}/sessions")
+
+        assert response.status_code == 200
+        item = response.json()["items"][0]
+        assert item["format"] == "SOAP"
+
+    @pytest.mark.asyncio
+    async def test_chat_session_returns_format_chat(self, app, mock_db, patient_uuid, session_uuid):
+        """Una sesión chat retorna format='chat'."""
+        from datetime import date
+
+        session_obj = MagicMock()
+        session_obj.id = session_uuid
+        session_obj.session_number = 1
+        session_obj.session_date = date(2026, 3, 1)
+        session_obj.raw_dictation = "¿Qué técnicas para ansiedad recomiendas?"
+        session_obj.ai_response = "Puedo sugerirte técnicas de respiración diafragmática."
+        session_obj.status = "confirmed"
+        session_obj.format = "chat"
+
+        count_result = _result(scalar_one=1)
+        join_result = MagicMock()
+        join_result.all.return_value = [(session_obj, None)]
+        mock_db.execute.side_effect = [count_result, join_result]
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"/api/v1/patients/{patient_uuid}/sessions")
+
+        assert response.status_code == 200
+        item = response.json()["items"][0]
+        assert item["format"] == "chat"
+        assert item["structured_note"] is None
