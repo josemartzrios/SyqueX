@@ -71,3 +71,8 @@ export async function archiveSession(sessionId) {
   const res = await fetch(`${API_BASE}/sessions/${sessionId}/archive`, { method: 'PATCH' });
   return _handleResponse(res);
 }
+
+export async function archivePatientSessions(patientId) {
+  const res = await fetch(`${API_BASE}/patients/${patientId}/sessions/archive`, { method: 'PATCH' });
+  return _handleResponse(res);
+}

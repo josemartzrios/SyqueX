@@ -378,6 +378,20 @@ async def archive_session(session_id: str, db: AsyncSession = Depends(get_db)):
 
     return ArchiveOut(id=session_id)
 
+
+@router.patch("/patients/{patient_id}/sessions/archive", response_model=ArchiveOut, tags=["sessions"])
+async def archive_patient_sessions(patient_id: str, db: AsyncSession = Depends(get_db)):
+    """Archive all sessions for a patient so they disappear from the conversations list."""
+    patient_uuid = _parse_uuid(patient_id, "patient_id")
+    res = await db.execute(
+        select(Session).where(Session.patient_id == patient_uuid, Session.is_archived == False)
+    )
+    sessions = res.scalars().all()
+    for sess in sessions:
+        sess.is_archived = True
+    await db.commit()
+    return ArchiveOut(id=patient_id)
+
 # ---------------------------------------------------------------------------
 # Conversations (cross-patient view)
 # ---------------------------------------------------------------------------
