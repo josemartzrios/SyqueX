@@ -135,6 +135,15 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('es', { day: '2-digit', month: 'short' });
 }
 
+// ── Helper: mark pending SOAP notes as read-only ────────────────────────────
+export function markPendingNotesReadOnly(messages) {
+  return messages.map(msg =>
+    msg.type === 'bot' && msg.noteData
+      ? { ...msg, readOnly: true }
+      : msg
+  )
+}
+
 // ── App ──────────────────────────────────────────────────────────────────────
 function App() {
   const [showDisclaimer, setShowDisclaimer] = useState(true);
@@ -257,7 +266,7 @@ function App() {
 
   const handleSendDictation = async (dictation, format) => {
     setMessages(prev => [
-      ...prev,
+      ...markPendingNotesReadOnly(prev),
       { role: 'user', text: dictation },
       { role: 'assistant', type: 'loading' }
     ]);
