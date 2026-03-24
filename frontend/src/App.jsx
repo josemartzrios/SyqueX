@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
 import NoteReview from './components/NoteReview'
-import { processSession, createPatient, getPatientSessions, listConversations, archiveSession } from './api'
+import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions } from './api'
 
 // ── Module-level constants ─────────────────────────────────────────────────
 const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
@@ -235,7 +235,7 @@ function App() {
 
   const handleDeleteConversation = async (sessionId, patientId) => {
     try {
-      if (sessionId) await archiveSession(sessionId);
+      if (patientId) await archivePatientSessions(patientId);
       setConversations(prev => prev.filter(c => c.patient_id !== patientId));
     } catch (err) {
       console.error("Error archiving conversation:", err);
