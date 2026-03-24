@@ -33,7 +33,7 @@ export default function ChatInput({ onSend, loading }) {
       {/* Textarea — full width, sin botón al lado */}
       <textarea
         className="w-full bg-transparent text-ink placeholder-ink-tertiary font-sans text-[14px] leading-relaxed focus:outline-none resize-none max-h-40 overflow-y-auto"
-        placeholder="Escribe o dicta libremente..."
+        placeholder="Escribe libremente..."
         value={dictation}
         onChange={(e) => setDictation(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -48,11 +48,10 @@ export default function ChatInput({ onSend, loading }) {
         <button
           onClick={() => handleSend('SOAP')}
           disabled={loading || !hasText}
-          className={`flex items-center gap-1.5 border text-[12px] font-medium rounded-xl px-3 py-1.5 transition-all flex-shrink-0 ${
-            hasText && !loading
+          className={`flex items-center gap-1.5 border text-[12px] font-medium rounded-xl px-3 py-1.5 transition-all flex-shrink-0 ${hasText && !loading
               ? 'border-sage/30 hover:border-sage/60 bg-sage-light/50 hover:bg-sage-light text-sage hover:text-sage-dark'
               : 'border-ink/[0.08] text-ink-muted cursor-not-allowed'
-          }`}
+            }`}
         >
           <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
