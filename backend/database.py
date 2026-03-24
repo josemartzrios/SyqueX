@@ -99,6 +99,7 @@ class Session(Base):
     session_number: Mapped[int] = mapped_column(Integer, nullable=False)
     session_date: Mapped[date] = mapped_column(Date, nullable=False)
     raw_dictation: Mapped[str] = mapped_column(Text, nullable=False)
+    format: Mapped[str] = mapped_column(String(20), nullable=False, default="SOAP")
     ai_response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -187,6 +188,7 @@ async def init_db():
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;"))
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS messages JSONB NOT NULL DEFAULT '[]';"))
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();"))
+        await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS format VARCHAR(20) NOT NULL DEFAULT 'SOAP';"))
 
         # PatientProfile — renombrar last_updated → updated_at
         await conn.execute(text("""
