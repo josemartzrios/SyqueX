@@ -110,3 +110,53 @@ describe('buildChatMessages', () => {
     expect(msgs[2].text).toBe('Sesión 2')
   })
 })
+
+// Inline temporal — se moverá a App.jsx en Task 2
+function markPendingNotesReadOnly(messages) {
+  return messages.map(msg =>
+    msg.type === 'bot' && msg.noteData
+      ? { ...msg, readOnly: true }
+      : msg
+  )
+}
+
+describe('markPendingNotesReadOnly', () => {
+  it('pone readOnly:true en mensajes bot con noteData', () => {
+    const messages = [
+      { role: 'user', text: 'Dictado' },
+      { role: 'assistant', type: 'bot', noteData: { clinical_note: null, text_fallback: 'S — ...' }, readOnly: false },
+    ]
+    const result = markPendingNotesReadOnly(messages)
+    expect(result[0]).toEqual(messages[0])          // user msg sin cambios
+    expect(result[1].readOnly).toBe(true)
+  })
+
+  it('no modifica mensajes que no son bot con noteData', () => {
+    const messages = [
+      { role: 'user', text: 'Hola' },
+      { role: 'assistant', type: 'chat', text: 'Respuesta libre' },
+      { role: 'assistant', type: 'error', text: 'Error' },
+    ]
+    const result = markPendingNotesReadOnly(messages)
+    expect(result).toEqual(messages)
+  })
+
+  it('marca múltiples notas SOAP pendientes en el mismo chat', () => {
+    const messages = [
+      { role: 'assistant', type: 'bot', noteData: {}, readOnly: false },
+      { role: 'user', text: 'Segundo dictado' },
+      { role: 'assistant', type: 'bot', noteData: {}, readOnly: false },
+    ]
+    const result = markPendingNotesReadOnly(messages)
+    expect(result[0].readOnly).toBe(true)
+    expect(result[2].readOnly).toBe(true)
+  })
+
+  it('no rompe notas ya confirmadas (readOnly:true)', () => {
+    const messages = [
+      { role: 'assistant', type: 'bot', noteData: {}, readOnly: true },
+    ]
+    const result = markPendingNotesReadOnly(messages)
+    expect(result[0].readOnly).toBe(true)
+  })
+})
