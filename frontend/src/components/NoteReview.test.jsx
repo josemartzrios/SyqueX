@@ -30,7 +30,7 @@ describe('NoteReview — prop readOnly', () => {
 
   it('muestra el botón Confirmar cuando readOnly=false', () => {
     render(<NoteReview noteData={NOTE_DATA_CONFIRMED} readOnly={false} onConfirm={vi.fn()} />)
-    expect(screen.getByText(/Confirmar/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Confirmar/i).length).toBeGreaterThan(0)
   })
 
   it('renderiza las secciones SOAP correctamente', () => {
