@@ -180,8 +180,16 @@ function App() {
         historyMessages.push({ role: 'user', text: session.raw_dictation });
       }
 
-      const hasStructuredNote = session.status === 'confirmed' && session.structured_note;
+      // Chat sessions: render as plain text, no NoteReview component
+      if (session.format === 'chat') {
+        if (session.ai_response) {
+          historyMessages.push({ role: 'assistant', type: 'chat', text: session.ai_response });
+        }
+        return;
+      }
 
+      // SOAP and other structured formats
+      const hasStructuredNote = session.status === 'confirmed' && session.structured_note;
       if (hasStructuredNote) {
         historyMessages.push({
           role: 'assistant',
@@ -276,7 +284,7 @@ function App() {
         ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
         : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
       setMessages(prev => [...prev.slice(0, -1), botMessage]);
-      if (format === 'SOAP') fetchConversations();
+      fetchConversations();
     } catch (err) {
       setMessages(prev => [
         ...prev.slice(0, -1),

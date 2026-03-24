@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { markPendingNotesReadOnly } from './App'
 
-// Lógica pura extraída de loadPatientChat para testear sin montar componente
+// Refleja la lógica de loadPatientChat — se testea sin montar el componente completo
 function buildChatMessages(sessions) {
   const msgs = []
   sessions.forEach(session => {
@@ -9,8 +9,15 @@ function buildChatMessages(sessions) {
       msgs.push({ role: 'user', text: session.raw_dictation })
     }
 
-    const hasStructuredNote = session.status === 'confirmed' && session.structured_note
+    if (session.format === 'chat') {
+      if (session.ai_response) {
+        msgs.push({ role: 'assistant', type: 'chat', text: session.ai_response })
+      }
+      return
+    }
 
+    // SOAP y otros formatos estructurados
+    const hasStructuredNote = session.status === 'confirmed' && session.structured_note
     if (hasStructuredNote) {
       msgs.push({
         role: 'assistant',
@@ -34,6 +41,7 @@ function buildChatMessages(sessions) {
         noteData: {
           clinical_note: null,
           text_fallback: session.ai_response,
+          session_id: String(session.id),
         },
         sessionId: String(session.id),
         readOnly: false,
@@ -44,29 +52,48 @@ function buildChatMessages(sessions) {
 }
 
 describe('buildChatMessages', () => {
-  it('genera par user+bot para sesión confirmada con structured_note', () => {
+  it('renderiza sesión chat como type:chat con texto plano', () => {
     const sessions = [{
       id: 'sess-1',
-      raw_dictation: 'El paciente refiere ansiedad.',
-      ai_response: '**S — ...**',
+      format: 'chat',
+      raw_dictation: '¿Qué técnicas usas para el insomnio?',
+      ai_response: 'Higiene del sueño y TCC-I.',
       status: 'confirmed',
-      structured_note: { subjective: 'Ansiedad', objective: 'Afecto ansioso', assessment: 'TAG', plan: 'TCC' },
+      structured_note: null,
+      detected_patterns: null,
+      alerts: null,
+    }]
+
+    const msgs = buildChatMessages(sessions)
+    expect(msgs).toHaveLength(2)
+    expect(msgs[0]).toEqual({ role: 'user', text: '¿Qué técnicas usas para el insomnio?' })
+    expect(msgs[1]).toEqual({ role: 'assistant', type: 'chat', text: 'Higiene del sueño y TCC-I.' })
+  })
+
+  it('renderiza sesión SOAP confirmada como type:bot readOnly', () => {
+    const sessions = [{
+      id: 'sess-2',
+      format: 'SOAP',
+      raw_dictation: 'Paciente con ansiedad.',
+      ai_response: '**S — Ansiedad**',
+      status: 'confirmed',
+      structured_note: { subjective: 'Ansiedad', objective: 'Observado', assessment: 'TAG', plan: 'TCC' },
       detected_patterns: ['ansiedad'],
       alerts: [],
     }]
 
     const msgs = buildChatMessages(sessions)
     expect(msgs).toHaveLength(2)
-    expect(msgs[0]).toEqual({ role: 'user', text: 'El paciente refiere ansiedad.' })
-    expect(msgs[1].role).toBe('assistant')
+    expect(msgs[1].type).toBe('bot')
     expect(msgs[1].readOnly).toBe(true)
     expect(msgs[1].noteData.clinical_note.structured_note.subjective).toBe('Ansiedad')
   })
 
-  it('genera par user+bot para sesión draft sin structured_note', () => {
+  it('renderiza sesión SOAP draft como type:bot no readOnly', () => {
     const sessions = [{
-      id: 'sess-2',
-      raw_dictation: 'Dictado de prueba.',
+      id: 'sess-3',
+      format: 'SOAP',
+      raw_dictation: 'Dictado sin confirmar.',
       ai_response: '**S — borrador**',
       status: 'draft',
       structured_note: null,
@@ -75,17 +102,17 @@ describe('buildChatMessages', () => {
     }]
 
     const msgs = buildChatMessages(sessions)
-    expect(msgs).toHaveLength(2)
+    expect(msgs[1].type).toBe('bot')
     expect(msgs[1].readOnly).toBe(false)
-    expect(msgs[1].noteData.clinical_note).toBeNull()
   })
 
-  it('omite mensaje de agente si no hay ai_response y no hay structured_note', () => {
+  it('omite mensaje del agente si chat sin ai_response', () => {
     const sessions = [{
-      id: 'sess-3',
-      raw_dictation: 'Dictado sin respuesta.',
+      id: 'sess-4',
+      format: 'chat',
+      raw_dictation: 'Mensaje sin respuesta.',
       ai_response: null,
-      status: 'draft',
+      status: 'confirmed',
       structured_note: null,
       detected_patterns: null,
       alerts: null,
@@ -96,19 +123,26 @@ describe('buildChatMessages', () => {
     expect(msgs[0].role).toBe('user')
   })
 
-  it('procesa múltiples sesiones en orden cronológico', () => {
+  it('mezcla correctamente sesiones SOAP y chat en orden cronológico', () => {
     const sessions = [
-      { id: 's1', raw_dictation: 'Sesión 1', ai_response: 'Resp 1', status: 'confirmed',
-        structured_note: { subjective: 'S1', objective: null, assessment: null, plan: null },
-        detected_patterns: [], alerts: [] },
-      { id: 's2', raw_dictation: 'Sesión 2', ai_response: 'Resp 2', status: 'draft',
-        structured_note: null, detected_patterns: null, alerts: null },
+      {
+        id: 's1', format: 'SOAP', raw_dictation: 'Dictado SOAP', ai_response: '**S — ...**',
+        status: 'confirmed',
+        structured_note: { subjective: 'S', objective: 'O', assessment: 'A', plan: 'P' },
+        detected_patterns: [], alerts: [],
+      },
+      {
+        id: 's2', format: 'chat', raw_dictation: 'Consulta rápida', ai_response: 'Respuesta rápida.',
+        status: 'confirmed', structured_note: null, detected_patterns: null, alerts: null,
+      },
     ]
 
     const msgs = buildChatMessages(sessions)
     expect(msgs).toHaveLength(4)
-    expect(msgs[0].text).toBe('Sesión 1')
-    expect(msgs[2].text).toBe('Sesión 2')
+    expect(msgs[0].text).toBe('Dictado SOAP')
+    expect(msgs[1].type).toBe('bot')
+    expect(msgs[2].text).toBe('Consulta rápida')
+    expect(msgs[3].type).toBe('chat')
   })
 })
 
@@ -119,7 +153,7 @@ describe('markPendingNotesReadOnly', () => {
       { role: 'assistant', type: 'bot', noteData: { clinical_note: null, text_fallback: 'S — ...' }, readOnly: false },
     ]
     const result = markPendingNotesReadOnly(messages)
-    expect(result[0]).toEqual(messages[0])          // user msg sin cambios
+    expect(result[0]).toEqual(messages[0])
     expect(result[1].readOnly).toBe(true)
   })
 
