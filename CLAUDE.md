@@ -30,6 +30,16 @@ pip install -r requirements.txt
 python seed.py          # Initialize DB with test data
 uvicorn main:app --reload
 
+Para usar el seed demo:
+  # 1. Parar el servidor
+  # 2. Instalar fastembed (primera vez descarga ~570 MB)
+  pip install -r requirements.txt
+  # 3. Correr seed
+  python seed_demo.py
+  # 4. Arrancar servidor — init_db() aplica la migración
+  uvicorn main:app --reload
+  # Login: ana@syquex.demo / demo1234
+
 # Frontend (from /frontend)
 npm install
 npm run dev             # Vite dev server at http://localhost:5173
