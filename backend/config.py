@@ -4,7 +4,6 @@ from typing import List
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://psicoagente:psicoagente_dev@localhost/psicoagente"
     ANTHROPIC_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""
     # CRÍTICO: cambiar en producción — mínimo 64 caracteres aleatorios
     SECRET_KEY: str = "dev_only_key_MUST_change_in_production_use_64_random_chars"
     ALGORITHM: str = "HS256"
@@ -17,7 +16,7 @@ class Settings(BaseSettings):
     # Clinical logic config
     MAX_DICTATION_LENGTH: int = 5000
     MAX_SESSIONS_CONTEXT: int = 6
-    EMBEDDING_DIMENSIONS: int = 1536
+    EMBEDDING_DIMENSIONS: int = 1024
 
     class Config:
         env_file = ".env"

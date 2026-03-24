@@ -43,7 +43,7 @@ class LLMServiceError(DomainError):
 
 
 class EmbeddingServiceError(DomainError):
-    """Raised when the embedding provider (OpenAI) is misconfigured or unavailable."""
+    """Raised when the embedding provider (FastEmbed) is misconfigured or unavailable."""
     http_status = 502
 
 
