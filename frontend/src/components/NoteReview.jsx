@@ -215,7 +215,11 @@ export default function NoteReview({ noteData, onConfirm, readOnly = false }) {
                     saving ? 'opacity-70 cursor-not-allowed' : 'hover:bg-sage-dark'
                   }`}
                 >
-                  {saving ? 'Registrando...' : '✓ Confirmar en Expediente'}
+                  {saving ? 'Registrando...' : (
+                    <>
+                      ✓ <span className="hidden sm:inline">Confirmar en Expediente</span><span className="sm:hidden">Confirmar</span>
+                    </>
+                  )}
                 </button>
               ) : (
                 <span className="text-emerald-600 text-[13px] font-medium flex items-center gap-1 px-4 py-2">
