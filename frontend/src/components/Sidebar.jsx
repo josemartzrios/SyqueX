@@ -5,12 +5,13 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
     <>
       {open && (
         <div
+          data-testid="sidebar-backdrop"
           className="fixed inset-0 bg-ink/20 backdrop-blur-[2px] z-30"
           onClick={onClose}
         />
       )}
 
-      <div className={`fixed left-0 top-0 h-full w-[85vw] max-w-sm bg-white z-40 flex flex-col transform transition-transform duration-300 ease-out border-r border-ink/[0.07] shadow-xl ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div data-testid="sidebar-panel" className={`fixed left-0 top-0 h-full w-[85vw] max-w-sm bg-white z-40 flex flex-col transform transition-transform duration-300 ease-out border-r border-ink/[0.07] shadow-xl ${open ? 'translate-x-0' : '-translate-x-full'}`}>
 
         <div className="px-5 py-4 border-b border-ink/[0.07] flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
@@ -19,6 +20,7 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
           </div>
           <button
             onClick={onClose}
+            aria-label="Cerrar"
             className="p-1.5 rounded-lg text-ink-tertiary hover:text-ink-secondary hover:bg-parchment transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
