@@ -72,10 +72,12 @@ export default function NoteReview({ noteData, onConfirm, readOnly = false }) {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const sid = noteData.clinical_note?.session_id || noteData.note_id
+      const sid = noteData.clinical_note?.session_id || noteData.note_id || noteData.session_id
       const payload = {
-        ...noteData.clinical_note,
         format: 'SOAP',
+        structured_note: noteContent,
+        detected_patterns: patterns,
+        alerts: alerts,
       }
       if (!sid) {
         alert('ID de sesión extraviado. No se guardará.')
