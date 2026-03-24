@@ -866,3 +866,4 @@ class TestChatSessionPersistence:
         added_session = mock_db.add.call_args[0][0]
         assert added_session.status == "confirmed"
         assert added_session.format == "chat"
+        mock_db.commit.assert_called()
