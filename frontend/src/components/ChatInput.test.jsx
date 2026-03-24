@@ -7,7 +7,7 @@ describe('ChatInput', () => {
   it('renderiza textarea y ambos botones', () => {
     render(<ChatInput onSend={vi.fn()} loading={false} />)
     expect(screen.getByRole('textbox')).toBeInTheDocument()
-    expect(screen.getByText(/Generar nota clínica/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Generar nota clínica/i })).toBeInTheDocument()
     expect(screen.getByText('Chat')).toBeInTheDocument()
   })
 
@@ -58,7 +58,7 @@ describe('ChatInput', () => {
     render(<ChatInput onSend={onSend} loading={false} />)
     const textarea = screen.getByRole('textbox')
     await user.type(textarea, 'sesión clínica')
-    await user.click(screen.getByText(/Generar nota clínica/i))
+    await user.click(screen.getByRole('button', { name: /Generar nota clínica/i }))
     expect(onSend).toHaveBeenCalledOnce()
     expect(onSend).toHaveBeenCalledWith('sesión clínica', 'SOAP')
     expect(textarea.value).toBe('')
