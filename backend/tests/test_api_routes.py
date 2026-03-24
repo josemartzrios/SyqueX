@@ -614,7 +614,7 @@ class TestListConversations:
 # ---------------------------------------------------------------------------
 
 class TestProcessSessionFormat:
-    """Chat format must not create a Session; SOAP format must."""
+    """Both chat and SOAP formats must create a Session in DB."""
 
     def _mock_claude(self, text="Respuesta del agente"):
         """Returns a patcher that patches AsyncAnthropic."""
@@ -633,11 +633,12 @@ class TestProcessSessionFormat:
         return patcher
 
     @pytest.mark.asyncio
-    async def test_chat_format_returns_no_session_id(self, app, mock_db, patient_uuid):
-        """format='chat' → response has no session_id."""
+    async def test_chat_format_returns_session_id(self, app, mock_db, patient_uuid):
+        """format='chat' → response includes session_id (session is now persisted)."""
         mock_db.execute.side_effect = [
             _result(scalar_one_or_none=None),  # _get_patient_context: profile
             _result(scalars_all=[]),            # _get_patient_context: sessions
+            _result(scalar_one_or_none=None),  # last session (session_number)
         ]
 
         patcher = self._mock_claude()
@@ -653,14 +654,15 @@ class TestProcessSessionFormat:
         assert response.status_code == 200
         data = response.json()
         assert data["text_fallback"] is not None
-        assert data.get("session_id") is None
+        assert data.get("session_id") is not None   # ← invertido: chat ahora persiste
 
     @pytest.mark.asyncio
-    async def test_chat_format_does_not_persist_session(self, app, mock_db, patient_uuid):
-        """format='chat' → db.add() is never called."""
+    async def test_chat_format_persists_session(self, app, mock_db, patient_uuid):
+        """format='chat' → db.add() is called once to persist the session."""
         mock_db.execute.side_effect = [
-            _result(scalar_one_or_none=None),
-            _result(scalars_all=[]),
+            _result(scalar_one_or_none=None),  # profile
+            _result(scalars_all=[]),            # sessions history
+            _result(scalar_one_or_none=None),  # last session
         ]
 
         patcher = self._mock_claude()
@@ -673,7 +675,7 @@ class TestProcessSessionFormat:
         finally:
             patcher.stop()
 
-        mock_db.add.assert_not_called()
+        mock_db.add.assert_called_once()   # ← invertido: ahora debe llamarse
 
     @pytest.mark.asyncio
     async def test_soap_format_returns_session_id(self, app, mock_db, patient_uuid):
@@ -825,3 +827,42 @@ class TestGetPatientSessionsEnriched:
 
         assert response.status_code == 200
         assert response.json()["items"] == []
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/sessions/{patient_id}/process — chat persistence (integration)
+# ---------------------------------------------------------------------------
+
+class TestChatSessionPersistence:
+    """Verifica que chat y SOAP crean Session con el status correcto."""
+
+    @pytest.mark.asyncio
+    async def test_chat_session_created_with_confirmed_status(self, app, mock_db, patient_uuid):
+        """format='chat' debe crear Session con status='confirmed' (sin paso de confirmación)."""
+        mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=None),
+            _result(scalars_all=[]),
+            _result(scalar_one_or_none=None),
+        ]
+
+        with patch("api.routes.process_session", new=AsyncMock(return_value={
+            "text_fallback": "Observación clínica breve.",
+            "session_messages": [
+                {"role": "user", "content": "El paciente menciona insomnio."},
+                {"role": "assistant", "content": "Observación clínica breve."},
+            ],
+        })):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    f"/api/v1/sessions/{patient_uuid}/process",
+                    json={"raw_dictation": "El paciente menciona insomnio.", "format": "chat"},
+                )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["session_id"] is not None
+
+        # Verify Session created with status='confirmed' and format='chat'
+        added_session = mock_db.add.call_args[0][0]
+        assert added_session.status == "confirmed"
+        assert added_session.format == "chat"

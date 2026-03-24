@@ -285,11 +285,6 @@ async def process_session_endpoint(
     patient_uuid = _parse_uuid(patient_id, "patient_id")
     response = await process_session(db, patient_id, rec.raw_dictation, None, rec.format)
 
-    # Chat messages are ephemeral — no Session created in DB
-    if rec.format == "chat":
-        return ProcessSessionOut(text_fallback=response.get("text_fallback"))
-
-    # SOAP and other formats: persist as draft Session
     session_id = str(uuid.uuid4())
 
     res_last = await db.execute(
@@ -301,15 +296,19 @@ async def process_session_endpoint(
     last_session = res_last.scalar_one_or_none()
     current_session_number = (last_session.session_number + 1) if last_session else 1
 
+    # Chat sessions are confirmed immediately (no confirmation step needed)
+    session_status = "confirmed" if rec.format == "chat" else "draft"
+
     new_session = Session(
         id=uuid.UUID(session_id),
         patient_id=patient_uuid,
         session_number=current_session_number,
         session_date=date.today(),
         raw_dictation=rec.raw_dictation,
+        format=rec.format or "SOAP",
         ai_response=response.get("text_fallback"),
         messages=response.get("session_messages", []),
-        status="draft",
+        status=session_status,
     )
     db.add(new_session)
     await db.commit()
