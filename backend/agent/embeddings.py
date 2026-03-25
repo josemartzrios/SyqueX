@@ -3,7 +3,7 @@ import threading
 from fastembed import TextEmbedding
 from agent.interfaces import IEmbeddingService
 
-MODEL_NAME = "BAAI/bge-m3"
+MODEL_NAME = "intfloat/multilingual-e5-large"
 EMBEDDING_DIMENSIONS = 1024
 ZERO_VECTOR = [0.0] * EMBEDDING_DIMENSIONS  # fallback on error
 

@@ -41,8 +41,8 @@ async def seed_all(db):
     await db.commit()
 
     # 3. Load FastEmbed model
-    print("Cargando modelo FastEmbed BAAI/bge-m3 (primera vez: ~570 MB)...")
-    model = TextEmbedding("BAAI/bge-m3")
+    print("Cargando modelo FastEmbed intfloat/multilingual-e5-large (primera vez: ~570 MB)...")
+    model = TextEmbedding("intfloat/multilingual-e5-large")
     print("Modelo cargado.")
 
     # Helper: generate embedding
