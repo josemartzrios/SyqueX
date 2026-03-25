@@ -79,27 +79,32 @@ async def seed_all(db):
     await db.commit()
 
     # Session 1 — María
+    _raw_s1_p1 = (
+        "Paciente acude por primera vez. Refiere ataques de pánico frecuentes en el trabajo, "
+        "especialmente los lunes antes de reuniones. Dificultad para dormir, pensamientos acelerados."
+    )
+    _resp_s1_p1 = (
+        "**S:** Paciente de 34 años acude por ataques de pánico en contexto laboral. Refiere episodios "
+        "de palpitaciones, sudoración y sensación de ahogo los lunes ante reuniones. Insomnio de conciliación.\n\n"
+        "**O:** Afecto ansioso, habla rápida. Niega ideación suicida.\n\n"
+        "**A:** Cuadro compatible con Trastorno de Ansiedad Generalizada con componente situacional laboral.\n\n"
+        "**P:** Psicoeducación sobre ansiedad. Inicio técnicas de respiración diafragmática. "
+        "Registro de episodios de pánico para próxima sesión."
+    )
     s1_p1 = Session(
         id=uuid.uuid4(),
         patient_id=patient1.id,
         session_number=1,
         session_date=date(2025, 12, 17),
-        raw_dictation=(
-            "Paciente acude por primera vez. Refiere ataques de pánico frecuentes en el trabajo, "
-            "especialmente los lunes antes de reuniones. Dificultad para dormir, pensamientos acelerados."
-        ),
+        raw_dictation=_raw_s1_p1,
         format="SOAP",
-        ai_response=(
-            "**S:** Paciente de 34 años acude por ataques de pánico en contexto laboral. Refiere episodios "
-            "de palpitaciones, sudoración y sensación de ahogo los lunes ante reuniones. Insomnio de conciliación.\n\n"
-            "**O:** Afecto ansioso, habla rápida. Niega ideación suicida.\n\n"
-            "**A:** Cuadro compatible con Trastorno de Ansiedad Generalizada con componente situacional laboral.\n\n"
-            "**P:** Psicoeducación sobre ansiedad. Inicio técnicas de respiración diafragmática. "
-            "Registro de episodios de pánico para próxima sesión."
-        ),
+        ai_response=_resp_s1_p1,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s1_p1},
+            {"role": "assistant", "content": _resp_s1_p1},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -133,27 +138,32 @@ async def seed_all(db):
     await db.commit()
 
     # Session 2 — María
+    _raw_s2_p1 = (
+        "Segunda sesión. Paciente identifica que el detonante principal son las reuniones con su jefe directo. "
+        "Trae registro: 4 episodios esta semana. Siente que no puede 'fallar' en el trabajo."
+    )
+    _resp_s2_p1 = (
+        "**S:** Paciente identifica reuniones con jefe como detonante principal. Registro muestra 4 episodios "
+        "de pánico esta semana. Refiere presión interna intensa por no cometer errores.\n\n"
+        "**O:** Más reflexiva que sesión anterior. Contacto visual adecuado.\n\n"
+        "**A:** En sesiones anteriores hemos identificado que los ataques de pánico se intensifican los lunes "
+        "ante reuniones con el jefe. Hoy se confirma patrón de perfeccionismo como factor mantenedor.\n\n"
+        "**P:** Explorar creencias perfeccionistas. Técnica de reestructuración cognitiva básica. Continuar registro."
+    )
     s2_p1 = Session(
         id=uuid.uuid4(),
         patient_id=patient1.id,
         session_number=2,
         session_date=date(2025, 12, 24),
-        raw_dictation=(
-            "Segunda sesión. Paciente identifica que el detonante principal son las reuniones con su jefe directo. "
-            "Trae registro: 4 episodios esta semana. Siente que no puede 'fallar' en el trabajo."
-        ),
+        raw_dictation=_raw_s2_p1,
         format="SOAP",
-        ai_response=(
-            "**S:** Paciente identifica reuniones con jefe como detonante principal. Registro muestra 4 episodios "
-            "de pánico esta semana. Refiere presión interna intensa por no cometer errores.\n\n"
-            "**O:** Más reflexiva que sesión anterior. Contacto visual adecuado.\n\n"
-            "**A:** En sesiones anteriores hemos identificado que los ataques de pánico se intensifican los lunes "
-            "ante reuniones con el jefe. Hoy se confirma patrón de perfeccionismo como factor mantenedor.\n\n"
-            "**P:** Explorar creencias perfeccionistas. Técnica de reestructuración cognitiva básica. Continuar registro."
-        ),
+        ai_response=_resp_s2_p1,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s2_p1},
+            {"role": "assistant", "content": _resp_s2_p1},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -183,28 +193,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 3 — María
+    _raw_s3_p1 = (
+        "Tercera sesión. Practicó técnicas de respiración pero con dificultad para aplicarlas en el momento. "
+        "Muestra resistencia a cambiar su forma de trabajar."
+    )
+    _resp_s3_p1 = (
+        "**S:** Practicó respiración diafragmática con dificultad para aplicarla en situaciones reales. "
+        "Resistencia al cambio en hábitos laborales.\n\n"
+        "**O:** Tono defensivo al hablar de cambios en rutina laboral.\n\n"
+        "**A:** Desde las primeras sesiones se observa un patrón de evitación: paciente anticipa el fracaso "
+        "y evita situaciones que lo confirmen. La resistencia al cambio es coherente con este patrón.\n\n"
+        "**P:** Trabajar en identificación de conductas de evitación. Experimento conductual: asistir a una reunión "
+        "con técnica preparada."
+    )
     s3_p1 = Session(
         id=uuid.uuid4(),
         patient_id=patient1.id,
         session_number=3,
         session_date=date(2026, 1, 7),
-        raw_dictation=(
-            "Tercera sesión. Practicó técnicas de respiración pero con dificultad para aplicarlas en el momento. "
-            "Muestra resistencia a cambiar su forma de trabajar."
-        ),
+        raw_dictation=_raw_s3_p1,
         format="SOAP",
-        ai_response=(
-            "**S:** Practicó respiración diafragmática con dificultad para aplicarla en situaciones reales. "
-            "Resistencia al cambio en hábitos laborales.\n\n"
-            "**O:** Tono defensivo al hablar de cambios en rutina laboral.\n\n"
-            "**A:** Desde las primeras sesiones se observa un patrón de evitación: paciente anticipa el fracaso "
-            "y evita situaciones que lo confirmen. La resistencia al cambio es coherente con este patrón.\n\n"
-            "**P:** Trabajar en identificación de conductas de evitación. Experimento conductual: asistir a una reunión "
-            "con técnica preparada."
-        ),
+        ai_response=_resp_s3_p1,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s3_p1},
+            {"role": "assistant", "content": _resp_s3_p1},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -234,28 +249,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 4 — María
+    _raw_s4_p1 = (
+        "Cuarta sesión. Tuvo un deadline importante y recayó en los ataques. "
+        "Dice que 'todo lo que habíamos avanzado se perdió'. Se muestra desanimada."
+    )
+    _resp_s4_p1 = (
+        "**S:** Recaída por deadline laboral importante. Paciente percibe pérdida total del progreso "
+        "terapéutico. Estado de ánimo bajo.\n\n"
+        "**O:** Afecto deprimido leve. Llanto al relatar los episodios.\n\n"
+        "**A:** La recaída ante el deadline conecta directamente con el perfeccionismo identificado en la sesión 2: "
+        "la presión por no fallar ante una tarea importante activó todos los síntomas. Las recaídas son parte "
+        "del proceso terapéutico normal.\n\n"
+        "**P:** Normalizar la recaída. Analizar qué estrategias funcionaron parcialmente. Reforzar técnicas de breathing."
+    )
     s4_p1 = Session(
         id=uuid.uuid4(),
         patient_id=patient1.id,
         session_number=4,
         session_date=date(2026, 1, 14),
-        raw_dictation=(
-            "Cuarta sesión. Tuvo un deadline importante y recayó en los ataques. "
-            "Dice que 'todo lo que habíamos avanzado se perdió'. Se muestra desanimada."
-        ),
+        raw_dictation=_raw_s4_p1,
         format="SOAP",
-        ai_response=(
-            "**S:** Recaída por deadline laboral importante. Paciente percibe pérdida total del progreso "
-            "terapéutico. Estado de ánimo bajo.\n\n"
-            "**O:** Afecto deprimido leve. Llanto al relatar los episodios.\n\n"
-            "**A:** La recaída ante el deadline conecta directamente con el perfeccionismo identificado en la sesión 2: "
-            "la presión por no fallar ante una tarea importante activó todos los síntomas. Las recaídas son parte "
-            "del proceso terapéutico normal.\n\n"
-            "**P:** Normalizar la recaída. Analizar qué estrategias funcionaron parcialmente. Reforzar técnicas de breathing."
-        ),
+        ai_response=_resp_s4_p1,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s4_p1},
+            {"role": "assistant", "content": _resp_s4_p1},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -285,28 +305,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 5 — María
+    _raw_s5_p1 = (
+        "Quinta sesión. Trabajamos reestructuración cognitiva. Paciente logra identificar el pensamiento "
+        "automático 'si fallo una vez, soy un fracaso'. Buen trabajo en sesión."
+    )
+    _resp_s5_p1 = (
+        "**S:** Trabajo productivo en reestructuración cognitiva. Paciente identifica pensamiento automático "
+        "central: 'si fallo una vez, soy un fracaso'.\n\n"
+        "**O:** Más tranquila, participativa. Notable mejoría en comparación con sesión 1.\n\n"
+        "**A:** Evolución significativa desde la primera sesión. Los patrones recurrentes de perfeccionismo y "
+        "evitación están siendo abordados con éxito. La identificación del pensamiento automático es un hito "
+        "terapéutico importante.\n\n"
+        "**P:** Registro de evidencias para y en contra del pensamiento automático. Continuar experimentos conductuales."
+    )
     s5_p1 = Session(
         id=uuid.uuid4(),
         patient_id=patient1.id,
         session_number=5,
         session_date=date(2026, 1, 21),
-        raw_dictation=(
-            "Quinta sesión. Trabajamos reestructuración cognitiva. Paciente logra identificar el pensamiento "
-            "automático 'si fallo una vez, soy un fracaso'. Buen trabajo en sesión."
-        ),
+        raw_dictation=_raw_s5_p1,
         format="SOAP",
-        ai_response=(
-            "**S:** Trabajo productivo en reestructuración cognitiva. Paciente identifica pensamiento automático "
-            "central: 'si fallo una vez, soy un fracaso'.\n\n"
-            "**O:** Más tranquila, participativa. Notable mejoría en comparación con sesión 1.\n\n"
-            "**A:** Evolución significativa desde la primera sesión. Los patrones recurrentes de perfeccionismo y "
-            "evitación están siendo abordados con éxito. La identificación del pensamiento automático es un hito "
-            "terapéutico importante.\n\n"
-            "**P:** Registro de evidencias para y en contra del pensamiento automático. Continuar experimentos conductuales."
-        ),
+        ai_response=_resp_s5_p1,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s5_p1},
+            {"role": "assistant", "content": _resp_s5_p1},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -336,28 +361,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 6 — María
+    _raw_s6_p1 = (
+        "Sexta sesión. Consolidación del trabajo. Paciente reporta menos episodios (1 en dos semanas). "
+        "Discutimos plan de alta parcial con seguimiento mensual."
+    )
+    _resp_s6_p1 = (
+        "**S:** Reducción significativa de episodios (1 en 2 semanas vs. 4+ semanales al inicio). "
+        "Paciente receptiva a plan de alta parcial.\n\n"
+        "**O:** Estado de ánimo eutímico. Sonríe al comentar su progreso.\n\n"
+        "**A:** A lo largo de las 6 sesiones, María ha pasado de ataques de pánico frecuentes a un episodio "
+        "aislado en dos semanas. Los factores mantenedores (perfeccionismo, evitación) han sido identificados "
+        "y trabajados. El pensamiento automático central está siendo cuestionado activamente.\n\n"
+        "**P:** Alta parcial con seguimiento mensual. Autorregistro continuo. Plan de acción ante recaídas."
+    )
     s6_p1 = Session(
         id=uuid.uuid4(),
         patient_id=patient1.id,
         session_number=6,
         session_date=date(2026, 2, 4),
-        raw_dictation=(
-            "Sexta sesión. Consolidación del trabajo. Paciente reporta menos episodios (1 en dos semanas). "
-            "Discutimos plan de alta parcial con seguimiento mensual."
-        ),
+        raw_dictation=_raw_s6_p1,
         format="SOAP",
-        ai_response=(
-            "**S:** Reducción significativa de episodios (1 en 2 semanas vs. 4+ semanales al inicio). "
-            "Paciente receptiva a plan de alta parcial.\n\n"
-            "**O:** Estado de ánimo eutímico. Sonríe al comentar su progreso.\n\n"
-            "**A:** A lo largo de las 6 sesiones, María ha pasado de ataques de pánico frecuentes a un episodio "
-            "aislado en dos semanas. Los factores mantenedores (perfeccionismo, evitación) han sido identificados "
-            "y trabajados. El pensamiento automático central está siendo cuestionado activamente.\n\n"
-            "**P:** Alta parcial con seguimiento mensual. Autorregistro continuo. Plan de acción ante recaídas."
-        ),
+        ai_response=_resp_s6_p1,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s6_p1},
+            {"role": "assistant", "content": _resp_s6_p1},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -422,27 +452,32 @@ async def seed_all(db):
     await db.commit()
 
     # Session 1 — Carlos
+    _raw_s1_p2 = (
+        "Primera sesión. Paciente de 28 años acude tras ruptura sentimental hace 3 meses. Refiere pérdida de "
+        "interés en actividades que antes disfrutaba (gym, videojuegos, amigos)."
+    )
+    _resp_s1_p2 = (
+        "**S:** Paciente acude por pérdida de interés generalizado tras ruptura sentimental. Anhedonia en "
+        "actividades previamente placenteras: ejercicio, ocio, socialización.\n\n"
+        "**O:** Afecto aplanado. Respuestas cortas. Niega ideación suicida.\n\n"
+        "**A:** Cuadro compatible con episodio depresivo leve reactivo a pérdida.\n\n"
+        "**P:** Psicoeducación sobre duelo y depresión reactiva. Explorar red de apoyo social. "
+        "Próxima sesión: registro de actividades."
+    )
     s1_p2 = Session(
         id=uuid.uuid4(),
         patient_id=patient2.id,
         session_number=1,
         session_date=date(2025, 12, 10),
-        raw_dictation=(
-            "Primera sesión. Paciente de 28 años acude tras ruptura sentimental hace 3 meses. Refiere pérdida de "
-            "interés en actividades que antes disfrutaba (gym, videojuegos, amigos)."
-        ),
+        raw_dictation=_raw_s1_p2,
         format="SOAP",
-        ai_response=(
-            "**S:** Paciente acude por pérdida de interés generalizado tras ruptura sentimental. Anhedonia en "
-            "actividades previamente placenteras: ejercicio, ocio, socialización.\n\n"
-            "**O:** Afecto aplanado. Respuestas cortas. Niega ideación suicida.\n\n"
-            "**A:** Cuadro compatible con episodio depresivo leve reactivo a pérdida.\n\n"
-            "**P:** Psicoeducación sobre duelo y depresión reactiva. Explorar red de apoyo social. "
-            "Próxima sesión: registro de actividades."
-        ),
+        ai_response=_resp_s1_p2,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s1_p2},
+            {"role": "assistant", "content": _resp_s1_p2},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -472,27 +507,32 @@ async def seed_all(db):
     await db.commit()
 
     # Session 2 — Carlos
+    _raw_s2_p2 = (
+        "Segunda sesión. Aislamiento progresivo confirmado. No ha salido de casa en el fin de semana. "
+        "Dice que 'no tiene sentido hacer nada'."
+    )
+    _resp_s2_p2 = (
+        "**S:** Aislamiento social progresivo: no salió de casa el fin de semana. "
+        "Cognición nihilista: 'no tiene sentido hacer nada'.\n\n"
+        "**O:** Descuidado en apariencia. Llega tarde a la sesión.\n\n"
+        "**A:** El aislamiento conecta con la anhedonia identificada en la sesión 1: al no encontrar placer "
+        "en actividades, el paciente las evita, lo que profundiza el estado depresivo.\n\n"
+        "**P:** Activación conductual: programar una actividad mínima al día. Retomar contacto con un amigo."
+    )
     s2_p2 = Session(
         id=uuid.uuid4(),
         patient_id=patient2.id,
         session_number=2,
         session_date=date(2025, 12, 17),
-        raw_dictation=(
-            "Segunda sesión. Aislamiento progresivo confirmado. No ha salido de casa en el fin de semana. "
-            "Dice que 'no tiene sentido hacer nada'."
-        ),
+        raw_dictation=_raw_s2_p2,
         format="SOAP",
-        ai_response=(
-            "**S:** Aislamiento social progresivo: no salió de casa el fin de semana. "
-            "Cognición nihilista: 'no tiene sentido hacer nada'.\n\n"
-            "**O:** Descuidado en apariencia. Llega tarde a la sesión.\n\n"
-            "**A:** El aislamiento conecta con la anhedonia identificada en la sesión 1: al no encontrar placer "
-            "en actividades, el paciente las evita, lo que profundiza el estado depresivo.\n\n"
-            "**P:** Activación conductual: programar una actividad mínima al día. Retomar contacto con un amigo."
-        ),
+        ai_response=_resp_s2_p2,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s2_p2},
+            {"role": "assistant", "content": _resp_s2_p2},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -522,27 +562,32 @@ async def seed_all(db):
     await db.commit()
 
     # Session 3 — Carlos
+    _raw_s3_p2 = (
+        "Tercera sesión. Buena noticia: retomó el gimnasio tres días esta semana. Dice que no lo disfruta "
+        "todavía pero 'al menos fui'. Se muestra algo más activo."
+    )
+    _resp_s3_p2 = (
+        "**S:** Logro conductual: retomó el gimnasio 3 días. Anhedonia persistente pero conducta activa iniciada.\n\n"
+        "**O:** Más dinámico que sesiones anteriores. Mantiene contacto visual.\n\n"
+        "**A:** El retomar el gimnasio es un avance significativo considerando el historial de aislamiento de las "
+        "sesiones 1 y 2. La disociación entre conducta y placer es normal al inicio de la activación conductual.\n\n"
+        "**P:** Reforzar la activación conductual. Añadir una segunda actividad social. Registro de momentos de "
+        "leve satisfacción."
+    )
     s3_p2 = Session(
         id=uuid.uuid4(),
         patient_id=patient2.id,
         session_number=3,
         session_date=date(2025, 12, 24),
-        raw_dictation=(
-            "Tercera sesión. Buena noticia: retomó el gimnasio tres días esta semana. Dice que no lo disfruta "
-            "todavía pero 'al menos fui'. Se muestra algo más activo."
-        ),
+        raw_dictation=_raw_s3_p2,
         format="SOAP",
-        ai_response=(
-            "**S:** Logro conductual: retomó el gimnasio 3 días. Anhedonia persistente pero conducta activa iniciada.\n\n"
-            "**O:** Más dinámico que sesiones anteriores. Mantiene contacto visual.\n\n"
-            "**A:** El retomar el gimnasio es un avance significativo considerando el historial de aislamiento de las "
-            "sesiones 1 y 2. La disociación entre conducta y placer es normal al inicio de la activación conductual.\n\n"
-            "**P:** Reforzar la activación conductual. Añadir una segunda actividad social. Registro de momentos de "
-            "leve satisfacción."
-        ),
+        ai_response=_resp_s3_p2,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s3_p2},
+            {"role": "assistant", "content": _resp_s3_p2},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -572,28 +617,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 4 — Carlos
+    _raw_s4_p2 = (
+        "Cuarta sesión. Energía claramente mejorada. Sigue yendo al gym. Sin embargo, persisten cogniciones "
+        "negativas: 'soy menos que antes de la ruptura'."
+    )
+    _resp_s4_p2 = (
+        "**S:** Mejoría clara en energía y conducta. Cogniciones negativas persistentes sobre autoestima "
+        "('soy menos que antes de la ruptura').\n\n"
+        "**O:** Afecto más vivo. Describe logros con voz más firme.\n\n"
+        "**A:** Disociación entre progreso conductual (mejoría objetiva) y cognición (autoestima baja). El patrón "
+        "autocrítico observado desde S2-S4 indica que el foco terapéutico debe desplazarse hacia la autoestima.\n\n"
+        "**P:** Inicio de trabajo en autoestima. Listado de fortalezas. Cuestionamiento de cogniciones negativas "
+        "sobre la ruptura."
+    )
     s4_p2 = Session(
         id=uuid.uuid4(),
         patient_id=patient2.id,
         session_number=4,
         session_date=date(2026, 1, 7),
-        raw_dictation=(
-            "Cuarta sesión. Energía claramente mejorada. Sigue yendo al gym. Sin embargo, persisten cogniciones "
-            "negativas: 'soy menos que antes de la ruptura'."
-        ),
+        raw_dictation=_raw_s4_p2,
         format="SOAP",
-        ai_response=(
-            "**S:** Mejoría clara en energía y conducta. Cogniciones negativas persistentes sobre autoestima "
-            "('soy menos que antes de la ruptura').\n\n"
-            "**O:** Afecto más vivo. Describe logros con voz más firme.\n\n"
-            "**A:** Disociación entre progreso conductual (mejoría objetiva) y cognición (autoestima baja). El patrón "
-            "autocrítico observado desde S2-S4 indica que el foco terapéutico debe desplazarse hacia la autoestima.\n\n"
-            "**P:** Inicio de trabajo en autoestima. Listado de fortalezas. Cuestionamiento de cogniciones negativas "
-            "sobre la ruptura."
-        ),
+        ai_response=_resp_s4_p2,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s4_p2},
+            {"role": "assistant", "content": _resp_s4_p2},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -623,28 +673,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 5 — Carlos
+    _raw_s5_p2 = (
+        "Quinta sesión. Trabajo en autoestima. Paciente elabora lista de fortalezas con dificultad "
+        "('no se me ocurre nada positivo de mí'). Se trabaja en sesión."
+    )
+    _resp_s5_p2 = (
+        "**S:** Dificultad marcada para identificar fortalezas propias. Cognición: 'no se me ocurre nada "
+        "positivo de mí'.\n\n"
+        "**O:** Reflexivo, concentrado. Se esfuerza durante el ejercicio.\n\n"
+        "**A:** El patrón autocrítico identificado en sesiones 2-4 está profundamente arraigado. La dificultad "
+        "para identificar fortalezas es coherente con la baja autoestima post-ruptura.\n\n"
+        "**P:** Continuar trabajo en autoestima. Tarea: buscar un momento del día donde algo salió bien. "
+        "Explorar identidad pre-relación."
+    )
     s5_p2 = Session(
         id=uuid.uuid4(),
         patient_id=patient2.id,
         session_number=5,
         session_date=date(2026, 1, 14),
-        raw_dictation=(
-            "Quinta sesión. Trabajo en autoestima. Paciente elabora lista de fortalezas con dificultad "
-            "('no se me ocurre nada positivo de mí'). Se trabaja en sesión."
-        ),
+        raw_dictation=_raw_s5_p2,
         format="SOAP",
-        ai_response=(
-            "**S:** Dificultad marcada para identificar fortalezas propias. Cognición: 'no se me ocurre nada "
-            "positivo de mí'.\n\n"
-            "**O:** Reflexivo, concentrado. Se esfuerza durante el ejercicio.\n\n"
-            "**A:** El patrón autocrítico identificado en sesiones 2-4 está profundamente arraigado. La dificultad "
-            "para identificar fortalezas es coherente con la baja autoestima post-ruptura.\n\n"
-            "**P:** Continuar trabajo en autoestima. Tarea: buscar un momento del día donde algo salió bien. "
-            "Explorar identidad pre-relación."
-        ),
+        ai_response=_resp_s5_p2,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s5_p2},
+            {"role": "assistant", "content": _resp_s5_p2},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -674,28 +729,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 6 — Carlos
+    _raw_s6_p2 = (
+        "Sexta sesión. Estabilización clara. Gym 4 días, retomó contacto con amigos. Elaboramos metas a 3 meses: "
+        "nuevo trabajo, retomar hobby de fotografía."
+    )
+    _resp_s6_p2 = (
+        "**S:** Estabilización conductual: gym 4 días, red social activa. Orientación hacia el futuro con metas "
+        "concretas a 3 meses.\n\n"
+        "**O:** Afecto eutímico. Sonríe espontáneamente al hablar de metas.\n\n"
+        "**A:** Evolución completa desde la ruptura hasta la estabilización en 6 sesiones. El paciente ha pasado "
+        "de anhedonia y aislamiento total a retomar actividades y proyectarse hacia el futuro. El trabajo en "
+        "autoestima continúa pero con base más sólida.\n\n"
+        "**P:** Alta parcial. Metas a 3 meses definidas. Seguimiento mensual. Plan de acción ante señales de recaída."
+    )
     s6_p2 = Session(
         id=uuid.uuid4(),
         patient_id=patient2.id,
         session_number=6,
         session_date=date(2026, 1, 28),
-        raw_dictation=(
-            "Sexta sesión. Estabilización clara. Gym 4 días, retomó contacto con amigos. Elaboramos metas a 3 meses: "
-            "nuevo trabajo, retomar hobby de fotografía."
-        ),
+        raw_dictation=_raw_s6_p2,
         format="SOAP",
-        ai_response=(
-            "**S:** Estabilización conductual: gym 4 días, red social activa. Orientación hacia el futuro con metas "
-            "concretas a 3 meses.\n\n"
-            "**O:** Afecto eutímico. Sonríe espontáneamente al hablar de metas.\n\n"
-            "**A:** Evolución completa desde la ruptura hasta la estabilización en 6 sesiones. El paciente ha pasado "
-            "de anhedonia y aislamiento total a retomar actividades y proyectarse hacia el futuro. El trabajo en "
-            "autoestima continúa pero con base más sólida.\n\n"
-            "**P:** Alta parcial. Metas a 3 meses definidas. Seguimiento mensual. Plan de acción ante señales de recaída."
-        ),
+        ai_response=_resp_s6_p2,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s6_p2},
+            {"role": "assistant", "content": _resp_s6_p2},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -760,27 +820,32 @@ async def seed_all(db):
     await db.commit()
 
     # Session 1 — Laura
+    _raw_s1_p3 = (
+        "Primera sesión. Paciente de 41 años. Crisis de pareja: considera separarse después de 10 años. "
+        "Refiere que 'ya no se reconoce' en la relación."
+    )
+    _resp_s1_p3 = (
+        "**S:** Paciente acude en crisis de pareja. 10 años de relación. Considera separación. "
+        "Pérdida de identidad percibida: 'ya no me reconozco'.\n\n"
+        "**O:** Afecto angustiado, llanto intermitente. Niega violencia.\n\n"
+        "**A:** Crisis relacional con componente de pérdida de identidad. Decisión de separación ambivalente.\n\n"
+        "**P:** Explorar historia relacional. Identificar necesidades propias vs. de la pareja. "
+        "No aconsejar ni guiar la decisión."
+    )
     s1_p3 = Session(
         id=uuid.uuid4(),
         patient_id=patient3.id,
         session_number=1,
         session_date=date(2026, 1, 5),
-        raw_dictation=(
-            "Primera sesión. Paciente de 41 años. Crisis de pareja: considera separarse después de 10 años. "
-            "Refiere que 'ya no se reconoce' en la relación."
-        ),
+        raw_dictation=_raw_s1_p3,
         format="SOAP",
-        ai_response=(
-            "**S:** Paciente acude en crisis de pareja. 10 años de relación. Considera separación. "
-            "Pérdida de identidad percibida: 'ya no me reconozco'.\n\n"
-            "**O:** Afecto angustiado, llanto intermitente. Niega violencia.\n\n"
-            "**A:** Crisis relacional con componente de pérdida de identidad. Decisión de separación ambivalente.\n\n"
-            "**P:** Explorar historia relacional. Identificar necesidades propias vs. de la pareja. "
-            "No aconsejar ni guiar la decisión."
-        ),
+        ai_response=_resp_s1_p3,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s1_p3},
+            {"role": "assistant", "content": _resp_s1_p3},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -810,29 +875,34 @@ async def seed_all(db):
     await db.commit()
 
     # Session 2 — Laura
+    _raw_s2_p3 = (
+        "Segunda sesión. Trabajo en patrones de comunicación. Identifica que siempre cede para evitar "
+        "conflictos. Se angustia al pensar en expresar sus necesidades."
+    )
+    _resp_s2_p3 = (
+        "**S:** Patrón de comunicación disfuncional identificado: cede consistentemente para evitar conflictos. "
+        "Angustia al contemplar asertividad.\n\n"
+        "**O:** Habla rápido al describir situaciones con la pareja. Se detiene cuando se le pide que imagine "
+        "expresar sus necesidades.\n\n"
+        "**A:** Los detonantes de la crisis (identificados en S1) tienen raíz en este patrón comunicacional: "
+        "la acumulación de necesidades no expresadas llevó a la crisis actual.\n\n"
+        "**P:** Psicoeducación sobre comunicación asertiva. Ejercicio: identificar una necesidad no expresada "
+        "esta semana."
+    )
     s2_p3 = Session(
         id=uuid.uuid4(),
         patient_id=patient3.id,
         session_number=2,
         session_date=date(2026, 1, 12),
-        raw_dictation=(
-            "Segunda sesión. Trabajo en patrones de comunicación. Identifica que siempre cede para evitar "
-            "conflictos. Se angustia al pensar en expresar sus necesidades."
-        ),
+        raw_dictation=_raw_s2_p3,
         format="SOAP",
-        ai_response=(
-            "**S:** Patrón de comunicación disfuncional identificado: cede consistentemente para evitar conflictos. "
-            "Angustia al contemplar asertividad.\n\n"
-            "**O:** Habla rápido al describir situaciones con la pareja. Se detiene cuando se le pide que imagine "
-            "expresar sus necesidades.\n\n"
-            "**A:** Los detonantes de la crisis (identificados en S1) tienen raíz en este patrón comunicacional: "
-            "la acumulación de necesidades no expresadas llevó a la crisis actual.\n\n"
-            "**P:** Psicoeducación sobre comunicación asertiva. Ejercicio: identificar una necesidad no expresada "
-            "esta semana."
-        ),
+        ai_response=_resp_s2_p3,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s2_p3},
+            {"role": "assistant", "content": _resp_s2_p3},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -862,28 +932,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 3 — Laura
+    _raw_s3_p3 = (
+        "Tercera sesión. Trabajo en límites y necesidades propias. Paciente reconoce que 'siempre pone a su "
+        "pareja primero'. Emerge patrón de codependencia."
+    )
+    _resp_s3_p3 = (
+        "**S:** Reconocimiento de patrón: 'siempre pongo a mi pareja primero'. Inicio de conciencia sobre "
+        "codependencia.\n\n"
+        "**O:** Más reflexiva. Menor llanto que sesiones anteriores.\n\n"
+        "**A:** Desde la primera sesión emergen indicadores de codependencia: pérdida de identidad propia, "
+        "comunicación cedente, necesidades subordinadas. Hoy el patrón se hace explícito para la paciente.\n\n"
+        "**P:** Trabajo en límites saludables. Identificar actividades/intereses propios que no dependan de la "
+        "pareja. Explorar historia de vínculos."
+    )
     s3_p3 = Session(
         id=uuid.uuid4(),
         patient_id=patient3.id,
         session_number=3,
         session_date=date(2026, 1, 19),
-        raw_dictation=(
-            "Tercera sesión. Trabajo en límites y necesidades propias. Paciente reconoce que 'siempre pone a su "
-            "pareja primero'. Emerge patrón de codependencia."
-        ),
+        raw_dictation=_raw_s3_p3,
         format="SOAP",
-        ai_response=(
-            "**S:** Reconocimiento de patrón: 'siempre pongo a mi pareja primero'. Inicio de conciencia sobre "
-            "codependencia.\n\n"
-            "**O:** Más reflexiva. Menor llanto que sesiones anteriores.\n\n"
-            "**A:** Desde la primera sesión emergen indicadores de codependencia: pérdida de identidad propia, "
-            "comunicación cedente, necesidades subordinadas. Hoy el patrón se hace explícito para la paciente.\n\n"
-            "**P:** Trabajo en límites saludables. Identificar actividades/intereses propios que no dependan de la "
-            "pareja. Explorar historia de vínculos."
-        ),
+        ai_response=_resp_s3_p3,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s3_p3},
+            {"role": "assistant", "content": _resp_s3_p3},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -913,27 +988,32 @@ async def seed_all(db):
     await db.commit()
 
     # Session 4 — Laura
+    _raw_s4_p3 = (
+        "Cuarta sesión. La paciente relata la primera conversación 'real' que tuvo con su pareja esta semana. "
+        "Habló de sus necesidades. Fue difícil pero no hubo conflicto."
+    )
+    _resp_s4_p3 = (
+        "**S:** Primera conversación asertiva con la pareja. Expresó necesidades. Resultado: sin conflicto, "
+        "pareja receptiva.\n\n"
+        "**O:** Sorprendida y aliviada. Más erguida en la silla.\n\n"
+        "**A:** Contraste significativo con los patrones históricos: en sesiones anteriores, la paciente anticipaba "
+        "conflicto al expresar necesidades. El experimento conductual fue exitoso. Progreso real medible.\n\n"
+        "**P:** Reforzar la comunicación asertiva. Planificar segunda conversación. Continuar trabajo en límites."
+    )
     s4_p3 = Session(
         id=uuid.uuid4(),
         patient_id=patient3.id,
         session_number=4,
         session_date=date(2026, 1, 26),
-        raw_dictation=(
-            "Cuarta sesión. La paciente relata la primera conversación 'real' que tuvo con su pareja esta semana. "
-            "Habló de sus necesidades. Fue difícil pero no hubo conflicto."
-        ),
+        raw_dictation=_raw_s4_p3,
         format="SOAP",
-        ai_response=(
-            "**S:** Primera conversación asertiva con la pareja. Expresó necesidades. Resultado: sin conflicto, "
-            "pareja receptiva.\n\n"
-            "**O:** Sorprendida y aliviada. Más erguida en la silla.\n\n"
-            "**A:** Contraste significativo con los patrones históricos: en sesiones anteriores, la paciente anticipaba "
-            "conflicto al expresar necesidades. El experimento conductual fue exitoso. Progreso real medible.\n\n"
-            "**P:** Reforzar la comunicación asertiva. Planificar segunda conversación. Continuar trabajo en límites."
-        ),
+        ai_response=_resp_s4_p3,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s4_p3},
+            {"role": "assistant", "content": _resp_s4_p3},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -963,28 +1043,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 5 — Laura
+    _raw_s5_p3 = (
+        "Quinta sesión. Ambivalencia: quiere continuar la relación pero no puede seguir 'igual que antes'. "
+        "Teme que los cambios que está haciendo destruyan la relación."
+    )
+    _resp_s5_p3 = (
+        "**S:** Ambivalencia clara: deseo de continuar la relación vs. incapacidad de volver al patrón anterior. "
+        "Miedo a que el cambio personal rompa la relación.\n\n"
+        "**O:** Tono tenso. Llanto al hablar del miedo a la pérdida.\n\n"
+        "**A:** La ambivalencia es el reflejo del trabajo terapéutico: los límites trabajados en S3 están siendo "
+        "internalizados, pero generan ansiedad porque implican un cambio en la dinámica relacional establecida.\n\n"
+        "**P:** Explorar miedo a la pérdida. Trabajar en diferenciación entre cambio personal y ruptura relacional. "
+        "No precipitar decisiones."
+    )
     s5_p3 = Session(
         id=uuid.uuid4(),
         patient_id=patient3.id,
         session_number=5,
         session_date=date(2026, 2, 2),
-        raw_dictation=(
-            "Quinta sesión. Ambivalencia: quiere continuar la relación pero no puede seguir 'igual que antes'. "
-            "Teme que los cambios que está haciendo destruyan la relación."
-        ),
+        raw_dictation=_raw_s5_p3,
         format="SOAP",
-        ai_response=(
-            "**S:** Ambivalencia clara: deseo de continuar la relación vs. incapacidad de volver al patrón anterior. "
-            "Miedo a que el cambio personal rompa la relación.\n\n"
-            "**O:** Tono tenso. Llanto al hablar del miedo a la pérdida.\n\n"
-            "**A:** La ambivalencia es el reflejo del trabajo terapéutico: los límites trabajados en S3 están siendo "
-            "internalizados, pero generan ansiedad porque implican un cambio en la dinámica relacional establecida.\n\n"
-            "**P:** Explorar miedo a la pérdida. Trabajar en diferenciación entre cambio personal y ruptura relacional. "
-            "No precipitar decisiones."
-        ),
+        ai_response=_resp_s5_p3,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s5_p3},
+            {"role": "assistant", "content": _resp_s5_p3},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -1014,28 +1099,33 @@ async def seed_all(db):
     await db.commit()
 
     # Session 6 — Laura
+    _raw_s6_p3 = (
+        "Sexta sesión. Decisión tomada: continuará la relación pero desde un lugar diferente. Inicio de trabajo "
+        "en duelo anticipatorio por 'la versión de sí misma que deja atrás'."
+    )
+    _resp_s6_p3 = (
+        "**S:** Decisión tomada: continuar la relación con cambios. Duelo anticipatorio por la identidad previa "
+        "('la versión de mí misma que deja atrás').\n\n"
+        "**O:** Serena, decidida. Sin llanto.\n\n"
+        "**A:** A lo largo de las 6 sesiones, Laura ha recorrido el arco completo: de crisis e identidad perdida "
+        "(S1) a límites internalizados, comunicación asertiva funcional, y decisión consciente. Los factores "
+        "protectores (reflexividad, motivación) sostuvieron el proceso.\n\n"
+        "**P:** Trabajo en duelo por identidad previa. Consolidar logros. Seguimiento mensual opcional."
+    )
     s6_p3 = Session(
         id=uuid.uuid4(),
         patient_id=patient3.id,
         session_number=6,
         session_date=date(2026, 2, 9),
-        raw_dictation=(
-            "Sexta sesión. Decisión tomada: continuará la relación pero desde un lugar diferente. Inicio de trabajo "
-            "en duelo anticipatorio por 'la versión de sí misma que deja atrás'."
-        ),
+        raw_dictation=_raw_s6_p3,
         format="SOAP",
-        ai_response=(
-            "**S:** Decisión tomada: continuar la relación con cambios. Duelo anticipatorio por la identidad previa "
-            "('la versión de mí misma que deja atrás').\n\n"
-            "**O:** Serena, decidida. Sin llanto.\n\n"
-            "**A:** A lo largo de las 6 sesiones, Laura ha recorrido el arco completo: de crisis e identidad perdida "
-            "(S1) a límites internalizados, comunicación asertiva funcional, y decisión consciente. Los factores "
-            "protectores (reflexividad, motivación) sostuvieron el proceso.\n\n"
-            "**P:** Trabajo en duelo por identidad previa. Consolidar logros. Seguimiento mensual opcional."
-        ),
+        ai_response=_resp_s6_p3,
         status="confirmed",
         is_archived=False,
-        messages=[],
+        messages=[
+            {"role": "user", "content": _raw_s6_p3},
+            {"role": "assistant", "content": _resp_s6_p3},
+        ],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
