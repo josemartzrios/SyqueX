@@ -439,12 +439,15 @@ function App() {
                   <div key={idx} className="w-full">
 
                     {msg.role === 'user' && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-2.5">
-                          <span className="text-[10px] uppercase tracking-[0.13em] text-ink-tertiary font-bold">Dictado</span>
-                          <div className="flex-1 h-px bg-ink/[0.06]" />
+                      <div className="flex justify-end">
+                        <div className="max-w-[80%]">
+                          <div className="flex items-center justify-end gap-1.5 mb-1.5">
+                            <span className="text-[10px] uppercase tracking-[0.13em] text-ink-tertiary font-bold">Dictado</span>
+                          </div>
+                          <div className="bg-parchment-dark border border-ink/[0.07] rounded-2xl rounded-tr-sm px-4 py-3">
+                            <p className="text-ink-secondary text-[14px] leading-relaxed italic whitespace-pre-wrap">{msg.text}</p>
+                          </div>
                         </div>
-                        <p className="text-ink-secondary text-[14px] leading-relaxed pl-3 border-l-2 border-parchment-dark whitespace-pre-wrap">{msg.text}</p>
                       </div>
                     )}
 
@@ -458,7 +461,13 @@ function App() {
                         )}
 
                         {msg.type === 'chat' && (
-                          <p className="text-ink-secondary text-[14px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                          <div className="flex gap-3">
+                            <div className="w-[3px] rounded-full bg-sage/50 flex-shrink-0 self-stretch" />
+                            <div>
+                              <span className="text-[10px] uppercase tracking-[0.13em] text-sage font-bold block mb-1.5">SyqueX</span>
+                              <p className="text-ink text-[14px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                            </div>
+                          </div>
                         )}
 
                         {msg.type === 'loading' && LOADING_DOTS}
