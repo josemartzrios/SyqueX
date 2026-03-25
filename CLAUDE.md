@@ -13,6 +13,17 @@ SyqueX (PsicoAgente) is a clinical AI assistant for psychologists. Clinicians di
 # Start PostgreSQL
 docker-compose up -d postgres
 
+
+Terminal 1 — Backend:                                                       
+.\start-backend.ps1  
+.\start-frontend.ps1                                                      
+                                                                                                                         
+
+El script de backend crea el venv con Python 3.11 automáticamente si no     existe, así no tienes que hacerlo manualmente.                            
+
+  ▎ Si PowerShell bloquea la ejecución de scripts, corre primero:
+  ▎ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
 # Backend (from /backend)
 cd "C:\Users\josma\OneDrive\Escritorio\SyqueX\backend"
                                                                               # Crear venv con Python 3.11 explícitamente
