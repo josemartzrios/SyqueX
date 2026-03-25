@@ -13,12 +13,13 @@ from exceptions import DomainError
 
 logger = logging.getLogger("syquex")
 
-# Deshabilitar docs automáticos en producción
+# Deshabilitar docs automáticos en staging y producción
+_hide_docs = settings.ENVIRONMENT in ("production", "staging")
 app = FastAPI(
     title="SyqueX API",
-    docs_url="/docs" if not settings.is_production() else None,
+    docs_url=None if _hide_docs else "/docs",
     redoc_url=None,
-    openapi_url="/openapi.json" if not settings.is_production() else None,
+    openapi_url=None if _hide_docs else "/openapi.json",
 )
 
 # CORS restringido — solo orígenes explícitamente permitidos

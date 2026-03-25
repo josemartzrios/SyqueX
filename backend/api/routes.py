@@ -1,6 +1,6 @@
 import uuid
 import logging
-from fastapi import APIRouter, Depends, Query, Request, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
@@ -288,6 +288,11 @@ async def process_session_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     patient_uuid = _parse_uuid(patient_id, "patient_id")
+
+    patient_check = await db.execute(select(Patient).where(Patient.id == patient_uuid))
+    if not patient_check.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Patient not found")
+
     response = await process_session(db, patient_id, rec.raw_dictation, None, rec.format)
 
     session_id = str(uuid.uuid4())
