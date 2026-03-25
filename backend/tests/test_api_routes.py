@@ -399,19 +399,6 @@ class TestConfirmSession:
         sess.ai_response = "Respuesta AI"
         sess.status = "draft"
 
-        profile = MagicMock()
-        profile.patient_summary = ""
-        profile.recurring_themes = []
-        profile.risk_factors = []
-        profile.progress_indicators = {}
-
-        mock_db.execute.side_effect = [
-            _result(scalar_one_or_none=sess),     # select Session
-            _result(scalar_one_or_none=profile),  # update_patient_profile: profile
-        ]
-
-        # ClinicalNote.id is None until SQLAlchemy flushes; since DB is mocked,
-        # we intercept db.add to set the id directly on the ORM object.
         note_id = uuid.uuid4()
 
         def fake_add(obj):
@@ -419,19 +406,11 @@ class TestConfirmSession:
             if isinstance(obj, CN):
                 obj.id = note_id
 
+        mock_db.execute.return_value = _result(scalar_one_or_none=sess)
         mock_db.add = MagicMock(side_effect=fake_add)
 
-        with patch("api.routes.get_embedding", new=AsyncMock(return_value=[0.0] * 1024)):  # BAAI/bge-m3 uses 1024 dimensions
-            with patch("agent.agent.AsyncAnthropic") as mock_cls:
-                mock_client = AsyncMock()
-                block = MagicMock()
-                block.type = "text"
-                block.text = "Resumen actualizado"
-                resp = MagicMock()
-                resp.content = [block]
-                mock_client.messages.create = AsyncMock(return_value=resp)
-                mock_cls.return_value = mock_client
-
+        with patch("api.routes.get_embedding", new=AsyncMock(return_value=[0.0] * 1024)):
+            with patch("api.routes._background_update_profile", new=AsyncMock()):
                 async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                     response = await client.post(
                         f"/api/v1/sessions/{session_uuid}/confirm",
@@ -439,8 +418,42 @@ class TestConfirmSession:
                     )
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "confirmed"
+        assert response.json()["status"] == "confirmed"
+        mock_db.commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_background_task_is_registered(self, app, mock_db, session_uuid):
+        """confirm_session should register a background task, not await Claude directly."""
+        sess = MagicMock()
+        sess.id = session_uuid
+        sess.patient_id = uuid.uuid4()
+        sess.ai_response = "Respuesta AI"
+        sess.status = "draft"
+
+        note_id = uuid.uuid4()
+
+        def fake_add(obj):
+            from database import ClinicalNote as CN
+            if isinstance(obj, CN):
+                obj.id = note_id
+
+        mock_db.execute.return_value = _result(scalar_one_or_none=sess)
+        mock_db.add = MagicMock(side_effect=fake_add)
+
+        with patch("api.routes.get_embedding", new=AsyncMock(return_value=[0.0] * 1024)):
+            with patch("api.routes._background_update_profile", new=AsyncMock()) as mock_bg:
+                async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                    response = await client.post(
+                        f"/api/v1/sessions/{session_uuid}/confirm",
+                        json={},
+                    )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "confirmed"
+        # Background helper was called by FastAPI's background task runner
+        mock_bg.assert_called_once()
+        assert mock_bg.call_args.args[0] == sess.patient_id  # first positional arg is patient_id
+        assert isinstance(mock_bg.call_args.args[1], dict)   # second positional arg is session_note dict
 
     @pytest.mark.asyncio
     async def test_returns_404_when_session_not_found(self, app, mock_db, session_uuid):

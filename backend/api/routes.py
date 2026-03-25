@@ -1,12 +1,13 @@
 import uuid
-from fastapi import APIRouter, Depends, Query, Request, status
+import logging
+from fastapi import APIRouter, Depends, Query, Request, status, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
-from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist
+from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal
 from agent import process_session, update_patient_profile_summary
 from agent.tools import generate_evolution_report, search_patient_history
 from agent.embeddings import get_embedding
@@ -24,6 +25,8 @@ def _parse_uuid(value: str, label: str = "ID") -> uuid.UUID:
             code="INVALID_UUID",
             details={"value": value},
         )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["clinical"])
 
@@ -322,8 +325,17 @@ async def process_session_endpoint(
     )
 
 
+async def _background_update_profile(patient_id: uuid.UUID, session_note: dict) -> None:
+    """Runs after the HTTP response is sent. Opens its own DB session."""
+    async with AsyncSessionLocal() as db:
+        try:
+            await update_patient_profile_summary(db, patient_id, session_note)
+        except Exception as e:
+            logger.error(f"Background profile update failed: {e}")
+
+
 @router.post("/sessions/{session_id}/confirm", response_model=ConfirmNoteOut, tags=["sessions"])
-async def confirm_session(session_id: str, req: ConfirmNoteRequest, db: AsyncSession = Depends(get_db)):
+async def confirm_session(session_id: str, req: ConfirmNoteRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     session_uuid = _parse_uuid(session_id, "session_id")
     res = await db.execute(select(Session).where(Session.id == session_uuid))
     sess = res.scalar_one_or_none()
@@ -359,7 +371,7 @@ async def confirm_session(session_id: str, req: ConfirmNoteRequest, db: AsyncSes
         "alerts": note_data.get("alerts", []),
         "suggested_next_steps": note_data.get("suggested_next_steps", []),
     }
-    await update_patient_profile_summary(db, sess.patient_id, summary_data)
+    background_tasks.add_task(_background_update_profile, sess.patient_id, summary_data)
 
     return ConfirmNoteOut(id=cn.id)
 
