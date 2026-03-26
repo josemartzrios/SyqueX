@@ -10,6 +10,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, relationship, mapped_column, Mapped
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.pool import NullPool
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import text
 
@@ -18,6 +19,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://psicoagente:psico
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
+    poolclass=NullPool,
     connect_args={"statement_cache_size": 0},
 )
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
