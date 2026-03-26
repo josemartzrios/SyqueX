@@ -77,7 +77,7 @@ async def global_error_handler(request: Request, exc: Exception):
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("CORS allowed origins: %s", settings.get_allowed_origins())
+    print(f"[DEBUG] CORS allowed origins: {settings.get_allowed_origins()}", flush=True)
     await init_db()
 
 app.include_router(auth_router, prefix="/api/v1")
