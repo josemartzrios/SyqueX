@@ -1,6 +1,7 @@
 import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -22,19 +23,10 @@ app = FastAPI(
     openapi_url=None if _hide_docs else "/openapi.json",
 )
 
-# CORS — orígenes explícitos via env var + regex para Vercel preview/prod URLs
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.get_allowed_origins(),
-    allow_origin_regex=r"https://syquex(-[a-z0-9]+)*\.vercel\.app",
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
-)
-
-# Security headers — obligatorios para datos clínicos
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
+# Security headers añadidos PRIMERO (quedan al interior del stack)
+# CORS debe ser el middleware más exterior para que sus headers no sean
+# bloqueados por BaseHTTPMiddleware — ver orden de add_middleware abajo.
+async def _add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -43,11 +35,24 @@ async def security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     if settings.is_production():
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    # Eliminar headers que revelan tecnología
     for header in ("X-Powered-By", "Server"):
         if header in response.headers:
             del response.headers[header]
     return response
+
+app.add_middleware(BaseHTTPMiddleware, dispatch=_add_security_headers)
+
+# CORS añadido AL FINAL — Starlette invierte el orden, así que este queda
+# como el middleware más exterior y sus headers llegan al cliente sin ser
+# filtrados por BaseHTTPMiddleware.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.get_allowed_origins(),
+    allow_origin_regex=r"https://syquex(-[a-z0-9]+)*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 # Rate limit exceeded — respuesta sin revelar detalles internos
 app.state.limiter = limiter
