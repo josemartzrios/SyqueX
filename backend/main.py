@@ -22,10 +22,11 @@ app = FastAPI(
     openapi_url=None if _hide_docs else "/openapi.json",
 )
 
-# CORS restringido — solo orígenes explícitamente permitidos
+# CORS — orígenes explícitos via env var + regex para Vercel preview/prod URLs
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.get_allowed_origins(),
+    allow_origin_regex=r"https://syquex(-[a-z0-9]+)*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
@@ -77,6 +78,11 @@ async def global_error_handler(request: Request, exc: Exception):
 
 @app.on_event("startup")
 async def startup_event():
+    import os
+    raw = os.environ.get("ALLOWED_ORIGINS", "NOT_SET")
+    parsed = settings.get_allowed_origins()
+    print(f"[CORS_DEBUG] raw env: {repr(raw)}", flush=True)
+    print(f"[CORS_DEBUG] parsed origins: {parsed}", flush=True)
     await init_db()
 
 app.include_router(auth_router, prefix="/api/v1")
