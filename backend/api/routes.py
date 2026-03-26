@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["clinical"])
 
+@router.get("/health", tags=["ops"])
+async def health():
+    return {"status": "ok"}
+
 # ---------------------------------------------------------------------------
 # Request schemas
 # ---------------------------------------------------------------------------
