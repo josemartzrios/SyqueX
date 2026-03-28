@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
 import NoteReview from './components/NoteReview'
+import MobileTabNav from './components/MobileTabNav.jsx'
+import MobileHistoryChips from './components/MobileHistoryChips.jsx'
+import MobileEvolucion from './components/MobileEvolucion.jsx'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions } from './api'
 
 // ── Module-level constants ─────────────────────────────────────────────────
@@ -154,7 +157,10 @@ function App() {
   const [newPatientName, setNewPatientName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
+  const [mobileTab, setMobileTab] = useState('dictar');
+  const [sessionHistory, setSessionHistory] = useState([]);
   const scrollRef = useRef(null);
+  const mobileScrollRef = useRef(null);
 
   const fetchConversations = async () => {
     try {
@@ -168,6 +174,8 @@ function App() {
   const loadPatientChat = (patientId, patientName, history = []) => {
     setSelectedPatientId(patientId);
     setSelectedPatientName(patientName);
+    setMobileTab('dictar');
+    setSessionHistory(history);
 
     if (history.length === 0) {
       setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?` }]);
@@ -272,12 +280,17 @@ function App() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
+  useEffect(() => {
+    if (mobileScrollRef.current) mobileScrollRef.current.scrollTop = mobileScrollRef.current.scrollHeight;
+  }, [messages]);
+
   const handleSendDictation = async (dictation, format) => {
     setMessages(prev => [
       ...markPendingNotesReadOnly(prev),
       { role: 'user', text: dictation },
       { role: 'assistant', type: 'loading' }
     ]);
+    if (format === 'SOAP') setMobileTab('nota');
     try {
       const noteData = await processSession(selectedPatientId, dictation, format);
       const botMessage = format === 'SOAP'
@@ -291,6 +304,11 @@ function App() {
         { role: 'assistant', type: 'error', text: 'Anomalía de conexión: ' + err.message }
       ]);
     }
+  };
+
+  const handleSendEvolucionChat = (text) => {
+    handleSendDictation(text, 'chat');
+    setMobileTab('evolucion');
   };
 
   const isLoading = messages[messages.length - 1]?.type === 'loading';
@@ -429,78 +447,177 @@ function App() {
           {/* Workspace */}
           <main className="flex-1 flex flex-col relative min-h-0 overflow-hidden">
 
-            {/* Empty state */}
+            {/* Empty state — ambos layouts */}
             {!hasActivePatient && EMPTY_STATE}
 
-            {/* Message feed */}
+            {/* ── MOBILE LAYOUT (md:hidden) ── */}
             {hasActivePatient && (
-              <div ref={scrollRef} className="flex-1 overflow-y-auto w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-7 pb-10">
-                {messages.map((msg, idx) => (
-                  <div key={idx} className="w-full">
+              <div className="flex flex-col flex-1 min-h-0 md:hidden">
 
-                    {msg.role === 'user' && (
-                      <div className="flex justify-end">
-                        <div className="max-w-[80%]">
-                          <div className="flex items-center justify-end gap-1.5 mb-1.5">
-                            <span className="text-[10px] uppercase tracking-[0.13em] text-ink-tertiary font-bold">Dictado</span>
-                          </div>
-                          <div className="bg-parchment-dark border border-ink/[0.07] rounded-2xl rounded-tr-sm px-4 py-3">
-                            <p className="text-ink-secondary text-[14px] leading-relaxed italic whitespace-pre-wrap">{msg.text}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {msg.role === 'assistant' && (
-                      <div>
-                        {msg.type === 'welcome' && (
-                          <p className="text-ink-secondary text-[15px] leading-relaxed">
-                            {msg.text}
-                            <span className="inline-block w-1.5 h-1.5 bg-sage rounded-full animate-pulse ml-2 mb-0.5 align-middle"></span>
-                          </p>
-                        )}
-
-                        {msg.type === 'chat' && (
-                          <div className="flex gap-3">
-                            <div className="w-[3px] rounded-full bg-sage/50 flex-shrink-0 self-stretch" />
-                            <div>
-                              <span className="text-[10px] uppercase tracking-[0.13em] text-sage font-bold block mb-1.5">SyqueX</span>
-                              <p className="text-ink text-[14px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {msg.type === 'loading' && LOADING_DOTS}
-
-                        {msg.type === 'error' && (
-                          <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                            <strong className="font-medium">Error:</strong> {msg.text}
-                          </div>
-                        )}
-
-                        {msg.type === 'bot' && msg.noteData && (
-                          <NoteReview noteData={msg.noteData} onConfirm={fetchConversations} readOnly={msg.readOnly} />
-                        )}
-                        {msg.type === 'bot' && !msg.noteData && msg.text && (
-                          <ClinicalNote text={msg.text} />
-                        )}
-                      </div>
-                    )}
+                {/* Patient strip */}
+                <div className="px-5 py-3 bg-parchment border-b border-ink/[0.06] flex items-center gap-3 flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-sage flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0">
+                    {selectedPatientName?.slice(0,2).toUpperCase()}
                   </div>
-                ))}
+                  <div>
+                    <p className="text-[14px] font-semibold text-ink leading-tight">{selectedPatientName}</p>
+                    <p className="text-[11px] text-ink-tertiary">
+                      {sessionHistory.filter(s => s.status === 'confirmed').length} sesiones confirmadas
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tab nav */}
+                <MobileTabNav activeTab={mobileTab} onTabChange={setMobileTab} />
+
+                {/* Tab: Dictar */}
+                {mobileTab === 'dictar' && (
+                  <div className="flex flex-col flex-1 min-h-0">
+                    <MobileHistoryChips sessions={sessionHistory} />
+                    <div className="flex-1 overflow-y-auto px-5 py-5">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted mb-3">
+                        Dictado · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                      <textarea
+                        className="w-full h-40 resize-none border border-ink/[0.10] rounded-[10px] px-4 py-3 text-[14px] leading-relaxed text-ink bg-parchment outline-none focus:border-sage focus:bg-white transition-colors placeholder-ink-muted"
+                        placeholder="Dicta los puntos clave de la sesión…"
+                        id="mobile-dictation-input"
+                      />
+                    </div>
+                    <div className="px-5 py-4 border-t border-ink/[0.06] bg-white flex gap-3 flex-shrink-0">
+                      <button
+                        disabled
+                        className="flex-1 py-3 bg-parchment border border-ink/[0.10] rounded-[10px] text-[12px] font-medium text-ink-muted opacity-50 cursor-not-allowed"
+                      >
+                        ⏺ Próximamente
+                      </button>
+                      <button
+                        onClick={() => {
+                          const el = document.getElementById('mobile-dictation-input');
+                          if (el?.value.trim()) handleSendDictation(el.value.trim(), 'SOAP');
+                        }}
+                        disabled={isLoading}
+                        className="flex-[2] py-3 bg-sage text-white rounded-[10px] text-[14px] font-semibold disabled:opacity-50 active:bg-sage-dark transition-colors"
+                      >
+                        Generar nota →
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab: Nota */}
+                {mobileTab === 'nota' && (
+                  <div className="flex flex-col flex-1 min-h-0">
+                    <div ref={mobileScrollRef} className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
+                      {/* Mostrar el último mensaje bot/loading/error */}
+                      {messages.length === 0 || messages[messages.length - 1]?.type === 'welcome' ? (
+                        <p className="text-ink-tertiary text-[14px] text-center mt-10">
+                          Dicta una sesión para generar la nota SOAP.
+                        </p>
+                      ) : (
+                        messages.slice().reverse().map((msg, idx) => {
+                          if (msg.type === 'loading') return (
+                            <div key={idx} className="flex gap-2 items-center">
+                              {[0, 0.2, 0.4].map((d, i) => (
+                                <div key={i} className="w-2 h-2 rounded-full bg-ink-muted animate-pulse"
+                                     style={{ animationDelay: `${d}s` }} />
+                              ))}
+                              <span className="text-ink-tertiary text-sm">Generando nota…</span>
+                            </div>
+                          );
+                          if (msg.type === 'bot' && msg.noteData) return (
+                            <NoteReview key={idx} noteData={msg.noteData} onConfirm={fetchConversations} readOnly={msg.readOnly} />
+                          );
+                          if (msg.type === 'error') return (
+                            <div key={idx} className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                              <strong>Error:</strong> {msg.text}
+                            </div>
+                          );
+                          return null;
+                        }).find(Boolean) || (
+                          <p className="text-ink-tertiary text-[14px] text-center mt-10">
+                            Dicta una sesión para generar la nota SOAP.
+                          </p>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab: Evolución */}
+                {mobileTab === 'evolucion' && (
+                  <MobileEvolucion
+                    messages={messages}
+                    patientName={selectedPatientName}
+                    onSendChat={handleSendEvolucionChat}
+                    loading={isLoading}
+                  />
+                )}
               </div>
             )}
 
-            {/* Dictation input */}
+            {/* ── DESKTOP LAYOUT (hidden md:flex) ── */}
             {hasActivePatient && (
-              <div className="px-3 sm:px-6 pb-5 sm:pb-6 pt-2 bg-gradient-to-t from-parchment via-parchment/95 to-transparent z-20 flex-shrink-0">
-                <div className="max-w-2xl mx-auto">
-                  <ChatInput onSend={handleSendDictation} loading={isLoading} />
-                  <p className="text-center mt-3 text-[10px] text-ink-muted tracking-wide">
-                    SyqueX Clinical AI puede cometer errores. El contenido debe ser revisado por el profesional.
-                  </p>
+              <>
+                <div ref={scrollRef} className="hidden md:block flex-1 overflow-y-auto w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-7 pb-10">
+                  {messages.map((msg, idx) => (
+                    <div key={idx} className="w-full">
+                      {msg.role === 'user' && (
+                        <div className="flex justify-end">
+                          <div className="max-w-[80%]">
+                            <div className="flex items-center justify-end gap-1.5 mb-1.5">
+                              <span className="text-[10px] uppercase tracking-[0.13em] text-ink-tertiary font-bold">Dictado</span>
+                            </div>
+                            <div className="bg-parchment-dark border border-ink/[0.07] rounded-2xl rounded-tr-sm px-4 py-3">
+                              <p className="text-ink-secondary text-[14px] leading-relaxed italic whitespace-pre-wrap">{msg.text}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {msg.role === 'assistant' && (
+                        <div>
+                          {msg.type === 'welcome' && (
+                            <p className="text-ink-secondary text-[15px] leading-relaxed">
+                              {msg.text}
+                              <span className="inline-block w-1.5 h-1.5 bg-sage rounded-full animate-pulse ml-2 mb-0.5 align-middle"></span>
+                            </p>
+                          )}
+                          {msg.type === 'chat' && (
+                            <div className="flex gap-3">
+                              <div className="w-[3px] rounded-full bg-sage/50 flex-shrink-0 self-stretch" />
+                              <div>
+                                <span className="text-[10px] uppercase tracking-[0.13em] text-sage font-bold block mb-1.5">SyqueX</span>
+                                <p className="text-ink text-[14px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                              </div>
+                            </div>
+                          )}
+                          {msg.type === 'loading' && LOADING_DOTS}
+                          {msg.type === 'error' && (
+                            <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                              <strong className="font-medium">Error:</strong> {msg.text}
+                            </div>
+                          )}
+                          {msg.type === 'bot' && msg.noteData && (
+                            <NoteReview noteData={msg.noteData} onConfirm={fetchConversations} readOnly={msg.readOnly} />
+                          )}
+                          {msg.type === 'bot' && !msg.noteData && msg.text && (
+                            <ClinicalNote text={msg.text} />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </div>
+
+                <div className="hidden md:block px-3 sm:px-6 pb-5 sm:pb-6 pt-2 bg-gradient-to-t from-parchment via-parchment/95 to-transparent z-20 flex-shrink-0">
+                  <div className="max-w-2xl mx-auto">
+                    <ChatInput onSend={handleSendDictation} loading={isLoading} />
+                    <p className="text-center mt-3 text-[10px] text-ink-muted tracking-wide">
+                      SyqueX Clinical AI puede cometer errores. El contenido debe ser revisado por el profesional.
+                    </p>
+                  </div>
+                </div>
+              </>
             )}
           </main>
         </div>
