@@ -3,6 +3,7 @@ import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
 import PatientSidebar from './components/PatientSidebar'
 import NoteReview from './components/NoteReview'
+import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions } from './api'
 
@@ -396,7 +397,7 @@ function App() {
                     <strong className="font-medium">Error:</strong> {latestNoteMsg.text}
                   </div>
                 ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
-                  <NoteReview
+                  <SoapNoteDocument
                     noteData={latestNoteMsg.noteData}
                     onConfirm={fetchConversations}
                     readOnly={latestNoteMsg.readOnly}
@@ -527,7 +528,7 @@ function App() {
                       <strong>Error:</strong> {latestNoteMsg.text}
                     </div>
                   ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
-                    <NoteReview
+                    <SoapNoteDocument
                       noteData={latestNoteMsg.noteData}
                       onConfirm={fetchConversations}
                       readOnly={latestNoteMsg.readOnly}
