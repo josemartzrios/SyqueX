@@ -359,7 +359,6 @@ function App() {
                 <DictationPanel
                   onGenerate={(d) => handleSendDictation(d, 'SOAP')}
                   loading={isLoading}
-                  patientName={selectedPatientName}
                 />
 
                 {/* Session history list below dictation */}
@@ -504,7 +503,6 @@ function App() {
                 <DictationPanel
                   onGenerate={(d) => handleSendDictation(d, 'SOAP')}
                   loading={isLoading}
-                  patientName={selectedPatientName}
                 />
               </div>
             )}
