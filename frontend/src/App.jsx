@@ -2,9 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
 import NoteReview from './components/NoteReview'
-import MobileTabNav from './components/MobileTabNav.jsx'
-import MobileHistoryChips from './components/MobileHistoryChips.jsx'
-import MobileEvolucion from './components/MobileEvolucion.jsx'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions } from './api'
 
 // ── Module-level constants ─────────────────────────────────────────────────
@@ -160,6 +157,7 @@ function App() {
   const [mobileTab, setMobileTab] = useState('dictar');
   const [sessionHistory, setSessionHistory] = useState([]);
   const [desktopDictation, setDesktopDictation] = useState('');
+  const [mobileDictation, setMobileDictation] = useState('');
   const scrollRef = useRef(null);
   const mobileScrollRef = useRef(null);
 
@@ -645,7 +643,8 @@ function App() {
                   <textarea
                     className="w-full h-44 resize-none border border-ink/[0.10] rounded-[10px] px-4 py-3 text-[14px] leading-relaxed text-ink bg-white outline-none focus:border-[#5a9e8a]/60 transition-colors placeholder-ink-muted"
                     placeholder="Dicta los puntos clave de la sesión…"
-                    id="mobile-dictation-input"
+                    value={mobileDictation}
+                    onChange={(e) => setMobileDictation(e.target.value)}
                   />
                 </div>
                 <div className="px-5 py-4 border-t border-ink/[0.06] bg-white flex gap-3 flex-shrink-0">
@@ -657,10 +656,12 @@ function App() {
                   </button>
                   <button
                     onClick={() => {
-                      const el = document.getElementById('mobile-dictation-input');
-                      if (el?.value.trim()) handleSendDictation(el.value.trim(), 'SOAP');
+                      if (mobileDictation.trim()) {
+                        handleSendDictation(mobileDictation.trim(), 'SOAP');
+                        setMobileDictation('');
+                      }
                     }}
-                    disabled={isLoading}
+                    disabled={!mobileDictation.trim() || isLoading}
                     className="flex-[2] py-3 bg-[#5a9e8a] text-white rounded-[10px] text-[14px] font-semibold disabled:opacity-50 active:bg-[#4d8a78] transition-colors"
                   >
                     {isLoading ? 'Generando…' : 'Generar nota →'}
