@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
+import PatientSidebar from './components/PatientSidebar'
 import NoteReview from './components/NoteReview'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions } from './api'
 
@@ -81,52 +82,6 @@ function ClinicalNote({ text }) {
   });
 
   return <div>{result}</div>;
-}
-
-// ── Desktop conversation item ────────────────────────────────────────────────
-function DesktopConvItem({ conv, active, onClick, onDelete }) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const handleDelete = (e) => {
-    e.stopPropagation();
-    if (confirmDelete) {
-      onDelete();
-    } else {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-    }
-  };
-
-  return (
-    <div
-      onClick={onClick}
-      className={`group px-3 py-2.5 mx-2 mb-0.5 rounded-xl cursor-pointer transition-colors relative
-        ${active ? 'bg-sage-light' : 'hover:bg-parchment-dark/70'}`}
-    >
-      <div className="pr-6">
-        <p className={`text-[13px] font-medium truncate leading-snug ${active ? 'text-ink' : 'text-ink-secondary'}`}>
-          {conv.patient_name}
-        </p>
-        <p className="text-[11px] text-ink-tertiary mt-0.5">
-          Sesión #{conv.session_number} · {formatDate(conv.session_date)}
-        </p>
-        {conv.dictation_preview && (
-          <p className="text-[11px] text-ink-muted mt-0.5 line-clamp-1">{conv.dictation_preview}</p>
-        )}
-      </div>
-      <button
-        onClick={handleDelete}
-        title={confirmDelete ? 'Confirmar' : 'Archivar'}
-        className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md transition-all opacity-0 group-hover:opacity-100
-          ${confirmDelete ? 'bg-red-50 text-red-400 !opacity-100' : 'text-ink-muted hover:text-red-400 hover:bg-red-50'}`}
-      >
-        {confirmDelete
-          ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-          : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-        }
-      </button>
-    </div>
-  );
 }
 
 function formatDate(dateStr) {
@@ -366,80 +321,18 @@ function App() {
       <div className="hidden md:flex flex-1 overflow-hidden">
 
         {/* Left sidebar — patient list */}
-        <aside className="w-60 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
-          {/* Brand */}
-          <div className="px-5 py-4 border-b border-black/[0.07] flex items-center justify-between flex-shrink-0">
-            <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">SyqueX</span>
-            <span className="text-[10px] text-ink-tertiary font-mono">v2.0</span>
-          </div>
-
-          {/* Patient list */}
-          <div className="px-3 pt-3 pb-1 flex-shrink-0">
-            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-tertiary font-bold px-2">Pacientes</span>
-          </div>
-          <div className="flex-1 overflow-y-auto pb-2">
-            {conversations.length === 0 ? (
-              <div className="px-4 py-6 text-center">
-                <p className="text-ink-tertiary text-[13px]">Sin pacientes aún.</p>
-                <p className="text-ink-muted text-xs mt-1">Crea uno para comenzar.</p>
-              </div>
-            ) : (
-              conversations.map(conv => (
-                <DesktopConvItem
-                  key={conv.patient_id}
-                  conv={conv}
-                  active={conv.patient_id === selectedPatientId}
-                  onClick={() => handleSelectConversation(conv)}
-                  onDelete={() => handleDeleteConversation(conv.id, conv.patient_id)}
-                />
-              ))
-            )}
-          </div>
-
-          {/* New patient button */}
-          <div className="px-3 py-3 border-t border-black/[0.07] flex-shrink-0">
-            {isCreatingPatient ? (
-              <div className="flex flex-col gap-2">
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="Nombre del paciente..."
-                  className="w-full bg-white border border-ink/[0.15] rounded-lg px-3 py-2 text-sm text-ink placeholder-ink-tertiary focus:outline-none focus:border-[#5a9e8a]/60 transition-all"
-                  value={newPatientName}
-                  onChange={(e) => setNewPatientName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSavePatient();
-                    if (e.key === 'Escape') { setIsCreatingPatient(false); setNewPatientName(''); }
-                  }}
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSavePatient}
-                    className="flex-1 bg-[#5a9e8a] hover:bg-[#4d8a78] text-white text-[13px] font-medium rounded-lg py-1.5 transition-colors"
-                  >
-                    Guardar
-                  </button>
-                  <button
-                    onClick={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
-                    className="px-3 text-ink-tertiary hover:text-ink text-[13px] rounded-lg py-1.5 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsCreatingPatient(true)}
-                className="w-full flex items-center justify-center gap-1.5 text-[#5a9e8a] hover:text-[#4d8a78] border border-[#5a9e8a]/30 hover:border-[#5a9e8a]/60 bg-white hover:bg-[#5a9e8a]/[0.05] rounded-lg px-3 py-2 transition-all text-[13px] font-medium"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-                </svg>
-                Nuevo paciente
-              </button>
-            )}
-          </div>
-        </aside>
+        <PatientSidebar
+          conversations={conversations}
+          selectedPatientId={selectedPatientId}
+          onSelectConversation={handleSelectConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onNewPatient={() => setIsCreatingPatient(true)}
+          isCreatingPatient={isCreatingPatient}
+          newPatientName={newPatientName}
+          onNewPatientNameChange={(e) => setNewPatientName(e.target.value)}
+          onSavePatient={handleSavePatient}
+          onCancelNewPatient={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
+        />
 
         {/* Right work area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
