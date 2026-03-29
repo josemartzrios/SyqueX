@@ -5,7 +5,7 @@ import PatientHeader from './components/PatientHeader'
 import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import NewPatientModal from './components/NewPatientModal'
-import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions } from './api'
+import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile } from './api'
 
 // ── Module-level constants ─────────────────────────────────────────────────
 const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
@@ -113,6 +113,16 @@ function App() {
   const [conversations, setConversations] = useState([]);
   const [mobileTab, setMobileTab] = useState('dictar');
   const [sessionHistory, setSessionHistory] = useState([]);
+  
+  // Evolución tab state
+  const [evolutionMessages, setEvolutionMessages] = useState(new Map()); // Map<patientId, Message[]>
+  const [evolutionLoading, setEvolutionLoading] = useState(false);
+  const [evolutionSending, setEvolutionSending] = useState(false);
+  const [evolutionError, setEvolutionError] = useState(null);
+  const [patientProfile, setPatientProfile] = useState(null);
+  
+  const evolutionMessagesRef = useRef(evolutionMessages);
+  useEffect(() => { evolutionMessagesRef.current = evolutionMessages; }, [evolutionMessages]);
   const scrollRef = useRef(null);
   const mobileScrollRef = useRef(null);
 
@@ -130,6 +140,10 @@ function App() {
     setSelectedPatientName(patientName);
     setMobileTab('dictar');
     setSessionHistory(history);
+    // Reset evolution state for new patient (evolutionMessages Map se conserva)
+    setPatientProfile(null);
+    setEvolutionError(null);
+    setEvolutionSending(false);
 
     if (history.length === 0) {
       setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?` }]);
@@ -142,7 +156,6 @@ function App() {
         historyMessages.push({ role: 'user', text: session.raw_dictation });
       }
 
-      // Chat sessions: render as plain text, no NoteReview component
       if (session.format === 'chat') {
         if (session.ai_response) {
           historyMessages.push({ role: 'assistant', type: 'chat', text: session.ai_response });
@@ -150,7 +163,6 @@ function App() {
         return;
       }
 
-      // SOAP and other structured formats
       const hasStructuredNote = session.status === 'confirmed' && session.structured_note;
       if (hasStructuredNote) {
         historyMessages.push({
@@ -184,6 +196,62 @@ function App() {
     });
 
     setMessages(historyMessages);
+  };
+
+  const loadEvolutionChat = async (patientId) => {
+    setEvolutionLoading(true);
+    try {
+      const sessions = await getPatientSessions(patientId, 200);
+      const chatSessions = sessions
+        .filter(s => s.format === 'chat')
+        .sort((a, b) => a.session_number - b.session_number);
+      const messages = [];
+      chatSessions.forEach(s => {
+        messages.push({ role: 'user', content: s.raw_dictation });
+        if (s.ai_response) messages.push({ role: 'agent', content: s.ai_response });
+      });
+      setEvolutionMessages(prev => new Map(prev).set(patientId, messages));
+    } catch (err) {
+      console.error('Error loading evolution chat:', err);
+      setEvolutionMessages(prev => new Map(prev).set(patientId, []));
+    } finally {
+      setEvolutionLoading(false);
+    }
+  };
+
+  const loadPatientProfile = async (patientId) => {
+    try {
+      const profile = await getPatientProfile(patientId);
+      setPatientProfile(profile);
+    } catch (err) {
+      console.error('Error loading patient profile:', err);
+      setPatientProfile(null);
+    }
+  };
+
+  const handleEvolutionSend = async (text) => {
+    if (!selectedPatientId || !text.trim()) return;
+    const patientId = selectedPatientId;
+
+    // Optimistic user append
+    setEvolutionMessages(prev => {
+      const current = prev.get(patientId) || [];
+      return new Map(prev).set(patientId, [...current, { role: 'user', content: text }]);
+    });
+    setEvolutionSending(true);
+    setEvolutionError(null);
+
+    try {
+      const response = await processSession(patientId, text, 'chat');
+      setEvolutionMessages(prev => {
+        const current = prev.get(patientId) || [];
+        return new Map(prev).set(patientId, [...current, { role: 'agent', content: response.text_fallback || '' }]);
+      });
+    } catch (err) {
+      setEvolutionError('No se pudo enviar. Intenta de nuevo.');
+    } finally {
+      setEvolutionSending(false);
+    }
   };
 
   const handleSelectConversation = async (conv) => {
@@ -251,6 +319,18 @@ function App() {
   useEffect(() => {
     if (mobileScrollRef.current) mobileScrollRef.current.scrollTop = mobileScrollRef.current.scrollHeight;
   }, [messages]);
+
+  useEffect(() => {
+    if (mobileTab === 'evolucion' && selectedPatientId) {
+      if (!evolutionMessagesRef.current.has(selectedPatientId)) {
+        loadEvolutionChat(selectedPatientId);
+      }
+      if (!patientProfile) {
+        loadPatientProfile(selectedPatientId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobileTab, selectedPatientId]);
 
   const handleSendDictation = async (dictation, format) => {
     setMessages(prev => [
