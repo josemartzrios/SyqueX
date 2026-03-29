@@ -3,6 +3,7 @@ import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
 import PatientSidebar from './components/PatientSidebar'
 import NoteReview from './components/NoteReview'
+import DictationPanel from './components/DictationPanel'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions } from './api'
 
 // ── Module-level constants ─────────────────────────────────────────────────
@@ -111,8 +112,6 @@ function App() {
   const [conversations, setConversations] = useState([]);
   const [mobileTab, setMobileTab] = useState('dictar');
   const [sessionHistory, setSessionHistory] = useState([]);
-  const [desktopDictation, setDesktopDictation] = useState('');
-  const [mobileDictation, setMobileDictation] = useState('');
   const scrollRef = useRef(null);
   const mobileScrollRef = useRef(null);
 
@@ -268,12 +267,6 @@ function App() {
   const isLoading = messages[messages.length - 1]?.type === 'loading';
   const hasActivePatient = !!selectedPatientId;
 
-  const handleDesktopGenerate = () => {
-    if (!desktopDictation.trim() || isLoading) return;
-    handleSendDictation(desktopDictation.trim(), 'SOAP');
-    setDesktopDictation('');
-  };
-
   // Derive the latest note message for the note panel
   const latestNoteMsg = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -363,32 +356,11 @@ function App() {
 
               {/* Left: Dictation panel */}
               <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
-                <div className="px-5 pt-5 pb-3 flex-shrink-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-3">
-                    Dictado · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                  <textarea
-                    className="w-full h-52 resize-none border border-ink/[0.10] rounded-xl px-4 py-3 text-[13.5px] leading-relaxed text-ink bg-white outline-none focus:border-[#5a9e8a]/60 transition-colors placeholder-ink-muted"
-                    placeholder="Dicta los puntos clave de la sesión…"
-                    value={desktopDictation}
-                    onChange={(e) => setDesktopDictation(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleDesktopGenerate();
-                    }}
-                  />
-                </div>
-                <div className="px-5 pb-5 flex-shrink-0">
-                  <button
-                    onClick={handleDesktopGenerate}
-                    disabled={isLoading || !desktopDictation.trim()}
-                    className="w-full py-2.5 bg-[#5a9e8a] hover:bg-[#4d8a78] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[14px] font-semibold rounded-xl transition-colors"
-                  >
-                    {isLoading ? 'Generando…' : 'Generar nota →'}
-                  </button>
-                  <p className="text-center mt-2 text-[10px] text-ink-muted">
-                    ⌘+Enter para enviar
-                  </p>
-                </div>
+                <DictationPanel
+                  onGenerate={(d) => handleSendDictation(d, 'SOAP')}
+                  loading={isLoading}
+                  patientName={selectedPatientName}
+                />
 
                 {/* Session history list below dictation */}
                 {sessionHistory.length > 0 && (
@@ -528,38 +500,12 @@ function App() {
 
             {/* Tab: Dictar */}
             {mobileTab === 'dictar' && (
-              <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-y-auto px-5 py-5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted mb-3">
-                    Dictado · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                  <textarea
-                    className="w-full h-44 resize-none border border-ink/[0.10] rounded-[10px] px-4 py-3 text-[14px] leading-relaxed text-ink bg-white outline-none focus:border-[#5a9e8a]/60 transition-colors placeholder-ink-muted"
-                    placeholder="Dicta los puntos clave de la sesión…"
-                    value={mobileDictation}
-                    onChange={(e) => setMobileDictation(e.target.value)}
-                  />
-                </div>
-                <div className="px-5 py-4 border-t border-ink/[0.06] bg-white flex gap-3 flex-shrink-0">
-                  <button
-                    disabled
-                    className="flex-1 py-3 bg-[#f4f4f2] border border-ink/[0.10] rounded-[10px] text-[12px] font-medium text-ink-muted opacity-50 cursor-not-allowed"
-                  >
-                    Próximamente
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (mobileDictation.trim()) {
-                        handleSendDictation(mobileDictation.trim(), 'SOAP');
-                        setMobileDictation('');
-                      }
-                    }}
-                    disabled={!mobileDictation.trim() || isLoading}
-                    className="flex-[2] py-3 bg-[#5a9e8a] text-white rounded-[10px] text-[14px] font-semibold disabled:opacity-50 active:bg-[#4d8a78] transition-colors"
-                  >
-                    {isLoading ? 'Generando…' : 'Generar nota →'}
-                  </button>
-                </div>
+              <div className="flex flex-col flex-1 min-h-0 bg-[#f4f4f2]">
+                <DictationPanel
+                  onGenerate={(d) => handleSendDictation(d, 'SOAP')}
+                  loading={isLoading}
+                  patientName={selectedPatientName}
+                />
               </div>
             )}
 

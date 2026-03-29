@@ -174,7 +174,7 @@
 
 - [ ] **Step 1: Create project**
 
-  Go to [supabase.com](https://supabase.com) → New project. Choose a region close to your users (e.g. us-east-1 or eu-west-1). Note the **database password** you set.
+  Go to [supabase.com](https://supabase.com) → New project. Choose a region close to your users (e.g. us-east-1 or eu-west-1). Note the **database password** you set. Est1
 
 - [ ] **Step 2: Enable pgvector**
 
@@ -191,7 +191,7 @@
   Project Settings → Database → Connection string → URI tab.
   Copy the URI. It looks like:
   ```
-  postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
+  postgresql://postgres:<password>@db.aowfweaqudncaxtoubsi.supabase.co:5432/postgres
   ```
   Change the scheme to `postgresql+asyncpg://` for use in Railway.
 
@@ -226,6 +226,8 @@
 - [ ] **Step 5: Note the Railway URL**
 
   After first deploy, copy the public URL from the Railway dashboard (e.g. `https://syquex-backend-production.up.railway.app`). Needed for Vercel setup.
+
+  https://syquex-production.up.railway.app
 
 ---
 

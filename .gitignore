@@ -9,3 +9,4 @@
 .superpowers/
 backend/.coverage
 backend/htmlcov/
+.vercel
