@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 /**
  * PatientSidebar
@@ -17,6 +17,13 @@ import { useState } from 'react';
 
 function PatientConversationItem({ conv, active, onClick, onDelete }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const handleDelete = (e) => {
     e.stopPropagation();
@@ -24,7 +31,7 @@ function PatientConversationItem({ conv, active, onClick, onDelete }) {
       onDelete();
     } else {
       setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
+      timeoutRef.current = setTimeout(() => setConfirmDelete(false), 3000);
     }
   };
 
