@@ -5,6 +5,7 @@ import PatientHeader from './components/PatientHeader'
 import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import NewPatientModal from './components/NewPatientModal'
+import EvolucionPanel from './components/EvolucionPanel'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile } from './api'
 
 // ── Module-level constants ─────────────────────────────────────────────────
@@ -354,13 +355,10 @@ function App() {
     }
   };
 
-  const handleSendEvolucionChat = (text) => {
-    handleSendDictation(text, 'chat');
-    setMobileTab('evolucion');
-  };
 
   const isLoading = messages[messages.length - 1]?.type === 'loading';
   const hasActivePatient = !!selectedPatientId;
+  const soapSessions = sessionHistory.filter(s => s.format !== 'chat');
 
   // Derive the latest note message for the note panel
   const latestNoteMsg = (() => {
@@ -536,17 +534,20 @@ function App() {
 
             {/* Tab nav */}
             <div className="flex border-b border-ink/[0.07] bg-white flex-shrink-0">
-              {['dictar', 'nota', 'historial'].map((tab) => (
+              {['dictar', 'nota', 'historial', 'evolucion'].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setMobileTab(tab)}
-                  className={`flex-1 py-3 text-[13px] font-medium capitalize transition-colors border-b-2 ${
+                  className={`flex-1 py-3 text-[12px] font-medium capitalize transition-colors border-b-2 ${
                     mobileTab === tab
                       ? 'border-[#5a9e8a] text-[#5a9e8a]'
                       : 'border-transparent text-ink-secondary hover:text-ink'
                   }`}
                 >
-                  {tab === 'dictar' ? 'Dictar' : tab === 'nota' ? 'Nota' : 'Historial'}
+                  {tab === 'dictar' ? 'Dictar'
+                    : tab === 'nota' ? 'Nota'
+                    : tab === 'historial' ? 'Historial'
+                    : 'Evolución'}
                 </button>
               ))}
             </div>
@@ -598,29 +599,42 @@ function App() {
             {/* Tab: Historial */}
             {mobileTab === 'historial' && (
               <div className="flex-1 overflow-y-auto px-4 py-4">
-                {sessionHistory.length === 0 ? (
-                  <p className="text-ink-tertiary text-[14px] text-center mt-10">Sin sesiones registradas aún.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {sessionHistory.map((s, i) => (
-                      <div key={s.id || i} className="bg-[#f4f4f2] rounded-xl px-4 py-3 flex items-start gap-3">
-                        <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-medium text-ink">
-                            Sesión #{s.session_number || (sessionHistory.length - i)} · {formatDate(s.session_date)}
-                          </p>
-                          {s.raw_dictation && (
-                            <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
-                          )}
-                          <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'}`}>
-                            {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
-                          </span>
+                {soapSessions.length === 0 ? (
+                    <p className="text-ink-tertiary text-[14px] text-center mt-10">Sin sesiones registradas aún.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {soapSessions.map((s, i) => (
+                        <div key={s.id || i} className="bg-[#f4f4f2] rounded-xl px-4 py-3 flex items-start gap-3">
+                          <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-medium text-ink">
+                              Sesión #{s.session_number || (soapSessions.length - i)} · {formatDate(s.session_date)}
+                            </p>
+                            {s.raw_dictation && (
+                              <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
+                            )}
+                            <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'}`}>
+                              {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
               </div>
+            )}
+
+            {/* Tab: Evolución */}
+            {mobileTab === 'evolucion' && (
+              <EvolucionPanel
+                patient={{ id: selectedPatientId, name: selectedPatientName }}
+                messages={evolutionMessages.get(selectedPatientId) || []}
+                profile={patientProfile}
+                loading={evolutionLoading}
+                onSend={handleEvolutionSend}
+                sending={evolutionSending}
+                error={evolutionError}
+              />
             )}
 
           </div>
