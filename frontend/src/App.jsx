@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import ChatInput from './components/ChatInput'
 import Sidebar from './components/Sidebar'
 import PatientSidebar from './components/PatientSidebar'
-import NoteReview from './components/NoteReview'
 import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions } from './api'
