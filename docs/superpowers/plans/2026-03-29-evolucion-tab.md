@@ -26,7 +26,7 @@
 **Files:**
 - Modify: `frontend/src/api.js`
 
-- [ ] **Step 1: Añadir `page_size` opcional a `getPatientSessions`**
+- [x] **Step 1: Añadir `page_size` opcional a `getPatientSessions`**
 
 En `frontend/src/api.js`, reemplazar la función existente:
 
@@ -46,7 +46,7 @@ export async function getPatientSessions(patientId, pageSize = 50) {
 }
 ```
 
-- [ ] **Step 2: Añadir `getPatientProfile` al final de api.js**
+- [x] **Step 2: Añadir `getPatientProfile` al final de api.js**
 
 ```js
 export async function getPatientProfile(patientId) {
@@ -57,11 +57,11 @@ export async function getPatientProfile(patientId) {
 
 La respuesta tiene forma `{ profile: { recurring_themes, risk_factors, protective_factors, progress_indicators, patient_summary }, recent_sessions }`.
 
-- [ ] **Step 3: Verificar que los cambios no rompen llamadas existentes**
+- [x] **Step 3: Verificar que los cambios no rompen llamadas existentes**
 
 `getPatientSessions` tiene un default `pageSize=50` — todas las llamadas actuales sin segundo argumento siguen funcionando igual.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/api.js
@@ -75,7 +75,7 @@ git commit -m "feat: add getPatientProfile + page_size param to getPatientSessio
 **Files:**
 - Modify: `frontend/src/App.jsx`
 
-- [ ] **Step 1: Añadir imports necesarios**
+- [x] **Step 1: Añadir imports necesarios**
 
 Añadir `getPatientProfile` al import de `api.js` (línea 8):
 
@@ -87,7 +87,7 @@ import { processSession, createPatient, getPatientSessions, listConversations, a
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile } from './api'
 ```
 
-- [ ] **Step 2: Añadir los 4 estados de Evolución**
+- [x] **Step 2: Añadir los 4 estados de Evolución**
 
 Después de `const [sessionHistory, setSessionHistory] = useState([]);` (línea 115), añadir:
 
@@ -100,7 +100,7 @@ const [evolutionError, setEvolutionError] = useState(null);
 const [patientProfile, setPatientProfile] = useState(null);
 ```
 
-- [ ] **Step 3: Añadir `loadEvolutionChat` callback**
+- [x] **Step 3: Añadir `loadEvolutionChat` callback**
 
 Después de `loadPatientChat` (tras línea 187), añadir:
 
@@ -127,7 +127,7 @@ const loadEvolutionChat = async (patientId) => {
 };
 ```
 
-- [ ] **Step 4: Añadir `loadPatientProfile` callback**
+- [x] **Step 4: Añadir `loadPatientProfile` callback**
 
 Inmediatamente después:
 
@@ -143,7 +143,7 @@ const loadPatientProfile = async (patientId) => {
 };
 ```
 
-- [ ] **Step 5: Añadir `handleEvolutionSend` callback**
+- [x] **Step 5: Añadir `handleEvolutionSend` callback**
 
 ```js
 const handleEvolutionSend = async (text) => {
@@ -172,7 +172,7 @@ const handleEvolutionSend = async (text) => {
 };
 ```
 
-- [ ] **Step 6: Limpiar estado de Evolución al cambiar de paciente**
+- [x] **Step 6: Limpiar estado de Evolución al cambiar de paciente**
 
 `loadPatientChat` vive en línea 128. Reemplazar el bloque completo de la función (líneas 128–187) con:
 
@@ -243,7 +243,7 @@ const loadPatientChat = (patientId, patientName, history = []) => {
 
 Los únicos cambios respecto al original son las 3 líneas de reset (`setPatientProfile`, `setEvolutionError`, `setEvolutionSending`) insertadas después de `setSessionHistory`.
 
-- [ ] **Step 7: Añadir useEffect para lazy-load al abrir el tab**
+- [x] **Step 7: Añadir useEffect para lazy-load al abrir el tab**
 
 `evolutionMessages` es un Map que no se puede incluir en deps de useEffect sin causar bucles (se recrea en cada render). Para leer su valor actual sin capturarlo en el closure, usar un ref que lo siga:
 
@@ -272,7 +272,7 @@ useEffect(() => {
 
 Usar `evolutionMessagesRef.current` (en lugar del state directamente) evita que el Map desactualizado cause una doble carga al cambiar de paciente.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add frontend/src/App.jsx
@@ -287,7 +287,7 @@ git commit -m "feat: add evolution state, loadEvolutionChat, loadPatientProfile,
 - Create: `frontend/src/components/EvolucionPanel.jsx`
 - Create: `frontend/src/components/EvolucionPanel.test.jsx`
 
-- [ ] **Step 1: Escribir los tests primero**
+- [x] **Step 1: Escribir los tests primero**
 
 Crear `frontend/src/components/EvolucionPanel.test.jsx`:
 
@@ -387,7 +387,7 @@ describe('EvolucionPanel — input', () => {
 })
 ```
 
-- [ ] **Step 2: Correr tests para verificar que fallan**
+- [x] **Step 2: Correr tests para verificar que fallan**
 
 ```bash
 cd frontend
@@ -396,7 +396,7 @@ npm run test -- EvolucionPanel.test.jsx
 
 Esperado: errores de módulo no encontrado ("Cannot find module './EvolucionPanel'").
 
-- [ ] **Step 3: Crear EvolucionPanel.jsx**
+- [x] **Step 3: Crear EvolucionPanel.jsx**
 
 Crear `frontend/src/components/EvolucionPanel.jsx`:
 
@@ -558,7 +558,7 @@ export default function EvolucionPanel({ patient, messages, profile, loading, on
 }
 ```
 
-- [ ] **Step 4: Correr tests y verificar que pasan**
+- [x] **Step 4: Correr tests y verificar que pasan**
 
 ```bash
 cd frontend
@@ -567,7 +567,7 @@ npm run test -- EvolucionPanel.test.jsx
 
 Esperado: todos los tests pasan (✓).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/EvolucionPanel.jsx frontend/src/components/EvolucionPanel.test.jsx
@@ -581,7 +581,7 @@ git commit -m "feat: add EvolucionPanel component with chat bubbles, contextual 
 **Files:**
 - Modify: `frontend/src/App.jsx`
 
-- [ ] **Step 1: Añadir import de EvolucionPanel y eliminar dead code**
+- [x] **Step 1: Añadir import de EvolucionPanel y eliminar dead code**
 
 En el bloque de imports (líneas 1–8), añadir:
 
@@ -599,7 +599,7 @@ const handleSendEvolucionChat = (text) => {
 ```
 Esta función enviaba mensajes de chat al array `messages` (flujo SOAP) en vez de `evolutionMessages`. Con `handleEvolutionSend` ya en su lugar, esta función es dead code.
 
-- [ ] **Step 2: Actualizar el array de tabs mobile y sus labels**
+- [x] **Step 2: Actualizar el array de tabs mobile y sus labels**
 
 Localizar el bloque del tab nav mobile (línea ~459):
 
@@ -632,7 +632,7 @@ Localizar el bloque del tab nav mobile (línea ~459):
 
 Nota: reducir font-size de `text-[13px]` a `text-[12px]` para que quepan 4 tabs.
 
-- [ ] **Step 3: Filtrar el tab Historial para mostrar solo sesiones SOAP**
+- [x] **Step 3: Filtrar el tab Historial para mostrar solo sesiones SOAP**
 
 Localizar el bloque `{mobileTab === 'historial' && ...}` (línea ~519).
 
@@ -673,7 +673,7 @@ Luego reemplazar el bloque `{mobileTab === 'historial' && ...}` completo:
 )}
 ```
 
-- [ ] **Step 4: Añadir el tab Evolución al render**
+- [x] **Step 4: Añadir el tab Evolución al render**
 
 Inmediatamente después del bloque `{mobileTab === 'historial' && ...}` (antes del cierre de `</div>` del paciente activo), añadir:
 
@@ -692,7 +692,7 @@ Inmediatamente después del bloque `{mobileTab === 'historial' && ...}` (antes d
 )}
 ```
 
-- [ ] **Step 5: Correr todos los tests existentes**
+- [x] **Step 5: Correr todos los tests existentes**
 
 ```bash
 cd frontend
@@ -701,7 +701,7 @@ npm run test
 
 Esperado: todos los tests existentes siguen pasando (sin regresiones).
 
-- [ ] **Step 6: Verificar manualmente el happy path en local**
+- [x] **Step 6: Verificar manualmente el happy path en local**
 
 Con el backend y frontend corriendo:
 1. Seleccionar un paciente existente
@@ -710,7 +710,7 @@ Con el backend y frontend corriendo:
 4. Tab Historial: sin sesiones con `format=chat`
 5. Tab Evolución: muestra spinner → luego historial de chat (o empty state si no hay) + chips
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add frontend/src/App.jsx
@@ -721,16 +721,16 @@ git commit -m "feat: 4-tab mobile layout — add Evolución tab, filter Historia
 
 ## Verificación final
 
-- [ ] Correr suite de tests completa:
+- [x] Correr suite de tests completa:
   ```bash
   cd frontend && npm run test
   ```
   Esperado: todos los tests pasan.
 
-- [ ] Verificar criterios de éxito del spec:
-  - [ ] 4 tabs visibles en mobile
-  - [ ] Dictar: limpio
-  - [ ] Historial: solo `format !== 'chat'`
-  - [ ] Evolución: carga chat desde DB, chips funcionales, onSend persiste
-  - [ ] Desktop: sin cambios
-  - [ ] Happy path SOAP intacto
+- [x] Verificar criterios de éxito del spec:
+  - [x] 4 tabs visibles en mobile
+  - [x] Dictar: limpio
+  - [x] Historial: solo `format !== 'chat'`
+  - [x] Evolución: carga chat desde DB, chips funcionales, onSend persiste
+  - [x] Desktop: sin cambios
+  - [x] Happy path SOAP intacto
