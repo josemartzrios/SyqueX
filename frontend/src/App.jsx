@@ -159,6 +159,7 @@ function App() {
   const [conversations, setConversations] = useState([]);
   const [mobileTab, setMobileTab] = useState('dictar');
   const [sessionHistory, setSessionHistory] = useState([]);
+  const [desktopDictation, setDesktopDictation] = useState('');
   const scrollRef = useRef(null);
   const mobileScrollRef = useRef(null);
 
@@ -314,8 +315,23 @@ function App() {
   const isLoading = messages[messages.length - 1]?.type === 'loading';
   const hasActivePatient = !!selectedPatientId;
 
+  const handleDesktopGenerate = () => {
+    if (!desktopDictation.trim() || isLoading) return;
+    handleSendDictation(desktopDictation.trim(), 'SOAP');
+    setDesktopDictation('');
+  };
+
+  // Derive the latest note message for the note panel
+  const latestNoteMsg = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.type === 'loading' || (m.type === 'bot' && m.noteData) || m.type === 'error') return m;
+    }
+    return null;
+  })();
+
   return (
-    <div className="h-screen bg-parchment font-sans flex flex-col overflow-hidden">
+    <div className="h-screen bg-white font-sans flex flex-col overflow-hidden">
 
       {/* Disclaimer modal */}
       {showDisclaimer && (
@@ -348,23 +364,26 @@ function App() {
         onDeleteConversation={handleDeleteConversation}
       />
 
-      {/* Main layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* ── DESKTOP LAYOUT (md+) ── */}
+      <div className="hidden md:flex flex-1 overflow-hidden">
 
-        {/* Desktop persistent left panel */}
-        <aside className="hidden md:flex w-60 flex-col border-r border-ink/[0.07] bg-white/40 flex-shrink-0">
-          <div className="px-4 py-4 border-b border-ink/[0.07] flex items-center justify-between flex-shrink-0">
-            <span className="font-semibold text-ink text-[15px] tracking-tight">SyqueX</span>
-            <span className="text-[10px] text-ink-tertiary font-mono">v1.2</span>
+        {/* Left sidebar — patient list */}
+        <aside className="w-60 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
+          {/* Brand */}
+          <div className="px-5 py-4 border-b border-black/[0.07] flex items-center justify-between flex-shrink-0">
+            <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">SyqueX</span>
+            <span className="text-[10px] text-ink-tertiary font-mono">v2.0</span>
           </div>
-          <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-tertiary font-bold">Sesiones</span>
+
+          {/* Patient list */}
+          <div className="px-3 pt-3 pb-1 flex-shrink-0">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-tertiary font-bold px-2">Pacientes</span>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto pb-2">
             {conversations.length === 0 ? (
               <div className="px-4 py-6 text-center">
-                <p className="text-ink-tertiary text-[13px]">Sin sesiones aún.</p>
-                <p className="text-ink-muted text-xs mt-1">Crea un paciente para comenzar.</p>
+                <p className="text-ink-tertiary text-[13px]">Sin pacientes aún.</p>
+                <p className="text-ink-muted text-xs mt-1">Crea uno para comenzar.</p>
               </div>
             ) : (
               conversations.map(conv => (
@@ -378,250 +397,344 @@ function App() {
               ))
             )}
           </div>
+
+          {/* New patient button */}
+          <div className="px-3 py-3 border-t border-black/[0.07] flex-shrink-0">
+            {isCreatingPatient ? (
+              <div className="flex flex-col gap-2">
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Nombre del paciente..."
+                  className="w-full bg-white border border-ink/[0.15] rounded-lg px-3 py-2 text-sm text-ink placeholder-ink-tertiary focus:outline-none focus:border-[#5a9e8a]/60 transition-all"
+                  value={newPatientName}
+                  onChange={(e) => setNewPatientName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSavePatient();
+                    if (e.key === 'Escape') { setIsCreatingPatient(false); setNewPatientName(''); }
+                  }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSavePatient}
+                    className="flex-1 bg-[#5a9e8a] hover:bg-[#4d8a78] text-white text-[13px] font-medium rounded-lg py-1.5 transition-colors"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    onClick={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
+                    className="px-3 text-ink-tertiary hover:text-ink text-[13px] rounded-lg py-1.5 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsCreatingPatient(true)}
+                className="w-full flex items-center justify-center gap-1.5 text-[#5a9e8a] hover:text-[#4d8a78] border border-[#5a9e8a]/30 hover:border-[#5a9e8a]/60 bg-white hover:bg-[#5a9e8a]/[0.05] rounded-lg px-3 py-2 transition-all text-[13px] font-medium"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                </svg>
+                Nuevo paciente
+              </button>
+            )}
+          </div>
         </aside>
 
-        {/* Right workspace */}
+        {/* Right work area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-          {/* Top bar */}
-          <header className="px-3 sm:px-5 py-3 border-b border-ink/[0.07] bg-white/60 backdrop-blur z-20 flex items-center justify-between gap-3 flex-shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Mobile menu */}
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="md:hidden p-2 rounded-lg text-ink-secondary hover:text-ink hover:bg-ink/[0.05] transition-colors flex-shrink-0"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              {/* Logo — mobile only */}
-              <span className="md:hidden font-semibold text-ink text-[15px] tracking-tight">SyqueX</span>
-              {/* Patient breadcrumb — desktop */}
-              {selectedPatientName && (
-                <div className="hidden md:flex items-center gap-2">
-                  <span className="text-ink-muted text-[13px]">/</span>
-                  <span className="text-ink text-[14px] font-medium">{selectedPatientName}</span>
+          {/* Patient header */}
+          <header className="px-6 py-3.5 border-b border-black/[0.07] bg-white flex items-center gap-3 flex-shrink-0 min-h-[52px]">
+            {hasActivePatient ? (
+              <>
+                <div className="w-7 h-7 rounded-full bg-[#5a9e8a] flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
+                  {selectedPatientName?.slice(0, 2).toUpperCase()}
                 </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Mobile patient badge */}
-              {selectedPatientName && !isCreatingPatient && (
-                <div className="md:hidden flex items-center gap-1.5 bg-parchment-dark border border-ink/[0.08] rounded-full px-3 py-1.5 min-w-0 max-w-[140px]">
-                  <span className="text-ink-secondary text-[12px] font-medium truncate">{selectedPatientName}</span>
-                </div>
-              )}
-
-              {isCreatingPatient ? (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    autoFocus
-                    type="text"
-                    placeholder="Nombre del paciente..."
-                    className="bg-parchment border border-ink/[0.15] rounded-full px-3 py-1.5 text-sm text-ink placeholder-ink-tertiary focus:outline-none focus:border-sage/60 transition-all w-36 sm:w-52"
-                    value={newPatientName}
-                    onChange={(e) => setNewPatientName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSavePatient()}
-                  />
-                  <button onClick={handleSavePatient} className="text-sage hover:text-sage-dark p-1.5 flex-shrink-0">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-                  </button>
-                  <button onClick={() => { setIsCreatingPatient(false); setNewPatientName(""); }} className="text-ink-tertiary hover:text-ink-secondary p-1.5 flex-shrink-0">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsCreatingPatient(true)}
-                  className="flex items-center gap-1.5 text-sage hover:text-sage-dark border border-sage/30 hover:border-sage/60 bg-sage-light/50 hover:bg-sage-light rounded-full px-3 py-1.5 transition-all text-[13px] font-medium flex-shrink-0"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
-                  <span className="hidden sm:inline">Nuevo paciente</span>
-                </button>
-              )}
-            </div>
+                <span className="text-[#18181b] text-[15px] font-semibold">{selectedPatientName}</span>
+                <span className="text-ink-muted text-[12px] ml-1">
+                  · {sessionHistory.filter(s => s.status === 'confirmed').length} sesiones
+                </span>
+              </>
+            ) : (
+              <span className="text-ink-tertiary text-[14px]">Selecciona un paciente</span>
+            )}
           </header>
 
-          {/* Workspace */}
-          <main className="flex-1 flex flex-col relative min-h-0 overflow-hidden">
+          {/* Content area */}
+          {!hasActivePatient ? (
+            EMPTY_STATE
+          ) : (
+            /* Split: Dictation (320px) | Note (flex) */
+            <div className="flex-1 flex overflow-hidden min-h-0">
 
-            {/* Empty state — ambos layouts */}
-            {!hasActivePatient && EMPTY_STATE}
-
-            {/* ── MOBILE LAYOUT (md:hidden) ── */}
-            {hasActivePatient && (
-              <div className="flex flex-col flex-1 min-h-0 md:hidden">
-
-                {/* Patient strip */}
-                <div className="px-5 py-3 bg-parchment border-b border-ink/[0.06] flex items-center gap-3 flex-shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-sage flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0">
-                    {selectedPatientName?.slice(0,2).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-[14px] font-semibold text-ink leading-tight">{selectedPatientName}</p>
-                    <p className="text-[11px] text-ink-tertiary">
-                      {sessionHistory.filter(s => s.status === 'confirmed').length} sesiones confirmadas
-                    </p>
-                  </div>
+              {/* Left: Dictation panel */}
+              <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
+                <div className="px-5 pt-5 pb-3 flex-shrink-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-3">
+                    Dictado · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                  <textarea
+                    className="w-full h-52 resize-none border border-ink/[0.10] rounded-xl px-4 py-3 text-[13.5px] leading-relaxed text-ink bg-white outline-none focus:border-[#5a9e8a]/60 transition-colors placeholder-ink-muted"
+                    placeholder="Dicta los puntos clave de la sesión…"
+                    value={desktopDictation}
+                    onChange={(e) => setDesktopDictation(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleDesktopGenerate();
+                    }}
+                  />
+                </div>
+                <div className="px-5 pb-5 flex-shrink-0">
+                  <button
+                    onClick={handleDesktopGenerate}
+                    disabled={isLoading || !desktopDictation.trim()}
+                    className="w-full py-2.5 bg-[#5a9e8a] hover:bg-[#4d8a78] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[14px] font-semibold rounded-xl transition-colors"
+                  >
+                    {isLoading ? 'Generando…' : 'Generar nota →'}
+                  </button>
+                  <p className="text-center mt-2 text-[10px] text-ink-muted">
+                    ⌘+Enter para enviar
+                  </p>
                 </div>
 
-                {/* Tab nav */}
-                <MobileTabNav activeTab={mobileTab} onTabChange={setMobileTab} />
-
-                {/* Tab: Dictar */}
-                {mobileTab === 'dictar' && (
-                  <div className="flex flex-col flex-1 min-h-0">
-                    <MobileHistoryChips sessions={sessionHistory} />
-                    <div className="flex-1 overflow-y-auto px-5 py-5">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted mb-3">
-                        Dictado · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                      <textarea
-                        className="w-full h-40 resize-none border border-ink/[0.10] rounded-[10px] px-4 py-3 text-[14px] leading-relaxed text-ink bg-parchment outline-none focus:border-sage focus:bg-white transition-colors placeholder-ink-muted"
-                        placeholder="Dicta los puntos clave de la sesión…"
-                        id="mobile-dictation-input"
-                      />
-                    </div>
-                    <div className="px-5 py-4 border-t border-ink/[0.06] bg-white flex gap-3 flex-shrink-0">
-                      <button
-                        disabled
-                        className="flex-1 py-3 bg-parchment border border-ink/[0.10] rounded-[10px] text-[12px] font-medium text-ink-muted opacity-50 cursor-not-allowed"
-                      >
-                        ⏺ Próximamente
-                      </button>
-                      <button
-                        onClick={() => {
-                          const el = document.getElementById('mobile-dictation-input');
-                          if (el?.value.trim()) handleSendDictation(el.value.trim(), 'SOAP');
-                        }}
-                        disabled={isLoading}
-                        className="flex-[2] py-3 bg-sage text-white rounded-[10px] text-[14px] font-semibold disabled:opacity-50 active:bg-sage-dark transition-colors"
-                      >
-                        Generar nota →
-                      </button>
+                {/* Session history list below dictation */}
+                {sessionHistory.length > 0 && (
+                  <div className="flex-1 overflow-y-auto border-t border-black/[0.07] px-4 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-2">Historial</p>
+                    <div className="space-y-1">
+                      {sessionHistory.map((s, i) => (
+                        <div key={s.id || i} className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-black/[0.04] transition-colors">
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
+                          <span className="text-[12px] text-ink-secondary truncate">
+                            Sesión #{s.session_number || (sessionHistory.length - i)} · {formatDate(s.session_date)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
+              </div>
 
-                {/* Tab: Nota */}
-                {mobileTab === 'nota' && (
-                  <div className="flex flex-col flex-1 min-h-0">
-                    <div ref={mobileScrollRef} className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
-                      {/* Mostrar el último mensaje bot/loading/error */}
-                      {messages.length === 0 || messages[messages.length - 1]?.type === 'welcome' ? (
-                        <p className="text-ink-tertiary text-[14px] text-center mt-10">
-                          Dicta una sesión para generar la nota SOAP.
-                        </p>
-                      ) : (
-                        messages.slice().reverse().map((msg, idx) => {
-                          if (msg.type === 'loading') return (
-                            <div key={idx} className="flex gap-2 items-center">
-                              {[0, 0.2, 0.4].map((d, i) => (
-                                <div key={i} className="w-2 h-2 rounded-full bg-ink-muted animate-pulse"
-                                     style={{ animationDelay: `${d}s` }} />
-                              ))}
-                              <span className="text-ink-tertiary text-sm">Generando nota…</span>
-                            </div>
-                          );
-                          if (msg.type === 'bot' && msg.noteData) return (
-                            <NoteReview key={idx} noteData={msg.noteData} onConfirm={fetchConversations} readOnly={msg.readOnly} />
-                          );
-                          if (msg.type === 'error') return (
-                            <div key={idx} className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                              <strong>Error:</strong> {msg.text}
-                            </div>
-                          );
-                          return null;
-                        }).find(Boolean) || (
-                          <p className="text-ink-tertiary text-[14px] text-center mt-10">
-                            Dicta una sesión para generar la nota SOAP.
-                          </p>
-                        )
-                      )}
-                    </div>
+              {/* Right: Note panel */}
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-7 bg-white">
+                {latestNoteMsg === null ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
+                    <p className="text-ink-tertiary text-[14px]">La nota SOAP aparecerá aquí.</p>
+                    <p className="text-ink-muted text-[12px]">Escribe un dictado y haz clic en "Generar nota".</p>
                   </div>
-                )}
-
-                {/* Tab: Evolución */}
-                {mobileTab === 'evolucion' && (
-                  <MobileEvolucion
-                    messages={messages}
-                    patientName={selectedPatientName}
-                    onSendChat={handleSendEvolucionChat}
-                    loading={isLoading}
+                ) : latestNoteMsg.type === 'loading' ? (
+                  <div className="flex items-center gap-3 py-6">
+                    {LOADING_DOTS}
+                    <span className="text-ink-tertiary text-[14px]">Generando nota SOAP…</span>
+                  </div>
+                ) : latestNoteMsg.type === 'error' ? (
+                  <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                    <strong className="font-medium">Error:</strong> {latestNoteMsg.text}
+                  </div>
+                ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                  <NoteReview
+                    noteData={latestNoteMsg.noteData}
+                    onConfirm={fetchConversations}
+                    readOnly={latestNoteMsg.readOnly}
                   />
+                ) : null}
+              </div>
+
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── MOBILE LAYOUT (<md) ── */}
+      <div className="md:hidden flex-1 flex flex-col overflow-hidden">
+
+        {/* Mobile top bar */}
+        <header className="px-4 py-3 border-b border-ink/[0.07] bg-white flex items-center justify-between gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 rounded-lg text-ink-secondary hover:text-ink hover:bg-ink/[0.05] transition-colors flex-shrink-0"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">SyqueX</span>
+          </div>
+          {!isCreatingPatient ? (
+            <button
+              onClick={() => setIsCreatingPatient(true)}
+              className="flex items-center gap-1.5 text-[#5a9e8a] border border-[#5a9e8a]/30 bg-[#5a9e8a]/[0.06] rounded-full px-3 py-1.5 text-[13px] font-medium"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Nombre..."
+                className="bg-[#f4f4f2] border border-ink/[0.15] rounded-full px-3 py-1.5 text-sm text-ink placeholder-ink-tertiary focus:outline-none focus:border-[#5a9e8a]/60 transition-all w-32"
+                value={newPatientName}
+                onChange={(e) => setNewPatientName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSavePatient()}
+              />
+              <button onClick={handleSavePatient} className="text-[#5a9e8a] p-1.5">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+              <button onClick={() => { setIsCreatingPatient(false); setNewPatientName(''); }} className="text-ink-tertiary p-1.5">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </header>
+
+        {/* No patient selected — empty state */}
+        {!hasActivePatient && EMPTY_STATE}
+
+        {/* Patient active — strip + tabs */}
+        {hasActivePatient && (
+          <div className="flex flex-col flex-1 min-h-0">
+
+            {/* Patient strip */}
+            <div className="px-5 py-3 bg-[#f4f4f2] border-b border-ink/[0.06] flex items-center gap-3 flex-shrink-0">
+              <div className="w-9 h-9 rounded-full bg-[#5a9e8a] flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0">
+                {selectedPatientName?.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-[14px] font-semibold text-[#18181b] leading-tight">{selectedPatientName}</p>
+                <p className="text-[11px] text-ink-tertiary">
+                  {sessionHistory.filter(s => s.status === 'confirmed').length} sesiones confirmadas
+                </p>
+              </div>
+            </div>
+
+            {/* Tab nav */}
+            <div className="flex border-b border-ink/[0.07] bg-white flex-shrink-0">
+              {['dictar', 'nota', 'historial'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setMobileTab(tab)}
+                  className={`flex-1 py-3 text-[13px] font-medium capitalize transition-colors border-b-2 ${
+                    mobileTab === tab
+                      ? 'border-[#5a9e8a] text-[#5a9e8a]'
+                      : 'border-transparent text-ink-secondary hover:text-ink'
+                  }`}
+                >
+                  {tab === 'dictar' ? 'Dictar' : tab === 'nota' ? 'Nota' : 'Historial'}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab: Dictar */}
+            {mobileTab === 'dictar' && (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto px-5 py-5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted mb-3">
+                    Dictado · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                  <textarea
+                    className="w-full h-44 resize-none border border-ink/[0.10] rounded-[10px] px-4 py-3 text-[14px] leading-relaxed text-ink bg-white outline-none focus:border-[#5a9e8a]/60 transition-colors placeholder-ink-muted"
+                    placeholder="Dicta los puntos clave de la sesión…"
+                    id="mobile-dictation-input"
+                  />
+                </div>
+                <div className="px-5 py-4 border-t border-ink/[0.06] bg-white flex gap-3 flex-shrink-0">
+                  <button
+                    disabled
+                    className="flex-1 py-3 bg-[#f4f4f2] border border-ink/[0.10] rounded-[10px] text-[12px] font-medium text-ink-muted opacity-50 cursor-not-allowed"
+                  >
+                    Próximamente
+                  </button>
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('mobile-dictation-input');
+                      if (el?.value.trim()) handleSendDictation(el.value.trim(), 'SOAP');
+                    }}
+                    disabled={isLoading}
+                    className="flex-[2] py-3 bg-[#5a9e8a] text-white rounded-[10px] text-[14px] font-semibold disabled:opacity-50 active:bg-[#4d8a78] transition-colors"
+                  >
+                    {isLoading ? 'Generando…' : 'Generar nota →'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Nota */}
+            {mobileTab === 'nota' && (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div ref={mobileScrollRef} className="flex-1 overflow-y-auto px-4 py-5">
+                  {latestNoteMsg === null ? (
+                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
+                      Dicta una sesión para generar la nota SOAP.
+                    </p>
+                  ) : latestNoteMsg.type === 'loading' ? (
+                    <div className="flex gap-2 items-center py-4">
+                      {[0, 0.2, 0.4].map((d, i) => (
+                        <div key={i} className="w-2 h-2 rounded-full bg-ink-muted animate-pulse" style={{ animationDelay: `${d}s` }} />
+                      ))}
+                      <span className="text-ink-tertiary text-sm">Generando nota…</span>
+                    </div>
+                  ) : latestNoteMsg.type === 'error' ? (
+                    <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                      <strong>Error:</strong> {latestNoteMsg.text}
+                    </div>
+                  ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                    <NoteReview
+                      noteData={latestNoteMsg.noteData}
+                      onConfirm={fetchConversations}
+                      readOnly={latestNoteMsg.readOnly}
+                    />
+                  ) : (
+                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
+                      Dicta una sesión para generar la nota SOAP.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Historial */}
+            {mobileTab === 'historial' && (
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                {sessionHistory.length === 0 ? (
+                  <p className="text-ink-tertiary text-[14px] text-center mt-10">Sin sesiones registradas aún.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {sessionHistory.map((s, i) => (
+                      <div key={s.id || i} className="bg-[#f4f4f2] rounded-xl px-4 py-3 flex items-start gap-3">
+                        <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-medium text-ink">
+                            Sesión #{s.session_number || (sessionHistory.length - i)} · {formatDate(s.session_date)}
+                          </p>
+                          {s.raw_dictation && (
+                            <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
+                          )}
+                          <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'}`}>
+                            {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
 
-            {/* ── DESKTOP LAYOUT (hidden md:flex) ── */}
-            {hasActivePatient && (
-              <>
-                <div ref={scrollRef} className="hidden md:block flex-1 overflow-y-auto w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-7 pb-10">
-                  {messages.map((msg, idx) => (
-                    <div key={idx} className="w-full">
-                      {msg.role === 'user' && (
-                        <div className="flex justify-end">
-                          <div className="max-w-[80%]">
-                            <div className="flex items-center justify-end gap-1.5 mb-1.5">
-                              <span className="text-[10px] uppercase tracking-[0.13em] text-ink-tertiary font-bold">Dictado</span>
-                            </div>
-                            <div className="bg-parchment-dark border border-ink/[0.07] rounded-2xl rounded-tr-sm px-4 py-3">
-                              <p className="text-ink-secondary text-[14px] leading-relaxed italic whitespace-pre-wrap">{msg.text}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {msg.role === 'assistant' && (
-                        <div>
-                          {msg.type === 'welcome' && (
-                            <p className="text-ink-secondary text-[15px] leading-relaxed">
-                              {msg.text}
-                              <span className="inline-block w-1.5 h-1.5 bg-sage rounded-full animate-pulse ml-2 mb-0.5 align-middle"></span>
-                            </p>
-                          )}
-                          {msg.type === 'chat' && (
-                            <div className="flex gap-3">
-                              <div className="w-[3px] rounded-full bg-sage/50 flex-shrink-0 self-stretch" />
-                              <div>
-                                <span className="text-[10px] uppercase tracking-[0.13em] text-sage font-bold block mb-1.5">SyqueX</span>
-                                <p className="text-ink text-[14px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                              </div>
-                            </div>
-                          )}
-                          {msg.type === 'loading' && LOADING_DOTS}
-                          {msg.type === 'error' && (
-                            <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                              <strong className="font-medium">Error:</strong> {msg.text}
-                            </div>
-                          )}
-                          {msg.type === 'bot' && msg.noteData && (
-                            <NoteReview noteData={msg.noteData} onConfirm={fetchConversations} readOnly={msg.readOnly} />
-                          )}
-                          {msg.type === 'bot' && !msg.noteData && msg.text && (
-                            <ClinicalNote text={msg.text} />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="hidden md:block px-3 sm:px-6 pb-5 sm:pb-6 pt-2 bg-gradient-to-t from-parchment via-parchment/95 to-transparent z-20 flex-shrink-0">
-                  <div className="max-w-2xl mx-auto">
-                    <ChatInput onSend={handleSendDictation} loading={isLoading} />
-                    <p className="text-center mt-3 text-[10px] text-ink-muted tracking-wide">
-                      SyqueX Clinical AI puede cometer errores. El contenido debe ser revisado por el profesional.
-                    </p>
-                  </div>
-                </div>
-              </>
-            )}
-          </main>
-        </div>
+          </div>
+        )}
       </div>
+
     </div>
   );
 }
