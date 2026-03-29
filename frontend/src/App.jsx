@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import PatientSidebar from './components/PatientSidebar'
+import PatientHeader from './components/PatientHeader'
 import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
+import NewPatientModal from './components/NewPatientModal'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions } from './api'
 
 // ── Module-level constants ─────────────────────────────────────────────────
@@ -209,8 +211,6 @@ function App() {
       setIsCreatingPatient(false);
       setNewPatientName("");
       loadPatientChat(resp.id, newPatientName);
-      // Add placeholder immediately so the patient is visible in sidebar before their first SOAP session.
-      // fetchConversations() would overwrite this with an empty result (INNER JOIN, no sessions yet).
       setConversations(prev => [{
         id: null,
         patient_id: String(resp.id),
@@ -224,6 +224,22 @@ function App() {
     } catch (err) {
       alert("Error al crear paciente: " + err.message);
     }
+  };
+
+  // Callback for NewPatientModal
+  const handleModalPatientCreated = (patient) => {
+    setIsCreatingPatient(false);
+    loadPatientChat(patient.id, patient.name);
+    setConversations(prev => [{
+      id: null,
+      patient_id: String(patient.id),
+      patient_name: patient.name,
+      session_number: null,
+      session_date: null,
+      dictation_preview: null,
+      status: null,
+      message_count: 0,
+    }, ...prev]);
   };
 
   useEffect(() => { fetchConversations(); }, []);
@@ -330,21 +346,10 @@ function App() {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
           {/* Patient header */}
-          <header className="px-6 py-3.5 border-b border-black/[0.07] bg-white flex items-center gap-3 flex-shrink-0 min-h-[52px]">
-            {hasActivePatient ? (
-              <>
-                <div className="w-7 h-7 rounded-full bg-[#5a9e8a] flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
-                  {selectedPatientName?.slice(0, 2).toUpperCase()}
-                </div>
-                <span className="text-[#18181b] text-[15px] font-semibold">{selectedPatientName}</span>
-                <span className="text-ink-muted text-[12px] ml-1">
-                  · {sessionHistory.filter(s => s.status === 'confirmed').length} sesiones
-                </span>
-              </>
-            ) : (
-              <span className="text-ink-tertiary text-[14px]">Selecciona un paciente</span>
-            )}
-          </header>
+          <PatientHeader
+            patientName={hasActivePatient ? selectedPatientName : null}
+            sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+          />
 
           {/* Content area */}
           {!hasActivePatient ? (
@@ -424,39 +429,15 @@ function App() {
             </button>
             <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">SyqueX</span>
           </div>
-          {!isCreatingPatient ? (
-            <button
-              onClick={() => setIsCreatingPatient(true)}
-              className="flex items-center gap-1.5 text-[#5a9e8a] border border-[#5a9e8a]/30 bg-[#5a9e8a]/[0.06] rounded-full px-3 py-1.5 text-[13px] font-medium"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-              </svg>
-              Nuevo
-            </button>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <input
-                autoFocus
-                type="text"
-                placeholder="Nombre..."
-                className="bg-[#f4f4f2] border border-ink/[0.15] rounded-full px-3 py-1.5 text-sm text-ink placeholder-ink-tertiary focus:outline-none focus:border-[#5a9e8a]/60 transition-all w-32"
-                value={newPatientName}
-                onChange={(e) => setNewPatientName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSavePatient()}
-              />
-              <button onClick={handleSavePatient} className="text-[#5a9e8a] p-1.5">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                </svg>
-              </button>
-              <button onClick={() => { setIsCreatingPatient(false); setNewPatientName(''); }} className="text-ink-tertiary p-1.5">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
+          <button
+            onClick={() => setIsCreatingPatient(true)}
+            className="flex items-center gap-1.5 text-[#5a9e8a] border border-[#5a9e8a]/30 bg-[#5a9e8a]/[0.06] rounded-full px-3 py-1.5 text-[13px] font-medium"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            Nuevo
+          </button>
         </header>
 
         {/* No patient selected — empty state */}
@@ -467,17 +448,11 @@ function App() {
           <div className="flex flex-col flex-1 min-h-0">
 
             {/* Patient strip */}
-            <div className="px-5 py-3 bg-[#f4f4f2] border-b border-ink/[0.06] flex items-center gap-3 flex-shrink-0">
-              <div className="w-9 h-9 rounded-full bg-[#5a9e8a] flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0">
-                {selectedPatientName?.slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-[14px] font-semibold text-[#18181b] leading-tight">{selectedPatientName}</p>
-                <p className="text-[11px] text-ink-tertiary">
-                  {sessionHistory.filter(s => s.status === 'confirmed').length} sesiones confirmadas
-                </p>
-              </div>
-            </div>
+            <PatientHeader
+              patientName={selectedPatientName}
+              sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+              compact
+            />
 
             {/* Tab nav */}
             <div className="flex border-b border-ink/[0.07] bg-white flex-shrink-0">
@@ -571,6 +546,13 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* NewPatientModal — shared between desktop + mobile */}
+      <NewPatientModal
+        open={isCreatingPatient}
+        onClose={() => setIsCreatingPatient(false)}
+        onCreated={handleModalPatientCreated}
+      />
 
     </div>
   );
