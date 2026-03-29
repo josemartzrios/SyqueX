@@ -1,5 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { confirmNote } from '../api'
+
+// Color constants
+const SAGE = '#5a9e8a'
+const MUTED = '#9ca3af'
+const INK = '#18181b'
 
 // Local copy of parseSoapText (from NoteReview) — do not import from NoteReview
 function parseSoapText(text) {
@@ -57,7 +62,6 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
         alerts: alerts,
       })
       setConfirmed(true)
-      setTimeout(() => { onConfirm?.() }, 2000)
     } catch (err) {
       setSaveError(err.message)
     } finally {
@@ -65,19 +69,26 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
     }
   }
 
+  // Handle confirm timeout cleanup
+  useEffect(() => {
+    if (!confirmed) return
+    const timer = setTimeout(() => { onConfirm?.() }, 2000)
+    return () => clearTimeout(timer)
+  }, [confirmed, onConfirm])
+
   return (
     <div className="font-serif px-6 py-6 max-w-prose">
 
       {/* Document header label */}
       {hasStructuredNote && (
-        <p className="font-sans text-[10px] font-bold tracking-[0.14em] uppercase text-[#5a9e8a] mb-6">
+        <p className="font-sans text-[10px] font-bold tracking-[0.14em] uppercase mb-6" style={{ color: SAGE }}>
           Nota Clínica · SOAP
         </p>
       )}
 
       {/* Fallback: plain text only (no structured sections) */}
       {!hasStructuredNote && noteData.text_fallback && (
-        <p className="font-serif text-[15px] leading-relaxed text-[#18181b] whitespace-pre-wrap">
+        <p className="font-serif text-[15px] leading-relaxed whitespace-pre-wrap" style={{ color: INK }}>
           {noteData.text_fallback}
         </p>
       )}
@@ -91,15 +102,15 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
             {/* Section label */}
             <p
               className="font-sans text-[10px] font-bold tracking-[0.12em] uppercase"
-              style={{ fontVariant: 'small-caps', color: hasContent ? '#5a9e8a' : '#9ca3af' }}
+              style={{ fontVariant: 'small-caps', color: hasContent ? SAGE : MUTED }}
             >
               {label}
             </p>
             {/* Thin rule */}
-            <hr className="border-0 border-t border-current mt-1 mb-3" style={{ color: hasContent ? '#5a9e8a33' : '#9ca3af33' }} />
+            <hr className="border-0 border-t border-current mt-1 mb-3" style={{ color: hasContent ? `${SAGE}33` : `${MUTED}33` }} />
             {/* Content */}
-            <p className="font-serif text-[15px] leading-relaxed text-[#18181b]">
-              {content || <span className="text-[#9ca3af]">—</span>}
+            <p className="font-serif text-[15px] leading-relaxed" style={{ color: INK }}>
+              {content || <span style={{ color: MUTED }}>—</span>}
             </p>
           </div>
         )
@@ -141,14 +152,15 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
             <button
               onClick={handleConfirm}
               disabled={saving}
-              className={`bg-[#5a9e8a] text-white rounded-xl px-5 py-2.5 text-[14px] font-medium transition-opacity font-sans ${
+              className={`text-white rounded-xl px-5 py-2.5 text-[14px] font-medium transition-opacity font-sans ${
                 saving ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90'
               }`}
+              style={{ backgroundColor: SAGE }}
             >
               {saving ? 'Guardando…' : 'Confirmar y guardar'}
             </button>
           ) : (
-            <span className="font-sans text-[14px] font-medium text-[#5a9e8a]">
+            <span className="font-sans text-[14px] font-medium" style={{ color: SAGE }}>
               Guardada ✓
             </span>
           )}
