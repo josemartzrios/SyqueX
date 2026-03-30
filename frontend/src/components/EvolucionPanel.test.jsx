@@ -47,7 +47,7 @@ describe('EvolucionPanel — chips', () => {
   it('muestra chips contextuales desde recurring_themes', () => {
     const profile = { profile: { recurring_themes: ['ansiedad social'], risk_factors: [] } }
     render(<EvolucionPanel patient={patient} messages={[]} profile={profile} loading={false} onSend={noop} sending={false} error={null} />)
-    expect(screen.getByText('¿Cómo ha evolucionado ansiedad social?')).toBeInTheDocument()
+    expect(screen.getByText('¿Cómo ha evolucionado Ansiedad social?')).toBeInTheDocument()
   })
 
   it('usa fallback si recurring_themes y risk_factors están vacíos', () => {
@@ -60,16 +60,16 @@ describe('EvolucionPanel — chips', () => {
     const onSend = vi.fn()
     const profile = { profile: { recurring_themes: ['ansiedad social'], risk_factors: [] } }
     render(<EvolucionPanel patient={patient} messages={[]} profile={profile} loading={false} onSend={onSend} sending={false} error={null} />)
-    await userEvent.click(screen.getByText('¿Cómo ha evolucionado ansiedad social?'))
-    expect(onSend).toHaveBeenCalledWith('¿Cómo ha evolucionado ansiedad social?')
+    await userEvent.click(screen.getByText('¿Cómo ha evolucionado Ansiedad social?'))
+    expect(onSend).toHaveBeenCalledWith('¿Cómo ha evolucionado Ansiedad social?')
   })
 
   it('el chip desaparece después de ser tocado', async () => {
     const profile = { profile: { recurring_themes: ['ansiedad social'], risk_factors: [] } }
     render(<EvolucionPanel patient={patient} messages={[]} profile={profile} loading={false} onSend={noop} sending={false} error={null} />)
-    const chip = screen.getByText('¿Cómo ha evolucionado ansiedad social?')
+    const chip = screen.getByText('¿Cómo ha evolucionado Ansiedad social?')
     await userEvent.click(chip)
-    expect(screen.queryByText('¿Cómo ha evolucionado ansiedad social?')).not.toBeInTheDocument()
+    expect(screen.queryByText('¿Cómo ha evolucionado Ansiedad social?')).not.toBeInTheDocument()
   })
 })
 
