@@ -135,7 +135,7 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
             Patrones evolutivos
           </p>
           <ul className="font-sans text-[14px] text-[#92681e] space-y-1 list-disc pl-4">
-            {patterns.map((p, i) => <li key={i}>{p}</li>)}
+            {patterns.map((p, i) => <li key={i}>{p.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>)}
           </ul>
         </div>
       )}

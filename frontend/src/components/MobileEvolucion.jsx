@@ -16,7 +16,9 @@ function extractSummary(messages) {
     }
     // Fallback: detected_patterns del último bot message
     if (m.type === 'bot' && m.noteData?.clinical_note?.detected_patterns?.length > 0) {
-      return m.noteData.clinical_note.detected_patterns.join(' · ');
+      return m.noteData.clinical_note.detected_patterns
+        .map(p => p.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase()))
+        .join(' · ');
     }
   }
   return null;

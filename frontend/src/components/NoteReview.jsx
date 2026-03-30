@@ -177,7 +177,7 @@ export default function NoteReview({ noteData, onConfirm, readOnly = false }) {
                 🔄 Patrones Evolutivos
               </strong>
               <ul className="list-disc pl-5 text-amber-800 text-[13px] space-y-1">
-                {patterns.map((p, i) => <li key={i}>{p}</li>)}
+                {patterns.map((p, i) => <li key={i}>{p.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>)}
               </ul>
             </div>
           )}
