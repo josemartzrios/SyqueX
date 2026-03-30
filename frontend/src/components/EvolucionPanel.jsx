@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 
 // Genera chips de preguntas sugeridas a partir del perfil del paciente.
 // Usa fallback estático si el perfil está vacío o es null.
+const fmt = s => s.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
+
 function generateChips(profile) {
   const themes = profile?.profile?.recurring_themes ?? []
   const risks  = profile?.profile?.risk_factors ?? []
@@ -13,8 +15,8 @@ function generateChips(profile) {
     ]
   }
   const chips = []
-  themes.slice(0, 2).forEach(t => chips.push(`¿Cómo ha evolucionado ${t}?`))
-  risks.slice(0, 1).forEach(f => chips.push(`¿Persiste el factor de riesgo: ${f}?`))
+  themes.slice(0, 2).forEach(t => chips.push(`¿Cómo ha evolucionado ${fmt(t)}?`))
+  risks.slice(0, 1).forEach(f => chips.push(`¿Persiste el factor de riesgo: ${fmt(f)}?`))
   return chips
 }
 
