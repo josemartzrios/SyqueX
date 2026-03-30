@@ -39,13 +39,26 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --color-base: #ffffff;
+      --color-sidebar: #f4f4f2;
+      --color-sage: #5a9e8a;
+      --color-amber: #c4935a;
+      --color-ink: #18181b;
+      --color-muted: #9ca3af;
+    }
     body { background-color: #F7F4EF; color: #1C1917; font-family: 'Inter', sans-serif; overflow: hidden; }
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .font-serif { font-family: Georgia, 'Times New Roman', serif; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    .animate-blink { animation: blink 1s step-end infinite; }
   </style>
-  <script type="module" crossorigin src="/assets/index-9SMaaMNo.js"></script>
+  <script type="module" crossorigin src="/assets/index-CKEg5jEU.js"></script>
 </head>
 <body>
   <div id="root"></div>
