@@ -41,8 +41,8 @@ export async function confirmNote(sessionId, noteData) {
   return _handleResponse(res);
 }
 
-export async function getPatientSessions(patientId) {
-  const res = await fetch(`${API_BASE}/patients/${patientId}/sessions`);
+export async function getPatientSessions(patientId, pageSize = 50) {
+  const res = await fetch(`${API_BASE}/patients/${patientId}/sessions?page_size=${pageSize}`);
   const data = await _handleResponse(res);
   return data.items;
 }
@@ -74,5 +74,10 @@ export async function archiveSession(sessionId) {
 
 export async function archivePatientSessions(patientId) {
   const res = await fetch(`${API_BASE}/patients/${patientId}/sessions/archive`, { method: 'PATCH' });
+  return _handleResponse(res);
+}
+
+export async function getPatientProfile(patientId) {
+  const res = await fetch(`${API_BASE}/patients/${patientId}/profile`);
   return _handleResponse(res);
 }
