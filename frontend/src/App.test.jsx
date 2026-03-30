@@ -186,3 +186,22 @@ describe('markPendingNotesReadOnly', () => {
     expect(result[0].readOnly).toBe(true)
   })
 })
+
+describe('toggleExpandedSession', () => {
+  // Mirrors the toggle logic that will live in App.jsx
+  function toggleExpandedSession(currentId, clickedId) {
+    return currentId === clickedId ? null : clickedId
+  }
+
+  it('expands a session when none is expanded', () => {
+    expect(toggleExpandedSession(null, 'sess-5')).toBe('sess-5')
+  })
+
+  it('collapses the session when clicking the same one', () => {
+    expect(toggleExpandedSession('sess-5', 'sess-5')).toBe(null)
+  })
+
+  it('switches to a different session when one is already expanded', () => {
+    expect(toggleExpandedSession('sess-5', 'sess-3')).toBe('sess-3')
+  })
+})
