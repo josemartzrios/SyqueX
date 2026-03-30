@@ -103,6 +103,10 @@ export function markPendingNotesReadOnly(messages) {
 }
 
 // ── App ──────────────────────────────────────────────────────────────────────
+export function toggleExpandedSession(currentId, clickedId) {
+  return currentId === clickedId ? null : clickedId;
+}
+
 function App() {
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [messages, setMessages] = useState([]);
@@ -114,6 +118,7 @@ function App() {
   const [conversations, setConversations] = useState([]);
   const [mobileTab, setMobileTab] = useState('dictar');
   const [sessionHistory, setSessionHistory] = useState([]);
+  const [expandedSessionId, setExpandedSessionId] = useState(null);
   
   // Evolución tab state
   const [evolutionMessages, setEvolutionMessages] = useState(new Map()); // Map<patientId, Message[]>
@@ -141,6 +146,7 @@ function App() {
     setSelectedPatientName(patientName);
     setMobileTab('dictar');
     setSessionHistory(history);
+    setExpandedSessionId(null);
     // Reset evolution state for new patient (evolutionMessages Map se conserva)
     setPatientProfile(null);
     setEvolutionError(null);
@@ -309,6 +315,10 @@ function App() {
       status: null,
       message_count: 0,
     }, ...prev]);
+  };
+
+  const handleToggleSession = (sessionId) => {
+    setExpandedSessionId(prev => toggleExpandedSession(prev, sessionId));
   };
 
   useEffect(() => { fetchConversations(); }, []);
