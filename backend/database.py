@@ -1,7 +1,9 @@
 import uuid
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import List, Optional
+
+UTC = timezone.utc
 
 from sqlalchemy import (
     Column, String, Integer, DateTime, Date, ForeignKey, Text,
@@ -38,7 +40,20 @@ class Psychologist(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    # Campos de onboarding (LFPDPPP)
+    cedula_profesional: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    specialty: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    accepted_privacy_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    accepted_terms_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    privacy_version: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    terms_version: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    # Trial
+    trial_ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Stripe
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
     patients = relationship("Patient", back_populates="psychologist")
+    subscription = relationship("Subscription", back_populates="psychologist", uselist=False)
 
 
 class AuditLog(Base):
@@ -65,6 +80,83 @@ class AuditLog(Base):
         # Composite: buscar acciones de un psicólogo en un período
         Index('idx_audit_logs_psych_timestamp', 'psychologist_id', 'timestamp'),
     )
+
+
+class Subscription(Base):
+    __tablename__ = 'subscriptions'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    psychologist_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey('psychologists.id', ondelete='RESTRICT'), nullable=False
+    )
+    plan_slug: Mapped[str] = mapped_column(String(50), nullable=False)
+    price_mxn_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(100), unique=True, nullable=True)
+    stripe_price_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    current_period_start: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    canceled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('trialing','active','past_due','canceled','unpaid')",
+            name='chk_subscriptions_status'
+        ),
+        Index('idx_subscriptions_psychologist_id', 'psychologist_id'),
+        Index('idx_subscriptions_status', 'status'),
+    )
+
+    psychologist = relationship("Psychologist", back_populates="subscription")
+
+
+class RefreshToken(Base):
+    __tablename__ = 'refresh_tokens'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    psychologist_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey('psychologists.id', ondelete='CASCADE'), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+
+    __table_args__ = (
+        Index('idx_refresh_tokens_token_hash', 'token_hash'),
+        Index('idx_refresh_tokens_psychologist_id', 'psychologist_id'),
+    )
+
+
+class PasswordResetToken(Base):
+    __tablename__ = 'password_reset_tokens'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    psychologist_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey('psychologists.id', ondelete='CASCADE'), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+
+    __table_args__ = (
+        Index('idx_password_reset_tokens_hash', 'token_hash'),
+    )
+
+
+class ProcessedStripeEvent(Base):
+    __tablename__ = 'processed_stripe_events'
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)  # event.id de Stripe
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
 
 
 class Patient(Base):
@@ -215,6 +307,14 @@ async def init_db():
         await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS password_hash TEXT;"))
         await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;"))
         await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();"))
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS cedula_profesional VARCHAR(20);"))
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS specialty VARCHAR(100);"))
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS accepted_privacy_at TIMESTAMP WITH TIME ZONE;"))
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS accepted_terms_at TIMESTAMP WITH TIME ZONE;"))
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS privacy_version VARCHAR(10);"))
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS terms_version VARCHAR(10);"))
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE;"))
+        await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(50);"))
 
         # Patients — soft delete
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;"))

@@ -18,6 +18,18 @@ class Settings(BaseSettings):
     MAX_SESSIONS_CONTEXT: int = 6
     EMBEDDING_DIMENSIONS: int = 1024
 
+    # Stripe
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PRICE_ID: str = ""
+
+    # Resend
+    RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: str = "hola@syquex.mx"
+
+    # Internal cron key
+    INTERNAL_API_KEY: str = "dev_internal_key_change_in_prod"
+
     class Config:
         env_file = ".env"
         extra = "ignore"
