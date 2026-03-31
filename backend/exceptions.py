@@ -49,3 +49,11 @@ class EmbeddingServiceError(DomainError):
 
 class DatabaseError(DomainError):
     http_status = 500
+
+
+class SubscriptionExpired(DomainError):
+    """Suscripción expirada o inactiva — requiere pago."""
+    http_status = 402
+
+    def __init__(self, message: str = "Suscripción inactiva. Activa tu plan para continuar."):
+        super().__init__(message, code="SUBSCRIPTION_EXPIRED")

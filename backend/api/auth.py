@@ -504,6 +504,10 @@ async def reset_password(
         .values(revoked_at=datetime.now(UTC))
     )
 
+    # Create new refresh token BEFORE commit — single atomic transaction
+    raw_refresh, refresh_record = _create_refresh_token_record(psy.id, request)
+    db.add(refresh_record)
+
     db.add(AuditLog(
         psychologist_id=psy.id,
         action="password_reset_completed",
@@ -514,12 +518,8 @@ async def reset_password(
 
     await db.commit()
 
-    # Issue new JWT + refresh token (user is logged in after reset)
+    # Issue new JWT (refresh token record already committed)
     access_token = create_access_token(str(psy.id))
-    raw_refresh, refresh_record = _create_refresh_token_record(psy.id, request)
-    db.add(refresh_record)
-    await db.commit()
-
     response = JSONResponse(content=TokenResponse(access_token=access_token).model_dump())
     _set_refresh_cookie(response, raw_refresh)
     return response
