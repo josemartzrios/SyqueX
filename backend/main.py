@@ -9,6 +9,7 @@ from database import init_db
 from api.limiter import limiter
 from api.routes import router
 from api.auth import router as auth_router
+from api.billing import router as billing_router
 from config import settings
 from exceptions import DomainError
 
@@ -91,4 +92,5 @@ async def startup_event():
     await init_db()
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(billing_router, prefix="/api/v1/billing", tags=["billing"])
 app.include_router(router, prefix="/api/v1")
