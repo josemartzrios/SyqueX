@@ -8,6 +8,8 @@ from slowapi.errors import RateLimitExceeded
 from database import init_db
 from api.limiter import limiter
 from api.routes import router
+from api.cron import router as cron_router
+from api.privacy import router as privacy_router
 from api.auth import router as auth_router
 from api.billing import router as billing_router
 from config import settings
@@ -93,4 +95,6 @@ async def startup_event():
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(billing_router, prefix="/api/v1/billing", tags=["billing"])
+app.include_router(cron_router, prefix="/api/v1/cron", tags=["cron"])
+app.include_router(privacy_router, prefix="/api/v1/privacy", tags=["privacy"])
 app.include_router(router, prefix="/api/v1")
