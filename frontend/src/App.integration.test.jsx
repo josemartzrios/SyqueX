@@ -11,7 +11,20 @@ vi.mock('./api', () => ({
   getPatientProfile: vi.fn(),
   processSession: vi.fn(),
   archivePatientSessions: vi.fn(),
-  createPatient: vi.fn()
+  createPatient: vi.fn(),
+  setAuthCallbacks: vi.fn(),
+  getBillingStatus: vi.fn().mockResolvedValue({ status: 'active' }),
+  createCheckout: vi.fn()
+}))
+
+// Mock auth.js
+vi.mock('./auth.js', () => ({
+  getScreenFromUrl: vi.fn(() => ({ screen: 'app' })),
+  navigateTo: vi.fn(),
+  refreshAccessToken: vi.fn().mockResolvedValue('fake-token'),
+  clearAccessToken: vi.fn(),
+  getAccessToken: vi.fn(),
+  setAccessToken: vi.fn()
 }))
 
 // Mock scrollIntoView for jsdom
