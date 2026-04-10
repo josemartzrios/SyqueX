@@ -25,11 +25,10 @@ async def get_billing_status(
         return {"status": "trialing", "days_remaining": 0}
         
     if sub.status == 'trialing':
-        if not sub.trial_end:
-            sub.trial_end = datetime.now(timezone.utc)
-            await db.commit()
-        # Asegurarse de que trial_end tiene timezone antes de restar (trial_end es UTC pero asyncpg podría devolver offset-naive si no está bien mapeado)
-        trial_end = sub.trial_end.replace(tzinfo=timezone.utc) if sub.trial_end.tzinfo is None else sub.trial_end
+        trial_end = psychologist.trial_ends_at
+        if not trial_end:
+            trial_end = datetime.now(timezone.utc)
+        trial_end = trial_end.replace(tzinfo=timezone.utc) if trial_end.tzinfo is None else trial_end
         days = (trial_end - datetime.now(timezone.utc)).days
         return {"status": "trialing", "days_remaining": max(0, days)}
         
@@ -53,7 +52,7 @@ async def create_checkout_session(
         
     try:
         session = stripe.checkout.Session.create(
-            customer=sub.stripe_customer_id,
+            customer=psychologist.stripe_customer_id,
             line_items=[{
                 'price': os.getenv('STRIPE_PRICE_ID'),
                 'quantity': 1,
