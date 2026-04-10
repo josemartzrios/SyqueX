@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import App from './App'
 import * as api from './api'
+import * as auth from './auth.js'
 
 // Mock entire API module
 vi.mock('./api', () => ({
@@ -11,7 +12,21 @@ vi.mock('./api', () => ({
   getPatientProfile: vi.fn(),
   processSession: vi.fn(),
   archivePatientSessions: vi.fn(),
-  createPatient: vi.fn()
+  createPatient: vi.fn(),
+  setAuthCallbacks: vi.fn(),
+  getBillingStatus: vi.fn().mockResolvedValue({ status: 'active' }),
+  createCheckout: vi.fn(),
+  register: vi.fn().mockResolvedValue({ access_token: 'fake-token' })
+}))
+
+// Mock auth.js
+vi.mock('./auth.js', () => ({
+  getScreenFromUrl: vi.fn(() => ({ screen: 'app' })),
+  navigateTo: vi.fn(),
+  refreshAccessToken: vi.fn().mockResolvedValue('fake-token'),
+  clearAccessToken: vi.fn(),
+  getAccessToken: vi.fn(),
+  setAccessToken: vi.fn()
 }))
 
 // Mock scrollIntoView for jsdom
@@ -98,6 +113,31 @@ describe('App - Evolución Tab Logic', () => {
     // Verify response text matches
     await waitFor(() => {
       expect(screen.getByText('Respuesta simulada')).toBeInTheDocument()
+    })
+  })
+})
+
+describe('App - Registration routing', () => {
+  it('after successful registration, calls getBillingStatus and shows app', async () => {
+    auth.getScreenFromUrl.mockReturnValue({ screen: 'register' })
+    auth.refreshAccessToken.mockResolvedValue(null)
+
+    render(<App />)
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText(/Nombre completo/i), 'Test User')
+    await user.type(screen.getByLabelText(/Email/i), 'test@example.com')
+    await user.type(screen.getByLabelText(/Contraseña/i), 'Password123!')
+    await user.click(screen.getByLabelText(/Aviso de Privacidad/i))
+    await user.click(screen.getByLabelText(/Términos y Condiciones/i))
+    await user.click(screen.getByRole('button', { name: /Crear cuenta/i }))
+
+    await waitFor(() => {
+      expect(api.getBillingStatus).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText('Cargando…')).not.toBeInTheDocument()
     })
   })
 })

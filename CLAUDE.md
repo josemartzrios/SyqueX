@@ -74,7 +74,6 @@ docker exec -it syquex-postgres-1 psql -U psicoagente -d psicoagente
 Copy `.env.example` to `.env` in `/backend/`:
 ```
 ANTHROPIC_API_KEY=...
-OPENAI_API_KEY=...
 DATABASE_URL=postgresql+asyncpg://psicoagente:psicoagente_dev@localhost/psicoagente
 ```
 
@@ -84,7 +83,7 @@ DATABASE_URL=postgresql+asyncpg://psicoagente:psicoagente_dev@localhost/psicoage
 - **Frontend**: React 18 + Vite, Tailwind CSS (via CDN in index.html), plain JavaScript
 - **Backend**: Python 3.11, FastAPI + Uvicorn (async)
 - **Database**: PostgreSQL 16 + pgvector extension, SQLAlchemy 2.0 async, asyncpg driver
-- **LLMs**: Anthropic Claude for note generation, OpenAI `text-embedding-3-small` for 1536-dim embeddings
+- **LLMs**: Anthropic Claude for note generation.
 - **Deployment**: Vercel (frontend), Railway (backend), Supabase (DB)
 
 ### Backend Structure (`/backend/`)
@@ -95,7 +94,7 @@ DATABASE_URL=postgresql+asyncpg://psicoagente:psicoagente_dev@localhost/psicoage
 |------|------|
 | `agent/agent.py` | Orquestación Claude + `SYSTEM_PROMPT` |
 | `agent/tools.py` | Schemas `AGENT_TOOLS` para Claude + implementaciones (vector search, pattern detection) |
-| `agent/embeddings.py` | Servicio OpenAI embeddings (`text-embedding-3-small`) |
+| `agent/embeddings.py` |  (`text-embedding-3-small`) |
 | `agent/interfaces.py` | ABCs: `IEmbeddingService`, `BaseTool` |
 
 **`api/`** — capa HTTP

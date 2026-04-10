@@ -34,7 +34,7 @@ const SECTIONS = [
   { key: 'plan',       letter: 'P', label: 'Plan'       },
 ]
 
-export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false }) {
+export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false, compact = false }) {
   const [saving, setSaving] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [saveError, setSaveError] = useState(null)
@@ -77,10 +77,10 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
   }, [confirmed, onConfirm])
 
   return (
-    <div className="font-serif px-6 py-6 max-w-prose">
+    <div className={`font-serif max-w-prose ${compact ? 'px-5 py-4' : 'px-6 py-6'}`}>
 
       {/* Document header label */}
-      {hasStructuredNote && (
+      {hasStructuredNote && !compact && (
         <p className="font-sans text-[10px] font-bold tracking-[0.14em] uppercase mb-6" style={{ color: SAGE }}>
           Nota Clínica · SOAP
         </p>
@@ -98,7 +98,7 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
         const content = noteContent[key]
         const hasContent = !!content
         return (
-          <div key={key} className={sectionIndex > 0 ? 'mt-8' : ''}>
+          <div key={key} className={sectionIndex > 0 ? (compact ? 'mt-6' : 'mt-8') : ''}>
             {/* Section label */}
             <p
               className="font-sans text-[10px] font-bold tracking-[0.12em] uppercase"
@@ -123,7 +123,7 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
             Alertas detectadas
           </p>
           <ul className="font-sans text-[14px] text-red-700 space-y-1 list-disc pl-4">
-            {alerts.map((a, i) => <li key={i}>{a}</li>)}
+            {alerts.map((a, i) => <li key={i}>{a.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>)}
           </ul>
         </div>
       )}

@@ -1,4 +1,15 @@
+import { getAccessToken, refreshAccessToken, clearAccessToken } from './auth.js';
+
 const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8000") + "/api/v1";
+
+// Callbacks para manejar redirecciones desde fuera de api.js
+let _onUnauthorized = null;  // () => void — redirige a login
+let _onPaymentRequired = null; // () => void — redirige a billing
+
+export function setAuthCallbacks({ onUnauthorized, onPaymentRequired }) {
+  _onUnauthorized = onUnauthorized;
+  _onPaymentRequired = onPaymentRequired;
+}
 
 export class ApiError extends Error {
   constructor(message, status, code = null) {
@@ -23,61 +34,150 @@ async function _handleResponse(res) {
   throw new ApiError(detail, res.status, code);
 }
 
+/**
+ * fetch con manejo automático de JWT, refresh y errores 401/402.
+ */
+async function _authFetch(url, options = {}) {
+  const token = getAccessToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+
+  let res = await fetch(url, { ...options, headers, credentials: 'include' });
+
+  if (res.status === 401) {
+    const newToken = await refreshAccessToken(API_BASE);
+    if (!newToken) {
+      clearAccessToken();
+      _onUnauthorized?.();
+      throw new ApiError('Sesión expirada', 401);
+    }
+    res = await fetch(url, {
+      ...options,
+      headers: { ...headers, 'Authorization': `Bearer ${newToken}` },
+      credentials: 'include',
+    });
+  }
+
+  if (res.status === 402) {
+    _onPaymentRequired?.();
+    throw new ApiError('Suscripción requerida', 402, 'SUBSCRIPTION_EXPIRED');
+  }
+
+  return _handleResponse(res);
+}
+
 export async function processSession(patientId, dictation, format = 'SOAP') {
-  const res = await fetch(`${API_BASE}/sessions/${patientId}/process`, {
+  return await _authFetch(`${API_BASE}/sessions/${patientId}/process`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ raw_dictation: dictation, format })
   });
-  return _handleResponse(res);
 }
 
 export async function confirmNote(sessionId, noteData) {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/confirm`, {
+  return await _authFetch(`${API_BASE}/sessions/${sessionId}/confirm`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ edited_note: noteData })
   });
-  return _handleResponse(res);
 }
 
 export async function getPatientSessions(patientId, pageSize = 50) {
-  const res = await fetch(`${API_BASE}/patients/${patientId}/sessions?page_size=${pageSize}`);
-  const data = await _handleResponse(res);
+  const data = await _authFetch(`${API_BASE}/patients/${patientId}/sessions?page_size=${pageSize}`);
   return data.items;
 }
 
 export async function listPatients() {
-  const res = await fetch(`${API_BASE}/patients`);
-  return _handleResponse(res);
+  return await _authFetch(`${API_BASE}/patients`);
 }
 
 export async function createPatient(name) {
-  const res = await fetch(`${API_BASE}/patients`, {
+  return await _authFetch(`${API_BASE}/patients`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, risk_level: 'low' })
   });
-  return _handleResponse(res);
 }
 
 export async function listConversations() {
-  const res = await fetch(`${API_BASE}/conversations`);
-  const data = await _handleResponse(res);
+  const data = await _authFetch(`${API_BASE}/conversations`);
   return data.items;
 }
 
 export async function archiveSession(sessionId) {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/archive`, { method: 'PATCH' });
-  return _handleResponse(res);
+  return await _authFetch(`${API_BASE}/sessions/${sessionId}/archive`, { method: 'PATCH' });
 }
 
 export async function archivePatientSessions(patientId) {
-  const res = await fetch(`${API_BASE}/patients/${patientId}/sessions/archive`, { method: 'PATCH' });
-  return _handleResponse(res);
+  return await _authFetch(`${API_BASE}/patients/${patientId}/sessions/archive`, { method: 'PATCH' });
 }
 
 export async function getPatientProfile(patientId) {
-  const res = await fetch(`${API_BASE}/patients/${patientId}/profile`);
+  return await _authFetch(`${API_BASE}/patients/${patientId}/profile`);
+}
+
+// --- Auth ---
+export async function login(email, password) {
+  const formData = new FormData();
+  formData.append('username', email);
+  formData.append('password', password);
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
   return _handleResponse(res);
+}
+
+export async function register(name, email, password, cedula, privacyVersion = '1.0', termsVersion = '1.0') {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name, email, password,
+      cedula_profesional: cedula || null,
+      accepted_privacy: true,
+      accepted_terms: true,
+      privacy_version: privacyVersion,
+      terms_version: termsVersion,
+    }),
+    credentials: 'include',
+  });
+  return _handleResponse(res);
+}
+
+export async function logout() {
+  await fetch(`${API_BASE}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  clearAccessToken();
+}
+
+export async function forgotPassword(email) {
+  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return _handleResponse(res);
+}
+
+export async function resetPassword(token, newPassword) {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, new_password: newPassword }),
+    credentials: 'include',
+  });
+  return _handleResponse(res);
+}
+
+// --- Billing ---
+export async function getBillingStatus() {
+  return _authFetch(`${API_BASE}/billing/status`);
+}
+
+export async function createCheckout() {
+  return _authFetch(`${API_BASE}/billing/create-checkout`, { method: 'POST' });
 }
