@@ -33,7 +33,7 @@ class TestFastEmbedServiceSingleton:
             mock_cls.return_value = MagicMock()
             svc._model = None  # reset for this test
             model = svc._get_model()
-            mock_cls.assert_called_once_with("BAAI/bge-m3")
+            mock_cls.assert_called_once_with("intfloat/multilingual-e5-large")
             assert model is mock_cls.return_value
 
     def test_get_model_called_only_once(self):

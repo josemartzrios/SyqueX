@@ -322,6 +322,8 @@ class TestProcessSession:
     async def test_returns_200_with_text_fallback(self, app, mock_db, patient_uuid):
         # process_session finds no previous session → session_number = 1
         mock_db.execute.side_effect = [
+            # NEW: patient_check
+            _result(scalar_one_or_none=MagicMock()),
             # _get_patient_context: profile
             _result(scalar_one_or_none=None),
             # _get_patient_context: sessions history
@@ -363,6 +365,7 @@ class TestProcessSession:
 
     @pytest.mark.asyncio
     async def test_prompt_injection_returns_400(self, app, mock_db, patient_uuid):
+        mock_db.execute.return_value = _result(scalar_one_or_none=MagicMock())
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 f"/api/v1/sessions/{patient_uuid}/process",
@@ -376,6 +379,7 @@ class TestProcessSession:
     async def test_dictation_too_long_returns_400(self, app, mock_db, patient_uuid):
         from config import settings
         long_text = "x" * (settings.MAX_DICTATION_LENGTH + 1)
+        mock_db.execute.return_value = _result(scalar_one_or_none=MagicMock())
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
@@ -650,6 +654,7 @@ class TestProcessSessionFormat:
     async def test_chat_format_returns_session_id(self, app, mock_db, patient_uuid):
         """format='chat' → response includes session_id (session is now persisted)."""
         mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=MagicMock()),  # patient_check
             _result(scalar_one_or_none=None),  # _get_patient_context: profile
             _result(scalars_all=[]),            # _get_patient_context: sessions
             _result(scalar_one_or_none=None),  # last session (session_number)
@@ -674,6 +679,7 @@ class TestProcessSessionFormat:
     async def test_chat_format_persists_session(self, app, mock_db, patient_uuid):
         """format='chat' → db.add() is called once to persist the session."""
         mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=MagicMock()),  # patient_check
             _result(scalar_one_or_none=None),  # profile
             _result(scalars_all=[]),            # sessions history
             _result(scalar_one_or_none=None),  # last session
@@ -695,6 +701,7 @@ class TestProcessSessionFormat:
     async def test_soap_format_returns_session_id(self, app, mock_db, patient_uuid):
         """format='SOAP' → response includes session_id (existing behavior preserved)."""
         mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=MagicMock()),  # patient_check
             _result(scalar_one_or_none=None),  # profile
             _result(scalars_all=[]),            # sessions history
             _result(scalar_one_or_none=None),  # last session (session_number)
@@ -856,6 +863,7 @@ class TestChatSessionPersistence:
     async def test_chat_session_created_with_confirmed_status(self, app, mock_db, patient_uuid):
         """format='chat' debe crear Session con status='confirmed' (sin paso de confirmación)."""
         mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=MagicMock()),
             _result(scalar_one_or_none=None),
             _result(scalars_all=[]),
             _result(scalar_one_or_none=None),

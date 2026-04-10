@@ -66,7 +66,16 @@ describe('SoapNoteDocument', () => {
   it('muestra patrones evolutivos cuando existen', () => {
     render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} />)
     expect(screen.getByText('Patrones evolutivos')).toBeInTheDocument()
-    expect(screen.getByText('ansiedad recurrente')).toBeInTheDocument()
+    expect(screen.getByText(/ansiedad recurrente/i)).toBeInTheDocument()
+  })
+
+  it('convierte snake_case en alertas a texto legible', () => {
+    const noteData = {
+      ...STRUCTURED_NOTE_DATA,
+      clinical_note: { ...STRUCTURED_NOTE_DATA.clinical_note, alerts: ['riesgo_suicida_alto'] },
+    }
+    render(<SoapNoteDocument noteData={noteData} />)
+    expect(screen.getByText('Riesgo suicida alto')).toBeInTheDocument()
   })
 
   it('no muestra alertas cuando array está vacío', () => {
@@ -145,5 +154,25 @@ describe('SoapNoteDocument', () => {
     await user.click(screen.getByRole('button', { name: /Confirmar y guardar/i }))
 
     expect(screen.getByText('Guardando…')).toBeInTheDocument()
+  })
+
+  // ── Compact mode ──────────────────────────
+  it('oculta header "Nota Clínica · SOAP" cuando compact=true', () => {
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly compact />)
+    expect(screen.queryByText('Nota Clínica · SOAP')).not.toBeInTheDocument()
+  })
+
+  it('muestra header "Nota Clínica · SOAP" cuando compact=false (default)', () => {
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} />)
+    expect(screen.getByText('Nota Clínica · SOAP')).toBeInTheDocument()
+  })
+
+  it('aplica padding reducido cuando compact=true', () => {
+    const { container } = render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly compact />)
+    const root = container.firstChild
+    expect(root.className).toContain('px-5')
+    expect(root.className).toContain('py-4')
+    expect(root.className).not.toContain('px-6')
+    expect(root.className).not.toContain('py-6')
   })
 })

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import PatientSidebar from './components/PatientSidebar'
 import PatientHeader from './components/PatientHeader'
@@ -6,7 +6,14 @@ import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import NewPatientModal from './components/NewPatientModal'
 import EvolucionPanel from './components/EvolucionPanel'
-import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile } from './api'
+import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout } from './api'
+import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
+import LoginScreen from './components/LoginScreen.jsx';
+import RegisterScreen from './components/RegisterScreen.jsx';
+import ForgotPasswordScreen from './components/ForgotPasswordScreen.jsx';
+import ResetPasswordScreen from './components/ResetPasswordScreen.jsx';
+import BillingScreen from './components/BillingScreen.jsx';
+import TrialBanner from './components/TrialBanner.jsx';
 
 // ── Module-level constants ─────────────────────────────────────────────────
 const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
@@ -108,6 +115,10 @@ export function toggleExpandedSession(currentId, clickedId) {
 }
 
 function App() {
+  // Estado de pantalla
+  const [authScreen, setAuthScreen] = useState(() => getScreenFromUrl());
+  const [billingStatus, setBillingStatus] = useState(null);
+
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [messages, setMessages] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
@@ -131,6 +142,53 @@ function App() {
   useEffect(() => { evolutionMessagesRef.current = evolutionMessages; }, [evolutionMessages]);
   const scrollRef = useRef(null);
   const mobileScrollRef = useRef(null);
+
+  const checkBillingAndRoute = useCallback(async () => {
+    try {
+      const status = await getBillingStatus();
+      setBillingStatus(status);
+      if (status.status === 'trialing' || status.status === 'active') {
+        setAuthScreen({ screen: 'app' });
+      } else {
+        setAuthScreen({ screen: 'billing' });
+      }
+    } catch {
+      setAuthScreen({ screen: 'billing' });
+    }
+  }, []);
+
+  // Inicializar auth al montar
+  useEffect(() => {
+    setAuthCallbacks({
+      onUnauthorized: () => {
+        clearAccessToken();
+        setAuthScreen({ screen: 'login' });
+      },
+      onPaymentRequired: () => {
+        setAuthScreen({ screen: 'billing' });
+      },
+    });
+
+    async function initAuth() {
+      const { screen } = authScreen;
+      // Si es register o reset-password, no intentar refresh
+      if (screen === 'register' || screen === 'reset-password') return;
+
+      // Intentar refresh silencioso
+      const token = await refreshAccessToken(
+        (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api/v1'
+      );
+
+      if (token) {
+        setAccessToken(token);
+        await checkBillingAndRoute();
+      } else {
+        setAuthScreen({ screen: 'login' });
+      }
+    }
+
+    initAuth();
+  }, []); // solo al montar
 
   const fetchConversations = async () => {
     try {
@@ -379,8 +437,56 @@ function App() {
     return null;
   })();
 
+  // Screen manager — antes del return principal
+  if (authScreen.screen === 'loading') {
+    return (
+      <div className="min-h-screen bg-parchment flex items-center justify-center">
+        <div className="text-ink-tertiary text-sm">Cargando…</div>
+      </div>
+    );
+  }
+  if (authScreen.screen === 'login') {
+    return <LoginScreen
+      onSuccess={() => checkBillingAndRoute()}
+      onRegister={() => { navigateTo('/registro'); setAuthScreen({ screen: 'register' }); }}
+      onForgotPassword={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
+    />;
+  }
+  if (authScreen.screen === 'register') {
+    return <RegisterScreen
+      onSuccess={() => checkBillingAndRoute()}
+      onLogin={() => { navigateTo('/'); setAuthScreen({ screen: 'login' }); }}
+    />;
+  }
+  if (authScreen.screen === 'forgot-password') {
+    return <ForgotPasswordScreen
+      onBack={() => { navigateTo('/'); setAuthScreen({ screen: 'login' }); }}
+    />;
+  }
+  if (authScreen.screen === 'reset-password') {
+    return <ResetPasswordScreen
+      resetToken={authScreen.resetToken}
+      onSuccess={() => checkBillingAndRoute()}
+      onInvalidToken={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
+    />;
+  }
+  if (authScreen.screen === 'billing') {
+    return <BillingScreen
+      onActivated={() => checkBillingAndRoute()}
+    />;
+  }
+
   return (
     <div className="h-screen bg-white font-sans flex flex-col overflow-hidden">
+      {billingStatus?.status === 'trialing' && billingStatus?.days_remaining != null && (
+        <TrialBanner
+          daysRemaining={billingStatus.days_remaining}
+          onActivate={async () => {
+            const { checkout_url } = await createCheckout();
+            window.location.href = checkout_url;
+          }}
+        />
+      )}
 
       {/* Disclaimer modal */}
       {showDisclaimer && (
