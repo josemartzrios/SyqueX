@@ -44,32 +44,32 @@ export default function RegisterScreen({ onSuccess, onLogin }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">Nombre completo</label>
-            <input type="text" value={form.name} onChange={e => update('name', e.target.value)}
+            <label htmlFor="name" className="block text-sm font-medium text-ink mb-1">Nombre completo</label>
+            <input id="name" type="text" value={form.name} onChange={e => update('name', e.target.value)}
               className="w-full border border-ink-muted rounded px-3 py-2 text-sm focus:outline-none focus:border-sage" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">Email</label>
-            <input type="email" value={form.email} onChange={e => update('email', e.target.value)}
+            <label htmlFor="email" className="block text-sm font-medium text-ink mb-1">Email</label>
+            <input id="email" type="email" value={form.email} onChange={e => update('email', e.target.value)}
               className="w-full border border-ink-muted rounded px-3 py-2 text-sm focus:outline-none focus:border-sage" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">Contraseña</label>
-            <input type="password" value={form.password} onChange={e => update('password', e.target.value)}
+            <label htmlFor="password" className="block text-sm font-medium text-ink mb-1">Contraseña</label>
+            <input id="password" type="password" value={form.password} onChange={e => update('password', e.target.value)}
               className="w-full border border-ink-muted rounded px-3 py-2 text-sm focus:outline-none focus:border-sage" required />
             <PasswordStrength password={form.password} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">
+            <label htmlFor="cedula" className="block text-sm font-medium text-ink mb-1">
               Cédula profesional <span className="text-ink-tertiary">(opcional)</span>
             </label>
-            <input type="text" value={form.cedula} onChange={e => update('cedula', e.target.value)}
+            <input id="cedula" type="text" value={form.cedula} onChange={e => update('cedula', e.target.value)}
               className="w-full border border-ink-muted rounded px-3 py-2 text-sm focus:outline-none focus:border-sage" />
           </div>
 
           <div className="space-y-2">
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.acceptPrivacy}
+            <label htmlFor="privacy" className="flex items-start gap-2 cursor-pointer">
+              <input id="privacy" type="checkbox" checked={form.acceptPrivacy}
                 onChange={e => update('acceptPrivacy', e.target.checked)}
                 className="mt-0.5 accent-sage" />
               <span className="text-sm text-ink-secondary">
@@ -79,8 +79,8 @@ export default function RegisterScreen({ onSuccess, onLogin }) {
                 </a>
               </span>
             </label>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.acceptTerms}
+            <label htmlFor="terms" className="flex items-start gap-2 cursor-pointer">
+              <input id="terms" type="checkbox" checked={form.acceptTerms}
                 onChange={e => update('acceptTerms', e.target.checked)}
                 className="mt-0.5 accent-sage" />
               <span className="text-sm text-ink-secondary">

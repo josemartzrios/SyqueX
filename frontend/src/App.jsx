@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import PatientSidebar from './components/PatientSidebar'
 import PatientHeader from './components/PatientHeader'
@@ -143,6 +143,20 @@ function App() {
   const scrollRef = useRef(null);
   const mobileScrollRef = useRef(null);
 
+  const checkBillingAndRoute = useCallback(async () => {
+    try {
+      const status = await getBillingStatus();
+      setBillingStatus(status);
+      if (status.status === 'trialing' || status.status === 'active') {
+        setAuthScreen({ screen: 'app' });
+      } else {
+        setAuthScreen({ screen: 'billing' });
+      }
+    } catch {
+      setAuthScreen({ screen: 'billing' });
+    }
+  }, []);
+
   // Inicializar auth al montar
   useEffect(() => {
     setAuthCallbacks({
@@ -157,8 +171,8 @@ function App() {
 
     async function initAuth() {
       const { screen } = authScreen;
-      // Si es reset-password, no intentar refresh
-      if (screen === 'reset-password') return;
+      // Si es register o reset-password, no intentar refresh
+      if (screen === 'register' || screen === 'reset-password') return;
 
       // Intentar refresh silencioso
       const token = await refreshAccessToken(
@@ -167,18 +181,7 @@ function App() {
 
       if (token) {
         setAccessToken(token);
-        // Verificar billing status
-        try {
-          const status = await getBillingStatus();
-          setBillingStatus(status);
-          if (status.status === 'trialing' || status.status === 'active') {
-            setAuthScreen({ screen: 'app' });
-          } else {
-            setAuthScreen({ screen: 'billing' });
-          }
-        } catch {
-          setAuthScreen({ screen: 'billing' });
-        }
+        await checkBillingAndRoute();
       } else {
         setAuthScreen({ screen: 'login' });
       }
@@ -444,14 +447,14 @@ function App() {
   }
   if (authScreen.screen === 'login') {
     return <LoginScreen
-      onSuccess={() => setAuthScreen({ screen: 'loading' })}
+      onSuccess={() => checkBillingAndRoute()}
       onRegister={() => { navigateTo('/registro'); setAuthScreen({ screen: 'register' }); }}
       onForgotPassword={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
     />;
   }
   if (authScreen.screen === 'register') {
     return <RegisterScreen
-      onSuccess={() => setAuthScreen({ screen: 'loading' })}
+      onSuccess={() => checkBillingAndRoute()}
       onLogin={() => { navigateTo('/'); setAuthScreen({ screen: 'login' }); }}
     />;
   }
@@ -463,13 +466,13 @@ function App() {
   if (authScreen.screen === 'reset-password') {
     return <ResetPasswordScreen
       resetToken={authScreen.resetToken}
-      onSuccess={() => setAuthScreen({ screen: 'loading' })}
+      onSuccess={() => checkBillingAndRoute()}
       onInvalidToken={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
     />;
   }
   if (authScreen.screen === 'billing') {
     return <BillingScreen
-      onActivated={() => setAuthScreen({ screen: 'loading' })}
+      onActivated={() => checkBillingAndRoute()}
     />;
   }
 
