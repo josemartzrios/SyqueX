@@ -6,7 +6,7 @@ import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import NewPatientModal from './components/NewPatientModal'
 import EvolucionPanel from './components/EvolucionPanel'
-import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout } from './api'
+import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout } from './api'
 import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
 import LoginScreen from './components/LoginScreen.jsx';
 import RegisterScreen from './components/RegisterScreen.jsx';
@@ -156,6 +156,14 @@ function App() {
       setAuthScreen({ screen: 'billing' });
     }
   }, []);
++
++  async function handleLogout() {
++    try {
++      await logout();
++    } finally {
++      setAuthScreen({ screen: 'login' });
++    }
++  }
 
   // Inicializar auth al montar
   useEffect(() => {
@@ -534,6 +542,7 @@ function App() {
           onNewPatientNameChange={(e) => setNewPatientName(e.target.value)}
           onSavePatient={handleSavePatient}
           onCancelNewPatient={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
+          onLogout={handleLogout}
         />
 
         {/* Right work area */}
