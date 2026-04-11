@@ -156,14 +156,14 @@ function App() {
       setAuthScreen({ screen: 'billing' });
     }
   }, []);
-+
-+  async function handleLogout() {
-+    try {
-+      await logout();
-+    } finally {
-+      setAuthScreen({ screen: 'login' });
-+    }
-+  }
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      setAuthScreen({ screen: 'login' });
+    }
+  }
 
   // Inicializar auth al montar
   useEffect(() => {
@@ -525,6 +525,7 @@ function App() {
         conversations={conversations}
         onSelectConversation={handleSelectConversation}
         onDeleteConversation={handleDeleteConversation}
+        onLogout={handleLogout}
       />
 
       {/* ── DESKTOP LAYOUT (md+) ── */}
