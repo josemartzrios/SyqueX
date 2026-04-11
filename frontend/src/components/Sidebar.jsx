@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function Sidebar({ open, onClose, conversations, onSelectConversation, onDeleteConversation }) {
+export default function Sidebar({ open, onClose, conversations, onSelectConversation, onDeleteConversation, onLogout }) {
   return (
     <>
       {open && (
@@ -55,6 +55,16 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
               />
             ))
           )}
+        </div>
+        
+        {/* Logout — pinned to bottom of drawer */}
+        <div className="border-t border-ink/[0.07] flex-shrink-0">
+          <button
+            onClick={onLogout}
+            className="w-full text-left px-5 py-3 text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Cerrar sesión
+          </button>
         </div>
       </div>
     </>
