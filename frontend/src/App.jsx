@@ -131,6 +131,10 @@ function App() {
   const [sessionHistory, setSessionHistory] = useState([]);
   const [expandedSessionId, setExpandedSessionId] = useState(null);
   
+  // Desktop two-mode layout state
+  const [desktopMode, setDesktopMode] = useState('session'); // 'session' | 'review'
+  const [reviewExpandedSessionId, setReviewExpandedSessionId] = useState(null);
+  
   // Evolución tab state
   const [evolutionMessages, setEvolutionMessages] = useState(new Map()); // Map<patientId, Message[]>
   const [evolutionLoading, setEvolutionLoading] = useState(false);
@@ -213,6 +217,8 @@ function App() {
     setMobileTab('dictar');
     setSessionHistory(history);
     setExpandedSessionId(null);
+    setDesktopMode('session');
+    setReviewExpandedSessionId(null);
     // Reset evolution state for new patient (evolutionMessages Map se conserva)
     setPatientProfile(null);
     setEvolutionError(null);
