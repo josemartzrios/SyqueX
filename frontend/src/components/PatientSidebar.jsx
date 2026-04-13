@@ -119,6 +119,7 @@ export default function PatientSidebar({
   onNewPatientNameChange,
   onSavePatient,
   onCancelNewPatient,
+  onLogout,
 }) {
   return (
     <aside className="w-60 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
@@ -209,6 +210,16 @@ export default function PatientSidebar({
             Nuevo paciente
           </button>
         )}
+      </div>
+
+      {/* Logout — pinned to very bottom */}
+      <div className="border-t border-black/[0.07] flex-shrink-0">
+        <button
+          onClick={onLogout}
+          className="w-full text-left px-4 py-3 text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          Cerrar sesión
+        </button>
       </div>
     </aside>
   );
