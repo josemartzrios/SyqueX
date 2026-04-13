@@ -572,6 +572,8 @@ function App() {
           <PatientHeader
             patientName={hasActivePatient ? selectedPatientName : null}
             sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+            mode={desktopMode}
+            onModeChange={hasActivePatient ? setDesktopMode : undefined}
           />
 
           {/* Content area */}
