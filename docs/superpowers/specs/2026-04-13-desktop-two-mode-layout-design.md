@@ -145,6 +145,35 @@ El área de trabajo desktop alterna entre **dos modos** controlados por un segme
 
 ---
 
+## Testing
+
+### Unit tests (Vitest + Testing Library)
+
+| Componente | Casos a cubrir |
+|------------|---------------|
+| `PatientHeader` | Segmented control renderiza en desktop (sin `compact`); no renderiza en mobile (`compact=true`); click en "Revisión" llama `onModeChange('review')`; click en "Sesión" llama `onModeChange('session')`; no renderiza control si `onModeChange` es undefined |
+| `App.jsx` — modo Revisión | Al activar modo Revisión con paciente sin historial en Map: se llaman `loadEvolutionChat` y `loadPatientProfile`; al activar con paciente ya cargado: no se vuelven a llamar |
+| `App.jsx` — reset de modo | Cambiar de paciente (simular `loadPatientChat`) resetea `desktopMode` a `'session'` |
+| `App.jsx` — render condicional | Modo `'session'` renderiza `DictationPanel`; modo `'review'` renderiza `EvolucionPanel` y el panel de historial |
+
+### Tests de integración existentes
+
+- Verificar que `App.integration.test.jsx` pasa sin regresiones tras los cambios en App.jsx
+- Verificar que `PatientHeader.test.jsx` pasa y extender con los casos del segmented control
+
+### Testing manual (smoke test)
+
+1. Seleccionar paciente → modo Sesión activo por defecto
+2. Dictar sesión → generar nota → confirmar → modo Sesión sin cambios
+3. Cambiar a modo Revisión → historial visible, acordeón expandible con SOAP
+4. Chat de Evolución funciona (enviar mensaje, recibir respuesta)
+5. Cambiar de paciente → resetea a modo Sesión
+6. Volver a Revisión → no refetchea si ya estaba cargado
+7. Tablet (1024px): ambos paneles usables con scroll vertical
+8. Mobile: 4 tabs intactos, sin regresiones
+
+---
+
 ## Fuera del scope
 
 - Evolución en mobile — ya funciona con 4 tabs
