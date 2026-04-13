@@ -42,7 +42,7 @@ describe('Sidebar', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     render(<Sidebar open={true} onClose={onClose} conversations={[]} onSelectConversation={noop} onDeleteConversation={noop} />)
-    await user.click(screen.getByRole('button', { name: /cerrar/i }))
+    await user.click(screen.getByRole('button', { name: /^cerrar$/i }))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
@@ -86,5 +86,24 @@ describe('Sidebar', () => {
     await user.click(screen.getByTitle('Archivar sesión'))
     await user.click(screen.getByTitle('Confirmar'))
     expect(onDeleteConversation).toHaveBeenCalledOnce()
+  })
+
+  it('renderiza el botón "Cerrar sesión"', () => {
+    const onLogout = vi.fn()
+    render(<Sidebar open={true} onClose={noop} conversations={[]} onSelectConversation={noop} onDeleteConversation={noop} onLogout={onLogout} />)
+    expect(screen.getByRole('button', { name: /cerrar sesión/i })).toBeInTheDocument()
+  })
+
+  it('click en "Cerrar sesión" llama onLogout', async () => {
+    const user = userEvent.setup()
+    const onLogout = vi.fn()
+    render(<Sidebar open={true} onClose={noop} conversations={[]} onSelectConversation={noop} onDeleteConversation={noop} onLogout={onLogout} />)
+    await user.click(screen.getByRole('button', { name: /cerrar sesión/i }))
+    expect(onLogout).toHaveBeenCalledOnce()
+  })
+
+  it('no explota si onLogout no se pasa — botón sigue renderizando', () => {
+    render(<Sidebar open={true} onClose={noop} conversations={[]} onSelectConversation={noop} onDeleteConversation={noop} />)
+    expect(screen.getByRole('button', { name: /cerrar sesión/i })).toBeInTheDocument()
   })
 })
