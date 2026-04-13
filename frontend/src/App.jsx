@@ -415,6 +415,19 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobileTab, selectedPatientId]);
 
+  // Desktop: lazy load evolution cuando se activa modo Revisión
+  useEffect(() => {
+    if (desktopMode === 'review' && selectedPatientId) {
+      if (!evolutionMessagesRef.current.has(selectedPatientId)) {
+        loadEvolutionChat(selectedPatientId);
+      }
+      if (!patientProfile) {
+        loadPatientProfile(selectedPatientId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktopMode, selectedPatientId]);
+
   const handleSendDictation = async (dictation, format) => {
     setMessages(prev => [
       ...markPendingNotesReadOnly(prev),
