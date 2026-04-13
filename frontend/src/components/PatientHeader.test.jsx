@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
 import PatientHeader from './PatientHeader'
 
 describe('PatientHeader', () => {
@@ -60,5 +61,68 @@ describe('PatientHeader', () => {
     const { container } = render(<PatientHeader patientName="Test" compact />)
     const wrapper = container.firstChild
     expect(wrapper.classList.contains('bg-[#f4f4f2]')).toBe(true)
+  })
+
+  // ── Segmented control (desktop mode toggle) ──────────────
+  it('no renderiza segmented control si onModeChange no se pasa', () => {
+    render(<PatientHeader patientName="Ana García" sessionCount={2} />)
+    expect(screen.queryByRole('button', { name: /Sesión/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Revisión/i })).toBeNull()
+  })
+
+  it('renderiza segmented control en desktop cuando onModeChange está presente', () => {
+    render(
+      <PatientHeader
+        patientName="Ana García"
+        sessionCount={2}
+        mode="session"
+        onModeChange={() => {}}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Sesión/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Revisión/i })).toBeInTheDocument()
+  })
+
+  it('no renderiza segmented control en modo compact aunque onModeChange esté presente', () => {
+    render(
+      <PatientHeader
+        patientName="Ana García"
+        sessionCount={2}
+        compact
+        mode="session"
+        onModeChange={() => {}}
+      />
+    )
+    expect(screen.queryByRole('button', { name: /Sesión/i })).toBeNull()
+  })
+
+  it('llama onModeChange("review") al hacer clic en "Revisión"', async () => {
+    const user = userEvent.setup()
+    const onModeChange = vi.fn()
+    render(
+      <PatientHeader
+        patientName="Ana García"
+        sessionCount={2}
+        mode="session"
+        onModeChange={onModeChange}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: /Revisión/i }))
+    expect(onModeChange).toHaveBeenCalledWith('review')
+  })
+
+  it('llama onModeChange("session") al hacer clic en "Sesión"', async () => {
+    const user = userEvent.setup()
+    const onModeChange = vi.fn()
+    render(
+      <PatientHeader
+        patientName="Ana García"
+        sessionCount={2}
+        mode="review"
+        onModeChange={onModeChange}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: /Sesión/i }))
+    expect(onModeChange).toHaveBeenCalledWith('session')
   })
 })
