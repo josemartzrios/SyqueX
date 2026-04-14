@@ -635,9 +635,7 @@ function App() {
                             <div
                               key={s.id || i}
                               className={`rounded-xl overflow-hidden transition-all duration-200 ${
-                                isExpanded
-                                  ? 'bg-white shadow-sm ring-1 ring-[#5a9e8a]/20'
-                                  : 'bg-transparent hover:bg-black/[0.02]'
+                                isExpanded ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25' : 'bg-[#f4f4f2]'
                               }`}
                             >
                               <div
@@ -651,7 +649,16 @@ function App() {
                                     <span className="text-[11px] text-ink-tertiary font-medium">{formatDate(s.session_date)}</span>
                                   </div>
                                   {!isExpanded && s.raw_dictation && (
-                                    <p className="text-[11px] text-ink-muted line-clamp-1 mt-0.5 leading-relaxed">{s.raw_dictation}</p>
+                                    <>
+                                      <p className="text-[11px] text-ink-muted line-clamp-2 mt-0.5 leading-relaxed">
+                                        {s.raw_dictation}
+                                      </p>
+                                      <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${
+                                        s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'
+                                      }`}>
+                                        {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                                      </span>
+                                    </>
                                   )}
                                 </div>
                                 {hasNote && (
