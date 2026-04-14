@@ -591,61 +591,6 @@ function App() {
                       loading={isLoading}
                     />
 
-                    {/* Session history list below dictation */}
-                    {soapSessions.length > 0 && (
-                      <div className="flex-1 overflow-y-auto border-t border-black/[0.07] px-4 py-3">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-2">Historial</p>
-                        <div className="space-y-1">
-                          {soapSessions.map((s, i) => {
-                            const isExpanded = expandedSessionId === String(s.id);
-                            const hasNote = s.status === 'confirmed' && s.structured_note;
-                            return (
-                              <div
-                                key={s.id || i}
-                                className={`rounded-lg overflow-hidden transition-all ${
-                                  isExpanded ? 'bg-[#fafaf9] border border-[#5a9e8a]/25' : ''
-                                }`}
-                              >
-                                <div
-                                  className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-black/[0.04] transition-colors cursor-pointer"
-                                  onClick={() => hasNote && handleToggleSession(String(s.id))}
-                                >
-                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
-                                  <span className="text-[12px] text-ink-secondary truncate flex-1">
-                                    Sesión #{s.session_number || (soapSessions.length - i)} · {formatDate(s.session_date)}
-                                  </span>
-                                  {hasNote && (
-                                    <svg
-                                      className={`w-3 h-3 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : 'text-[#9ca3af]'}`}
-                                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9l6 6 6-6" />
-                                    </svg>
-                                  )}
-                                </div>
-                                {isExpanded && hasNote && (
-                                  <div className="border-t border-ink/[0.06]">
-                                    <SoapNoteDocument
-                                      noteData={{
-                                        clinical_note: {
-                                          structured_note: s.structured_note,
-                                          detected_patterns: s.detected_patterns || [],
-                                          alerts: s.alerts || [],
-                                          session_id: String(s.id),
-                                        },
-                                        text_fallback: s.ai_response,
-                                      }}
-                                      readOnly
-                                      compact
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Right: Note panel */}
