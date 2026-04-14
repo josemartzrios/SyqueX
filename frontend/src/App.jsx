@@ -131,6 +131,10 @@ function App() {
   const [sessionHistory, setSessionHistory] = useState([]);
   const [expandedSessionId, setExpandedSessionId] = useState(null);
   
+  // Desktop two-mode layout state
+  const [desktopMode, setDesktopMode] = useState('session'); // 'session' | 'review'
+  const [reviewExpandedSessionId, setReviewExpandedSessionId] = useState(null);
+  
   // Evolución tab state
   const [evolutionMessages, setEvolutionMessages] = useState(new Map()); // Map<patientId, Message[]>
   const [evolutionLoading, setEvolutionLoading] = useState(false);
@@ -213,6 +217,8 @@ function App() {
     setMobileTab('dictar');
     setSessionHistory(history);
     setExpandedSessionId(null);
+    setDesktopMode('session');
+    setReviewExpandedSessionId(null);
     // Reset evolution state for new patient (evolutionMessages Map se conserva)
     setPatientProfile(null);
     setEvolutionError(null);
@@ -409,6 +415,19 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobileTab, selectedPatientId]);
 
+  // Desktop: lazy load evolution cuando se activa modo Revisión
+  useEffect(() => {
+    if (desktopMode === 'review' && selectedPatientId) {
+      if (!evolutionMessagesRef.current.has(selectedPatientId)) {
+        loadEvolutionChat(selectedPatientId);
+      }
+      if (!patientProfile) {
+        loadPatientProfile(selectedPatientId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktopMode, selectedPatientId]);
+
   const handleSendDictation = async (dictation, format) => {
     setMessages(prev => [
       ...markPendingNotesReadOnly(prev),
@@ -553,6 +572,8 @@ function App() {
           <PatientHeader
             patientName={hasActivePatient ? selectedPatientName : null}
             sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+            mode={desktopMode}
+            onModeChange={hasActivePatient ? setDesktopMode : undefined}
           />
 
           {/* Content area */}
@@ -561,96 +582,180 @@ function App() {
           ) : (
             /* Split: Dictation (320px) | Note (flex) */
             <div className="flex-1 flex overflow-hidden min-h-0">
+              {desktopMode === 'session' ? (
+                <>
+                  {/* Left: Dictation panel */}
+                  <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
+                    <DictationPanel
+                      onGenerate={(d) => handleSendDictation(d, 'SOAP')}
+                      loading={isLoading}
+                    />
 
-              {/* Left: Dictation panel */}
-              <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
-                <DictationPanel
-                  onGenerate={(d) => handleSendDictation(d, 'SOAP')}
-                  loading={isLoading}
-                />
-
-                {/* Session history list below dictation */}
-                {soapSessions.length > 0 && (
-                  <div className="flex-1 overflow-y-auto border-t border-black/[0.07] px-4 py-3">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-2">Historial</p>
-                    <div className="space-y-1">
-                      {soapSessions.map((s, i) => {
-                        const isExpanded = expandedSessionId === String(s.id);
-                        const hasNote = s.status === 'confirmed' && s.structured_note;
-                        return (
-                          <div
-                            key={s.id || i}
-                            className={`rounded-lg overflow-hidden transition-all ${
-                              isExpanded ? 'bg-[#fafaf9] border border-[#5a9e8a]/25' : ''
-                            }`}
-                          >
-                            <div
-                              className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-black/[0.04] transition-colors cursor-pointer"
-                              onClick={() => hasNote && handleToggleSession(String(s.id))}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
-                              <span className="text-[12px] text-ink-secondary truncate flex-1">
-                                Sesión #{s.session_number || (soapSessions.length - i)} · {formatDate(s.session_date)}
-                              </span>
-                              {hasNote && (
-                                <svg
-                                  className={`w-3 h-3 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : 'text-[#9ca3af]'}`}
-                                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    {/* Session history list below dictation */}
+                    {soapSessions.length > 0 && (
+                      <div className="flex-1 overflow-y-auto border-t border-black/[0.07] px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-2">Historial</p>
+                        <div className="space-y-1">
+                          {soapSessions.map((s, i) => {
+                            const isExpanded = expandedSessionId === String(s.id);
+                            const hasNote = s.status === 'confirmed' && s.structured_note;
+                            return (
+                              <div
+                                key={s.id || i}
+                                className={`rounded-lg overflow-hidden transition-all ${
+                                  isExpanded ? 'bg-[#fafaf9] border border-[#5a9e8a]/25' : ''
+                                }`}
+                              >
+                                <div
+                                  className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-black/[0.04] transition-colors cursor-pointer"
+                                  onClick={() => hasNote && handleToggleSession(String(s.id))}
                                 >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9l6 6 6-6" />
-                                </svg>
+                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
+                                  <span className="text-[12px] text-ink-secondary truncate flex-1">
+                                    Sesión #{s.session_number || (soapSessions.length - i)} · {formatDate(s.session_date)}
+                                  </span>
+                                  {hasNote && (
+                                    <svg
+                                      className={`w-3 h-3 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : 'text-[#9ca3af]'}`}
+                                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9l6 6 6-6" />
+                                    </svg>
+                                  )}
+                                </div>
+                                {isExpanded && hasNote && (
+                                  <div className="border-t border-ink/[0.06]">
+                                    <SoapNoteDocument
+                                      noteData={{
+                                        clinical_note: {
+                                          structured_note: s.structured_note,
+                                          detected_patterns: s.detected_patterns || [],
+                                          alerts: s.alerts || [],
+                                          session_id: String(s.id),
+                                        },
+                                        text_fallback: s.ai_response,
+                                      }}
+                                      readOnly
+                                      compact
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Note panel */}
+                  <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-7 bg-white">
+                    {latestNoteMsg === null ? (
+                      <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
+                        <p className="text-ink-tertiary text-[14px]">La nota SOAP aparecerá aquí.</p>
+                        <p className="text-ink-muted text-[12px]">Escribe un dictado y haz clic en "Generar nota".</p>
+                      </div>
+                    ) : latestNoteMsg.type === 'loading' ? (
+                      <div className="flex items-center gap-3 py-6">
+                        {LOADING_DOTS}
+                        <span className="text-ink-tertiary text-[14px]">Generando nota SOAP…</span>
+                      </div>
+                    ) : latestNoteMsg.type === 'error' ? (
+                      <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                        <strong className="font-medium">Error:</strong> {latestNoteMsg.text}
+                      </div>
+                    ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                      <SoapNoteDocument
+                        noteData={latestNoteMsg.noteData}
+                        onConfirm={fetchConversations}
+                        readOnly={latestNoteMsg.readOnly}
+                      />
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Mode: Review */}
+                  {/* Left: Historial (380px wide in Review mode) */}
+                  <div className="w-[380px] flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2] overflow-y-auto px-5 py-6">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-4 px-2">Historial de Notas</p>
+                    <div className="space-y-3">
+                      {soapSessions.length === 0 ? (
+                        <p className="text-ink-tertiary text-xs px-2 italic">Sin notas SOAP registradas.</p>
+                      ) : (
+                        soapSessions.map((s, i) => {
+                          const isExpanded = reviewExpandedSessionId === String(s.id);
+                          const hasNote = s.status === 'confirmed' && s.structured_note;
+                          return (
+                            <div
+                              key={s.id || i}
+                              className={`rounded-xl overflow-hidden transition-all duration-200 ${
+                                isExpanded
+                                  ? 'bg-white shadow-sm ring-1 ring-[#5a9e8a]/20'
+                                  : 'bg-transparent hover:bg-black/[0.02]'
+                              }`}
+                            >
+                              <div
+                                className="px-3 py-3 flex items-start gap-3 cursor-pointer group"
+                                onClick={() => hasNote && setReviewExpandedSessionId(toggleExpandedSession(reviewExpandedSessionId, String(s.id)))}
+                              >
+                                <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[13px] font-semibold text-ink">Sesión #{s.session_number || (soapSessions.length - i)}</p>
+                                    <span className="text-[11px] text-ink-tertiary font-medium">{formatDate(s.session_date)}</span>
+                                  </div>
+                                  {!isExpanded && s.raw_dictation && (
+                                    <p className="text-[11px] text-ink-muted line-clamp-1 mt-0.5 leading-relaxed">{s.raw_dictation}</p>
+                                  )}
+                                </div>
+                                {hasNote && (
+                                  <svg
+                                    className={`w-4 h-4 mt-0.5 text-ink-tertiary group-hover:text-ink-secondary transition-transform duration-200 ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : ''}`}
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                )}
+                              </div>
+                              {isExpanded && hasNote && (
+                                <div className="bg-white border-t border-ink/[0.04]">
+                                  <SoapNoteDocument
+                                    noteData={{
+                                      clinical_note: {
+                                        structured_note: s.structured_note,
+                                        detected_patterns: s.detected_patterns || [],
+                                        alerts: s.alerts || [],
+                                        session_id: String(s.id),
+                                      },
+                                      text_fallback: s.ai_response,
+                                    }}
+                                    readOnly
+                                    compact
+                                  />
+                                </div>
                               )}
                             </div>
-                            {isExpanded && hasNote && (
-                              <div className="border-t border-ink/[0.06]">
-                                <SoapNoteDocument
-                                  noteData={{
-                                    clinical_note: {
-                                      structured_note: s.structured_note,
-                                      detected_patterns: s.detected_patterns || [],
-                                      alerts: s.alerts || [],
-                                      session_id: String(s.id),
-                                    },
-                                    text_fallback: s.ai_response,
-                                  }}
-                                  readOnly
-                                  compact
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Right: Note panel */}
-              <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-7 bg-white">
-                {latestNoteMsg === null ? (
-                  <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
-                    <p className="text-ink-tertiary text-[14px]">La nota SOAP aparecerá aquí.</p>
-                    <p className="text-ink-muted text-[12px]">Escribe un dictado y haz clic en "Generar nota".</p>
+                  {/* Right: Evolution Area */}
+                  <div className="flex-1 flex flex-col bg-white overflow-hidden">
+                    <EvolucionPanel
+                      patient={{ id: selectedPatientId, name: selectedPatientName }}
+                      messages={evolutionMessages.get(selectedPatientId) || []}
+                      profile={patientProfile}
+                      loading={evolutionLoading}
+                      onSend={handleEvolutionSend}
+                      sending={evolutionSending}
+                      error={evolutionError}
+                    />
                   </div>
-                ) : latestNoteMsg.type === 'loading' ? (
-                  <div className="flex items-center gap-3 py-6">
-                    {LOADING_DOTS}
-                    <span className="text-ink-tertiary text-[14px]">Generando nota SOAP…</span>
-                  </div>
-                ) : latestNoteMsg.type === 'error' ? (
-                  <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                    <strong className="font-medium">Error:</strong> {latestNoteMsg.text}
-                  </div>
-                ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
-                  <SoapNoteDocument
-                    noteData={latestNoteMsg.noteData}
-                    onConfirm={fetchConversations}
-                    readOnly={latestNoteMsg.readOnly}
-                  />
-                ) : null}
-              </div>
-
+                </>
+              )}
             </div>
           )}
         </div>

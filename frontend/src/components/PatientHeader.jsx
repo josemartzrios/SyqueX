@@ -10,7 +10,7 @@
  *   - compact: boolean      (mobile strip uses smaller sizing)
  */
 
-export default function PatientHeader({ patientName, sessionCount = 0, compact = false }) {
+export default function PatientHeader({ patientName, sessionCount = 0, compact = false, mode = 'session', onModeChange }) {
   if (!patientName) {
     return (
       <header className="px-6 py-3.5 border-b border-black/[0.07] bg-white flex items-center gap-3 flex-shrink-0 min-h-[52px]">
@@ -48,6 +48,32 @@ export default function PatientHeader({ patientName, sessionCount = 0, compact =
       <span className="text-ink-muted text-[12px] ml-1">
         · {sessionCount} {sessionCount === 1 ? 'sesión' : 'sesiones'}
       </span>
+
+      {/* Segmented control — desktop only, only when onModeChange is provided */}
+      {onModeChange && (
+        <div className="ml-auto flex bg-[#f4f4f2] rounded-lg p-0.5 gap-0.5">
+          <button
+            onClick={() => onModeChange('session')}
+            className={`px-3 py-1 rounded-md text-[12px] transition-all ${
+              mode === 'session'
+                ? 'bg-white shadow-sm font-medium text-[#18181b]'
+                : 'text-[#9ca3af] hover:text-[#6b7280]'
+            }`}
+          >
+            Sesión
+          </button>
+          <button
+            onClick={() => onModeChange('review')}
+            className={`px-3 py-1 rounded-md text-[12px] transition-all ${
+              mode === 'review'
+                ? 'bg-white shadow-sm font-medium text-[#18181b]'
+                : 'text-[#9ca3af] hover:text-[#6b7280]'
+            }`}
+          >
+            Revisión
+          </button>
+        </div>
+      )}
     </header>
   );
 }
