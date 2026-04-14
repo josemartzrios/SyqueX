@@ -745,12 +745,13 @@ function App() {
                   {/* Right: Evolution Area */}
                   <div className="flex-1 flex flex-col bg-white overflow-hidden">
                     <EvolucionPanel
+                      patient={{ id: selectedPatientId, name: selectedPatientName }}
                       messages={evolutionMessages.get(selectedPatientId) || []}
-                      onSend={handleEvolutionSend}
+                      profile={patientProfile}
                       loading={evolutionLoading}
+                      onSend={handleEvolutionSend}
                       sending={evolutionSending}
                       error={evolutionError}
-                      patientProfile={patientProfile}
                     />
                   </div>
                 </>
