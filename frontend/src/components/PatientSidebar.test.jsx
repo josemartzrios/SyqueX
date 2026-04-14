@@ -36,3 +36,24 @@ describe('PatientSidebar — logout button', () => {
     expect(() => render(<PatientSidebar {...props} />)).not.toThrow()
   })
 })
+
+describe('PatientSidebar — nuevo paciente button', () => {
+  it('does not render visible "Nuevo paciente" text (wide button is gone)', () => {
+    render(<PatientSidebar {...defaultProps} />)
+    expect(screen.queryByText('Nuevo paciente')).not.toBeInTheDocument()
+  })
+  it('renders a + icon button next to the PACIENTES label', () => {
+    render(<PatientSidebar {...defaultProps} />)
+    expect(screen.getByTitle('Nuevo paciente')).toBeInTheDocument()
+  })
+  it('calls onNewPatient when the + icon button is clicked', async () => {
+    const onNewPatient = vi.fn()
+    render(<PatientSidebar {...defaultProps} onNewPatient={onNewPatient} />)
+    await userEvent.click(screen.getByTitle('Nuevo paciente'))
+    expect(onNewPatient).toHaveBeenCalledOnce()
+  })
+  it('shows inline creation form when isCreatingPatient is true', () => {
+    render(<PatientSidebar {...defaultProps} isCreatingPatient={true} />)
+    expect(screen.getByPlaceholderText(/nombre del paciente/i)).toBeInTheDocument()
+  })
+})

@@ -131,36 +131,27 @@ export default function PatientSidebar({
         <span className="text-[10px] text-gray-400 font-mono">v2.0</span>
       </div>
 
-      {/* Section Label: Pacientes */}
-      <div className="px-3 pt-3 pb-1 flex-shrink-0">
+      {/* Section Label: Pacientes + New button */}
+      <div className="px-3 pt-3 pb-1 flex-shrink-0 flex items-center justify-between px-5">
         <span className="text-[10px] uppercase tracking-[0.12em] text-gray-500 font-bold px-2">
           Pacientes
         </span>
-      </div>
-
-      {/* Patient List — Scrollable */}
-      <div className="flex-1 overflow-y-auto pb-2">
-        {conversations.length === 0 ? (
-          <div className="px-4 py-6 text-center">
-            <p className="text-gray-500 text-[13px]">Sin pacientes aún.</p>
-            <p className="text-gray-400 text-xs mt-1">Crea uno para comenzar.</p>
-          </div>
-        ) : (
-          conversations.map(conv => (
-            <PatientConversationItem
-              key={conv.patient_id}
-              conv={conv}
-              active={conv.patient_id === selectedPatientId}
-              onClick={() => onSelectConversation(conv)}
-              onDelete={() => onDeleteConversation(conv.id, conv.patient_id)}
-            />
-          ))
+        {!isCreatingPatient && (
+          <button
+            onClick={onNewPatient}
+            title="Nuevo paciente"
+            className="p-1 rounded-md text-gray-400 hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
         )}
       </div>
 
-      {/* "+ Nuevo paciente" Button / Input — Pinned to Bottom */}
-      <div className="px-3 py-3 border-t border-black/[0.07] flex-shrink-0">
-        {isCreatingPatient ? (
+      {/* Inline creation form — shown directly below label when isCreatingPatient */}
+      {isCreatingPatient && (
+        <div className="px-3 pb-2 flex-shrink-0">
           <div className="flex flex-col gap-2">
             <input
               autoFocus
@@ -189,28 +180,29 @@ export default function PatientSidebar({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Patient List — Scrollable */}
+      <div className="flex-1 overflow-y-auto pb-2">
+        {conversations.length === 0 ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-gray-500 text-[13px]">Sin pacientes aún.</p>
+            <p className="text-gray-400 text-xs mt-1">Crea uno para comenzar.</p>
+          </div>
         ) : (
-          <button
-            onClick={onNewPatient}
-            className="w-full flex items-center justify-center gap-1.5 bg-[#5a9e8a] hover:bg-[#4d8a78] text-white rounded-lg px-3 py-2 transition-all text-[13px] font-medium"
-          >
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2.5"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Nuevo paciente
-          </button>
+          conversations.map(conv => (
+            <PatientConversationItem
+              key={conv.patient_id}
+              conv={conv}
+              active={conv.patient_id === selectedPatientId}
+              onClick={() => onSelectConversation(conv)}
+              onDelete={() => onDeleteConversation(conv.id, conv.patient_id)}
+            />
+          ))
         )}
       </div>
+
 
       {/* Logout — pinned to very bottom */}
       <div className="border-t border-black/[0.07] flex-shrink-0">
