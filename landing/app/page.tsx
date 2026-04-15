@@ -1,6 +1,7 @@
 import Nav from '../components/Nav'
 import Hero from '../components/Hero'
 import Benefits from '../components/Benefits'
+import Pricing from '../components/Pricing'
 
 export default function Home() {
   return (
@@ -8,6 +9,7 @@ export default function Home() {
       <Nav />
       <Hero />
       <Benefits />
+      <Pricing />
     </main>
   )
 }
