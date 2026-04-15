@@ -49,7 +49,7 @@ La landing usa **Static Site Generation** — todas las páginas se pre-renderiz
 ### Estructura del proyecto Next.js
 
 ```
-syquex-landing/
+landing/
 ├── app/
 │   ├── layout.tsx          # Fuentes, metadata global
 │   ├── page.tsx            # Landing principal (/)
@@ -71,7 +71,7 @@ syquex-landing/
 
 ### Repositorio
 
-Proyecto independiente en un repo nuevo: `josemartzrios/syquex-landing`. No vive dentro del monorepo de la app — separación limpia de deploys y dependencias.
+La landing vive en el mismo repo que la app, en el subfolder `/landing`. Vercel soporta monorepos con múltiples proyectos por subfolder (Root Directory setting). Un solo repo, dos proyectos Vercel independientes.
 
 ---
 
@@ -199,12 +199,11 @@ La página `/registro` en la app ya incluye dos checkboxes obligatorios que link
 
 ## Deploy
 
-1. Crear repo `syquex-landing` en GitHub
-2. Conectar a Vercel como nuevo proyecto
-3. En Vercel → Settings → Domains → agregar `syquex.mx`
-4. En Cloudflare → DNS → configurar CNAME según tabla arriba
-5. En Vercel (proyecto app existente) → Domains → agregar `app.syquex.mx`
-6. Verificar que `https://syquex.mx` carga la landing y `https://app.syquex.mx` carga la app
+1. En Vercel → Add New Project → importar repo `SyqueX` → **Root Directory: `landing`** → crear proyecto `syquex-landing`
+2. En Vercel (proyecto `syquex-landing`) → Settings → Domains → agregar `syquex.mx`
+3. En Cloudflare → DNS → configurar registros según tabla arriba
+4. En Vercel (proyecto app existente) → Settings → Domains → agregar `app.syquex.mx`
+5. Verificar que `https://syquex.mx` carga la landing y `https://app.syquex.mx` carga la app
 
 ---
 
