@@ -64,7 +64,7 @@ syquex-landing/
 │   ├── Pricing.tsx         # Precio + nota de cancelación
 │   └── Footer.tsx          # Links legales + email
 ├── public/
-│   └── og-image.png        # Open Graph (1200×630)
+│   └── og-image.png        # Open Graph 1200×630px — fondo blanco, logo SyqueX centrado, tagline en Inter
 ├── tailwind.config.ts
 └── next.config.ts
 ```
@@ -135,12 +135,18 @@ $499 MXN / mes
 Incluye todos los pacientes · Cancela cuando quieras
 ```
 - Sin tabla de comparación — un solo plan en MVP
+- Agregar bloque de política de cancelación visible (no solo en Términos):
+  > "Puedes cancelar en cualquier momento escribiendo a hola@syquex.mx. Al cancelar, tu acceso continúa hasta el fin del período pagado. No se emiten reembolsos por períodos parciales."
+- Este texto es requerido por Stripe como política de reembolso explícita y accesible
 
 ### Footer
 ```
 © 2026 SyqueX · Aviso de Privacidad · Términos y Condiciones · hola@syquex.mx
+Ciudad de México, México
 ```
 - Links internos `/privacidad` y `/terminos`
+- Incluir dirección física y RFC en el footer — requerido por Stripe para verificar la empresa
+- Formato: `Ciudad de México, México · RFC: [RFC del responsable]`
 
 ---
 
@@ -148,7 +154,7 @@ Incluye todos los pacientes · Cancela cuando quieras
 
 ### `/privacidad` — Aviso de Privacidad
 Contenido mínimo LFPDPPP Art. 8:
-- Identidad y domicilio del responsable
+- Identidad y domicilio del responsable (incluir RFC)
 - Finalidades del tratamiento de datos
 - Datos recabados
 - Opciones y medios para limitar el uso
@@ -161,11 +167,18 @@ Contenido mínimo para Stripe + uso del producto:
 - Descripción del servicio
 - Condiciones de la prueba gratuita (14 días)
 - Precios, facturación y cancelación
+- **Política de reembolso explícita** — sin reembolsos por períodos parciales; acceso hasta fin de período pagado
 - Uso aceptable (datos clínicos, confidencialidad)
 - Limitación de responsabilidad
 - Ley aplicable (México)
 
 > **Nota:** El contenido de ambas páginas requiere revisión legal antes del lanzamiento.
+
+### Consentimiento en registro (app.syquex.mx)
+
+La página `/registro` en la app ya incluye dos checkboxes obligatorios que linkan a `syquex.mx/privacidad` y `syquex.mx/terminos` (spec `2026-03-30-auth-billing-launch-design.md`). Este vínculo cumple el requisito de consentimiento LFPDPPP Art. 8 y el requisito de Stripe de que los usuarios acepten la política de privacidad antes de ingresar datos de pago.
+
+**Acción requerida en implementación:** Verificar que los links en `RegisterScreen.jsx` apunten a `https://syquex.mx/privacidad` y `https://syquex.mx/terminos` (no a rutas relativas).
 
 ---
 
@@ -173,10 +186,14 @@ Contenido mínimo para Stripe + uso del producto:
 
 | Tipo | Nombre | Valor | Proxy |
 |------|--------|-------|-------|
-| CNAME | `@` (syquex.mx) | `cname.vercel-dns.com` | DNS only (naranja OFF) |
+| A | `@` (syquex.mx) | `76.76.21.21` | DNS only (naranja OFF) |
+| CNAME | `www` | `cname.vercel-dns.com` | DNS only (naranja OFF) |
 | CNAME | `app` | `cname.vercel-dns.com` | DNS only (naranja OFF) |
 
-Cloudflare proxy debe estar **desactivado** (gris) para los registros que apuntan a Vercel — Vercel maneja SSL con sus propios certificados y el proxy de Cloudflare interfiere.
+**Notas importantes:**
+- Cloudflare **no permite CNAME en el apex** (`@`) — usar registro `A` con la IP de Vercel (`76.76.21.21`) para el dominio raíz.
+- Agregar `www` como CNAME para que `www.syquex.mx` no dé error DNS — Vercel lo redirige automáticamente a `syquex.mx`.
+- Proxy debe estar **desactivado** (ícono gris) en todos los registros — Vercel gestiona SSL y el proxy de Cloudflare interfiere con la emisión de certificados.
 
 ---
 
