@@ -56,7 +56,7 @@ function ClinicalNote({ text }) {
       const clean = line.replace(/^\*\*/, '').replace(/\*\*$/, '').replace(/^#+\s*/, '');
       result.push(
         <div key={i} className={`${result.length > 0 ? 'mt-5' : ''} mb-2`}>
-          <span className="text-[10px] font-bold text-sage tracking-[0.14em] uppercase">{clean}</span>
+          <span className="font-sans text-[10px] font-bold text-sage tracking-[0.14em] uppercase">{clean}</span>
           <div className="h-px bg-sage/20 mt-1.5" />
         </div>
       );
@@ -91,7 +91,7 @@ function ClinicalNote({ text }) {
     );
   });
 
-  return <div>{result}</div>;
+  return <div className="font-serif">{result}</div>;
 }
 
 function formatDate(dateStr) {
