@@ -52,14 +52,14 @@ Las cards del modo Revisión (panel izquierdo) adoptan el estilo del historial m
 | Fondo reposo | `bg-transparent` | `bg-[#f4f4f2]` |
 | Fondo expandido | `bg-white shadow-sm ring-1 ring-[#5a9e8a]/20` | `bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25` |
 | Preview dictado | `line-clamp-1` | `line-clamp-2` |
-| Badge estado | Ausente | `"Confirmada"` / `"Pendiente"` en small-caps con color (sage / amber) |
+| Badge estado | Ausente | `s.status === 'confirmed'` → "Confirmada" (sage); cualquier otro valor → "Pendiente" (amber) |
 
 ### 5. Panel SOAP vacío → indicio visual sutil (desktop)
 
 **Archivo:** `frontend/src/App.jsx`
 
 - **Antes:** Dos líneas de texto placeholder centradas ("La nota SOAP aparecerá aquí." / "Escribe un dictado…").
-- **Después:** Ícono SVG de documento outline (32px, `text-gray-200`) centrado verticalmente, con tres barras cortas debajo simulando renglones (`bg-gray-100`, alturas y anchos escalonados, bordes redondeados). Sin texto.
+- **Después:** Ícono SVG inline de documento outline (32px, `text-gray-200`) centrado verticalmente, con tres barras cortas debajo simulando renglones (`bg-gray-100`, alturas y anchos escalonados, bordes redondeados). Sin texto. No requiere librería de iconos — SVG inline en JSX.
 - El estado mobile de la tab Nota mantiene su texto placeholder actual (fuera de scope).
 
 ---

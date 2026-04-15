@@ -142,109 +142,84 @@ Tailwind is loaded via CDN in `index.html` (not npm), so no `tailwind.config.js`
 
 ## Roadmap
 
-> **⚠️ Pivote de producto — 2026-03-26**
-> Feedback de psicólogo real llevó a una reestructura del paradigma de interacción.
-> Ver sección **"Reestructura UI — Documentation-First"** más abajo para el nuevo plan.
+> **Pivote de producto — 2026-03-26:** La app pasó de chat-first a documentation-first.
+> Split-document view implementado. Ver diseño aprobado más abajo.
 
-### Fase 1 — Reestructura UI (próximo sprint)
+---
+
+### Estado actual
+
+**Rama activa:** `feature/desktop-ui-cleanup`
+
+- [x] Split-document view (dictado izq + SOAP der) — implementado
+- [x] Mobile: tabs Dictar / Nota / Historial — implementado
+- [x] Auth con JWT + registro + login — implementado
+- [x] Botón nuevo paciente → icono junto al label PACIENTES
+- [x] Eliminar botón voz deshabilitado
+- [x] Eliminar historial duplicado del panel dictado
+- [x] Cards revisión desktop → estilo mobile unificado
+- [x] Empty state SOAP → ícono sutil
+
+---
+
+### Sprint siguiente — Bloqueantes producción
+
+No se puede hacer deploy a producción sin estos cinco ítems, en este orden:
+
+| # | Feature | Nota |
+|---|---------|------|
+| 1 | **Fix flujo activar pago** | Billing endpoint retorna 404 — core del revenue |
+| 2 | **Página Aviso de Privacidad** (`/privacidad`) | LFPDPPP Art. 8 — link obligatorio en registro |
+| 3 | **Página Términos y Condiciones** (`/terminos`) | Link obligatorio en registro |
+| 4 | **Auditoría de vulnerabilidades** | OWASP top 10 sobre endpoints auth/billing |
+| 5 | **Auditoría LFPDPPP — audit_logs** | Verificar que todos los eventos sensibles quedan registrados |
+
+Spec de referencia: `docs/superpowers/specs/2026-03-30-auth-billing-launch-design.md`
+
+---
+
+### Pre-deploy backlog
+
+Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueantes.
 
 | # | Feature | Descripción |
 |---|---------|-------------|
-| 1 | **Split-document view** | Panel izquierdo: dictado. Panel derecho: nota SOAP emergiendo progresivamente mientras se genera. Reemplaza el chat como interfaz primaria. |
-| 2 | **SOAP como documento tipográfico** | Secciones S/O/A/P separadas por peso tipográfico y espacio, no por cards/bordes. Serif en el documento, sans en el dictado. |
-| 3 | **Historial compacto** | Sesiones anteriores como chips horizontales en una barra, no como lista de chat. |
-| 4 | **Chat on-demand** | Botón "Evolución del paciente" en el header del paciente abre panel lateral. El chat deja de ser la interfaz primaria. |
-| 5 | **Intake de paciente nuevo** | Modal con datos básicos (nombre, edad, motivo, antecedentes). El agente completa el historial clínico con preguntas durante la primera sesión. |
+| 1 | **Más preguntas clínicas en intake** | Ampliar modal de nuevo paciente con campos clínicos relevantes (motivo, antecedentes, medicación, etc.) |
+| 2 | **Agente conoce nombre del paciente** | El agente de conversación debe referirse al paciente por nombre en todo momento |
+| 3 | **Borrador / guardado automático** | Guardar dictado y nota en progreso antes de confirmar — previene pérdida de datos |
+| 4 | **Tipografía nota clínica** | Selector de fuente en el panel SOAP (serif / sans) |
+| 5 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
 
-### Fase 2 — Voz (post Fase 1)
-
-| # | Feature | Descripción |
-|---|---------|-------------|
-| 1 | **Dictado por voz con streaming** | Transcripción en tiempo real mientras el psicólogo habla + nota SOAP construyéndose progresivamente en el panel derecho simultáneamente. |
+---
 
 ### Post-MVP
 
 | # | Feature | Descripción |
 |---|---------|-------------|
-| 1 | **Descargar nota en PDF** | Exportar nota SOAP confirmada como PDF con membrete profesional |
-| 2 | **Google Drive** | Guardar notas automáticamente en carpetas del psicólogo en Drive |
-| 3 | **Google Calendar** | Vincular sesiones con eventos del calendario del psicólogo |
+| 1 | **Dictado de voz con streaming** | Transcripción en tiempo real + SOAP construyéndose progresivamente (Whisper API) |
+| 2 | **Descargar nota clínica como PDF** | Export con membrete profesional |
+| 3 | **Vincular Google Drive** | Guardar notas automáticamente en carpetas del psicólogo |
+| 4 | **Vincular Google Calendar** | Vincular sesiones con eventos del calendario |
+| 5 | **Cargar texto desde archivo** | Subir texto para procesarlo como dictado |
+| 6 | **Pegar texto largo (referencia parcial)** | Referenciar fragmentos sin pegar el contenido completo |
+| 7 | **Visualizar contraseña** | Toggle show/hide en login y registro |
 
 ---
 
-## Reestructura UI — Documentation-First
-
-**Origen:** Feedback de psicólogo real (2026-03-26). Tres señales:
-1. El chat es demasiado largo — el psicólogo quiere documentación, no conversación
-2. Para sesiones nuevas, el agente debe guiar el intake del historial clínico
-3. Notas por voz son prioritarias (mueven a Fase 1→2 desde Post-MVP)
-
-**Decisión de diseño:** La app pasa de chat-first a documentation-first.
-
-### Nuevo modelo de interacción
-
-```
-ANTES: Chat primario → SOAP aparece como respuesta de burbuja
-AHORA: Split-document → dictado izquierda, SOAP emerge tipográficamente a la derecha
-```
-
-- El **chat** (análisis de evolución, patrones) pasa a ser **on-demand** — botón "Evolución del paciente" en el header
-- El **historial** de sesiones es una **barra de chips** compacta, no lista de mensajes
-- El **botón de voz** existe desde Fase 1 (preparado) — activo en Fase 2
-
-### Diseño visual (aprobado ✓)
+## Diseño visual aprobado
 
 - **Paleta:** base `#ffffff` · sidebar `#f4f4f2` · sage `#5a9e8a` · amber `#c4935a` · ink `#18181b`
   - La calidez viene de los acentos (sage/amber), no de los fondos — evita el efecto beige
 - **Tipografía nota:** serif (Georgia) — como un expediente real. Dictado: sans.
 - **Profundidad:** surface color shifts únicamente, sin sombras
-- **SOAP:** labels en small caps con letra de color según estado (sage=done, amber=streaming, muted=pending), contenido en serif, separación solo por espacio y peso — sin cards ni bordes
-- **Historial de sesiones:** vive en tab "Historial" (desktop y mobile) — NO en la vista de sesión activa. La vista de dictado/nota queda limpia.
+- **SOAP:** labels en small caps, color según estado (sage=done, amber=streaming, muted=pending), separación solo por espacio y peso — sin cards ni bordes
+- **Historial de sesiones:** vive en tab "Historial" — NO en la vista de sesión activa
 - **Desktop:** split-view — panel dictado (320px izq) + panel nota (flex derecho)
-- **Mobile:** tabs Dictar / Nota / Historial — misma info, adaptada al espacio
+- **Mobile:** tabs Dictar / Nota / Historial
 
 **Mockups aprobados:**
-- `docs/mockups/syquex-v2-desktop.html` — layout split-document, modal nuevo paciente, panel Evolución
-- `docs/mockups/syquex-v2-mobile.html` — 3 frames: lista pacientes, dictar, nota generándose
-
-### Flujo de paciente nuevo
-
-1. Botón "+ Nuevo paciente" → modal con: nombre, edad, motivo de consulta, antecedentes (opcional)
-2. Al crear → primera sesión abierta automáticamente
-3. Durante el dictado de la primera sesión, el agente hace preguntas de seguimiento para completar el historial clínico si falta información
-
-### Estrategia de implementación
-
-- **Fase 1 primero** (UI restructure) — valida el nuevo paradigma sin la complejidad técnica de streaming de voz
-- **Fase 2 después** (voz con streaming) — sobre la nueva UI ya estable
-- Trabajar en `feature/documentation-first-ui` desde `dev`, sin tocar el demo desplegado
-
-### Estado actual (2026-03-28)
-
-- [x] Feedback de psicólogo procesado y decisiones de diseño tomadas
-- [x] Mockups de desktop y mobile aprobados
-- [x] Spec escrito: `docs/superpowers/specs/2026-03-28-mvp-frontend-redesign.md`
-- [ ] **Próximo paso:** crear `feature/documentation-first-ui` desde `dev` e implementar según spec
-
-### Decisiones MVP (2026-03-28)
-
-- **Demo interno** — una cuenta fija (`ana@syquex.demo / demo1234`), sin login frontend por ahora
-- **Frontend only** — backend sin cambios en este sprint
-- **Reemplazo incremental** — App.jsx mantiene estado/callbacks, se reemplaza el render layer
-- **Happy path primero:** seleccionar paciente → dictar → generar nota → confirmar
-- **Fuera del scope:** login UI, panel Evolución, dictado por voz, PDF/Drive
-
-### Componentes del MVP
-
-| Componente | Estado |
-|-----------|--------|
-| `DictationPanel` | Nuevo |
-| `SoapNoteDocument` | Nuevo (reemplaza NoteReview) |
-| `PatientHeader` | Nuevo |
-| `NewPatientModal` | Nuevo |
-| `PatientSidebar` | Rediseño visual |
-| `App.jsx` render layer | Reemplazar (estado intacto) |
-| `index.html` | Agregar CSS variables (design tokens) |
+- `docs/mockups/syquex-v2-desktop.html`
+- `docs/mockups/syquex-v2-mobile.html`
 
 ## Branching Strategy
 
