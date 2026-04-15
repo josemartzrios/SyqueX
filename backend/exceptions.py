@@ -43,9 +43,17 @@ class LLMServiceError(DomainError):
 
 
 class EmbeddingServiceError(DomainError):
-    """Raised when the embedding provider (OpenAI) is misconfigured or unavailable."""
+    """Raised when the embedding provider (FastEmbed) is misconfigured or unavailable."""
     http_status = 502
 
 
 class DatabaseError(DomainError):
     http_status = 500
+
+
+class SubscriptionExpired(DomainError):
+    """Suscripción expirada o inactiva — requiere pago."""
+    http_status = 402
+
+    def __init__(self, message: str = "Suscripción inactiva. Activa tu plan para continuar."):
+        super().__init__(message, code="SUBSCRIPTION_EXPIRED")

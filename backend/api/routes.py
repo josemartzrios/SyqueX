@@ -1,12 +1,13 @@
 import uuid
-from fastapi import APIRouter, Depends, Query, Request, status
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
-from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist
+from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal
 from agent import process_session, update_patient_profile_summary
 from agent.tools import generate_evolution_report, search_patient_history
 from agent.embeddings import get_embedding
@@ -25,7 +26,13 @@ def _parse_uuid(value: str, label: str = "ID") -> uuid.UUID:
             details={"value": value},
         )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["clinical"])
+
+@router.get("/health", tags=["ops"])
+async def health():
+    return {"status": "ok"}
 
 # ---------------------------------------------------------------------------
 # Request schemas
@@ -65,6 +72,12 @@ class SessionOut(BaseModel):
     raw_dictation: Optional[str]
     ai_response: Optional[str]
     status: str
+    format: str = "SOAP"
+    structured_note: Optional[Dict[str, Any]] = None
+    detected_patterns: Optional[List[str]] = None
+    alerts: Optional[List[str]] = None
+    suggested_next_steps: Optional[List[str]] = None
+    clinical_note_id: Optional[uuid.UUID] = None
 
     class Config:
         from_attributes = True
@@ -77,14 +90,17 @@ class PaginatedSessions(BaseModel):
     pages: int
 
 class ConversationOut(BaseModel):
-    id: str
+    id: Optional[str]             # session id — None if patient has no sessions
     patient_id: str
     patient_name: str
-    session_number: int
+    session_number: Optional[int]
     session_date: Optional[date]
     dictation_preview: Optional[str]
-    status: str
-    message_count: int
+    status: Optional[str]
+    message_count: Optional[int]
+
+    class Config:
+        from_attributes = True
 
 class PaginatedConversations(BaseModel):
     items: List[ConversationOut]
@@ -95,7 +111,7 @@ class PaginatedConversations(BaseModel):
 
 class ProcessSessionOut(BaseModel):
     text_fallback: Optional[str]
-    session_id: str
+    session_id: Optional[str] = None
 
 class ConfirmNoteOut(BaseModel):
     id: uuid.UUID
@@ -220,24 +236,35 @@ async def get_patient_sessions(
     total = total_res.scalar_one()
 
     res = await db.execute(
-        select(Session)
+        select(Session, ClinicalNote)
+        .outerjoin(ClinicalNote, Session.id == ClinicalNote.session_id)
         .where(Session.patient_id == puuid, Session.is_archived == False)
         .order_by(Session.created_at.asc())
         .limit(page_size)
         .offset(offset)
     )
 
-    items = [
-        SessionOut(
+    items = []
+    for s, cn in res.all():
+        items.append(SessionOut(
             id=s.id,
             session_number=s.session_number,
             session_date=s.session_date,
             raw_dictation=s.raw_dictation,
             ai_response=s.ai_response,
             status=s.status,
-        )
-        for s in res.scalars()
-    ]
+            format=s.format,
+            structured_note={
+                "subjective": cn.subjective,
+                "objective": cn.objective,
+                "assessment": cn.assessment,
+                "plan": cn.plan,
+            } if cn else None,
+            detected_patterns=list(cn.detected_patterns) if cn and cn.detected_patterns is not None else None,
+            alerts=list(cn.alerts) if cn and cn.alerts is not None else None,
+            suggested_next_steps=list(cn.suggested_next_steps) if cn and cn.suggested_next_steps is not None else None,
+            clinical_note_id=cn.id if cn else None,
+        ))
 
     pages = max(1, (total + page_size - 1) // page_size)
     return PaginatedSessions(items=items, total=total, page=page, page_size=page_size, pages=pages)
@@ -265,8 +292,14 @@ async def process_session_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     patient_uuid = _parse_uuid(patient_id, "patient_id")
+
+    patient_check = await db.execute(select(Patient).where(Patient.id == patient_uuid))
+    if not patient_check.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    response = await process_session(db, patient_id, rec.raw_dictation, None, rec.format)
+
     session_id = str(uuid.uuid4())
-    response = await process_session(db, patient_id, rec.raw_dictation, session_id, rec.format)
 
     res_last = await db.execute(
         select(Session)
@@ -277,15 +310,20 @@ async def process_session_endpoint(
     last_session = res_last.scalar_one_or_none()
     current_session_number = (last_session.session_number + 1) if last_session else 1
 
+    # Chat sessions are confirmed immediately (no confirmation step needed)
+    session_format = rec.format or "SOAP"
+    session_status = "confirmed" if session_format.lower() == "chat" else "draft"
+
     new_session = Session(
         id=uuid.UUID(session_id),
         patient_id=patient_uuid,
         session_number=current_session_number,
         session_date=date.today(),
         raw_dictation=rec.raw_dictation,
+        format=session_format,
         ai_response=response.get("text_fallback"),
         messages=response.get("session_messages", []),
-        status="draft",
+        status=session_status,
     )
     db.add(new_session)
     await db.commit()
@@ -296,8 +334,17 @@ async def process_session_endpoint(
     )
 
 
+async def _background_update_profile(patient_id: uuid.UUID, session_note: dict) -> None:
+    """Runs after the HTTP response is sent. Opens its own DB session."""
+    async with AsyncSessionLocal() as db:
+        try:
+            await update_patient_profile_summary(db, patient_id, session_note)
+        except Exception as e:
+            logger.error(f"Background profile update failed: {e}")
+
+
 @router.post("/sessions/{session_id}/confirm", response_model=ConfirmNoteOut, tags=["sessions"])
-async def confirm_session(session_id: str, req: ConfirmNoteRequest, db: AsyncSession = Depends(get_db)):
+async def confirm_session(session_id: str, req: ConfirmNoteRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     session_uuid = _parse_uuid(session_id, "session_id")
     res = await db.execute(select(Session).where(Session.id == session_uuid))
     sess = res.scalar_one_or_none()
@@ -333,7 +380,7 @@ async def confirm_session(session_id: str, req: ConfirmNoteRequest, db: AsyncSes
         "alerts": note_data.get("alerts", []),
         "suggested_next_steps": note_data.get("suggested_next_steps", []),
     }
-    await update_patient_profile_summary(db, sess.patient_id, summary_data)
+    background_tasks.add_task(_background_update_profile, sess.patient_id, summary_data)
 
     return ConfirmNoteOut(id=cn.id)
 
@@ -352,6 +399,20 @@ async def archive_session(session_id: str, db: AsyncSession = Depends(get_db)):
 
     return ArchiveOut(id=session_id)
 
+
+@router.patch("/patients/{patient_id}/sessions/archive", response_model=ArchiveOut, tags=["sessions"])
+async def archive_patient_sessions(patient_id: str, db: AsyncSession = Depends(get_db)):
+    """Archive all sessions for a patient so they disappear from the conversations list."""
+    patient_uuid = _parse_uuid(patient_id, "patient_id")
+    res = await db.execute(
+        select(Session).where(Session.patient_id == patient_uuid, Session.is_archived == False)
+    )
+    sessions = res.scalars().all()
+    for sess in sessions:
+        sess.is_archived = True
+    await db.commit()
+    return ArchiveOut(id=patient_id)
+
 # ---------------------------------------------------------------------------
 # Conversations (cross-patient view)
 # ---------------------------------------------------------------------------
@@ -362,36 +423,52 @@ async def list_conversations(
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    base_where = Session.is_archived == False
+    # One entry per patient: most recent Session with real content via DISTINCT ON (PostgreSQL)
+    # INNER JOIN ensures only patients with at least one non-empty, non-archived session appear
+    sql = text("""
+        SELECT DISTINCT ON (p.id)
+            p.id            AS patient_id,
+            p.name          AS patient_name,
+            s.id            AS session_id,
+            s.session_number,
+            s.session_date,
+            s.raw_dictation AS dictation_preview,
+            s.status,
+            s.messages
+        FROM patients p
+        INNER JOIN sessions s
+            ON s.patient_id = p.id
+            AND s.is_archived = FALSE
+            AND s.raw_dictation IS NOT NULL
+        WHERE p.deleted_at IS NULL
+        ORDER BY p.id, s.created_at DESC NULLS LAST
+    """)
 
-    total_res = await db.execute(
-        select(func.count()).select_from(Session).where(base_where)
-    )
-    total = total_res.scalar_one()
+    res = await db.execute(sql)
+    rows = res.mappings().all()
 
+    items = []
+    for row in rows:
+        raw = row.get("dictation_preview")
+        preview = (raw[:120] + "...") if raw and len(raw) > 120 else raw
+        messages = row.get("messages") or []
+
+        items.append(ConversationOut(
+            id=str(row["session_id"]) if row["session_id"] else None,
+            patient_id=str(row["patient_id"]),
+            patient_name=row["patient_name"],
+            session_number=row.get("session_number"),
+            session_date=row.get("session_date"),
+            dictation_preview=preview,
+            status=row.get("status"),
+            message_count=len(messages) if isinstance(messages, list) else 0,
+        ))
+
+    total = len(items)
     offset = (page - 1) * page_size
-    res = await db.execute(
-        select(Session, Patient.name.label("patient_name"))
-        .join(Patient, Session.patient_id == Patient.id)
-        .where(base_where)
-        .order_by(Session.created_at.desc())
-        .limit(page_size)
-        .offset(offset)
-    )
-
-    items = [
-        ConversationOut(
-            id=str(s.id),
-            patient_id=str(s.patient_id),
-            patient_name=patient_name,
-            session_number=s.session_number,
-            session_date=s.session_date,
-            dictation_preview=(s.raw_dictation[:120] + "...") if s.raw_dictation and len(s.raw_dictation) > 120 else s.raw_dictation,
-            status=s.status,
-            message_count=len(s.messages) if s.messages else 0,
-        )
-        for s, patient_name in res.all()
-    ]
-
+    paged = items[offset: offset + page_size]
     pages = max(1, (total + page_size - 1) // page_size)
-    return PaginatedConversations(items=items, total=total, page=page, page_size=page_size, pages=pages)
+
+    return PaginatedConversations(
+        items=paged, total=total, page=page, page_size=page_size, pages=pages
+    )

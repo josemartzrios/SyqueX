@@ -1,45 +1,43 @@
-from .interfaces import IEmbeddingService
-from openai import AsyncOpenAI, AuthenticationError, PermissionDeniedError
-from config import settings
-import logging
+import asyncio
+import threading
+from fastembed import TextEmbedding
+from agent.interfaces import IEmbeddingService
 
-logger = logging.getLogger(__name__)
+MODEL_NAME = "intfloat/multilingual-e5-large"
+EMBEDDING_DIMENSIONS = 1024
+ZERO_VECTOR = [0.0] * EMBEDDING_DIMENSIONS  # fallback on error
 
-class OpenAIEmbeddingService(IEmbeddingService):
-    def __init__(self):
-        self._openai_client = None
 
-    @property
-    def openai_client(self):
-        if self._openai_client is None:
-            if not settings.OPENAI_API_KEY:
-                logger.warning("Falta OPENAI_API_KEY. Los embeddings pueden fallar si se invocan.")
-            self._openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        return self._openai_client
+class FastEmbedService(IEmbeddingService):
+    """Local embeddings via FastEmbed — no data egress, LFPDPPP compliant."""
+
+    _model: TextEmbedding | None = None
+    _lock: threading.Lock = threading.Lock()
+
+    def _get_model(self) -> TextEmbedding:
+        # Double-checked locking — model instantiated exactly once across threads
+        if self._model is None:
+            with self._lock:
+                if self._model is None:
+                    self._model = TextEmbedding(MODEL_NAME)
+        return self._model
+
+    def _embed_sync(self, text: str) -> list[float]:
+        model = self._get_model()
+        # FastEmbed returns a generator of numpy.ndarray — convert to list[float]
+        embeddings = list(model.embed([text]))
+        return embeddings[0].tolist()
 
     async def get_embedding(self, text: str) -> list[float]:
-        """Get embedding from OpenAI API."""
-        if not text or not text.strip():
-            return [0.0] * 1536
-
-        try:
-            response = await self.openai_client.embeddings.create(
-                input=text,
-                model="text-embedding-3-small"
-            )
-            return response.data[0].embedding
-        except (AuthenticationError, PermissionDeniedError) as e:
-            # Config error — don't silently degrade, alert loudly so ops notices
-            logger.error(
-                "OPENAI_API_KEY inválida o sin permisos. La búsqueda semántica no funcionará: %s", e
-            )
-            return [0.0] * 1536
-        except Exception as e:
-            # Transient error (network, rate limit, etc.) — log and degrade gracefully
-            logger.warning("Error generando embedding (fallo transitorio): %s", e)
-            return [0.0] * 1536
+        # FastEmbed is synchronous — run in default thread pool executor
+        # to avoid blocking the FastAPI event loop
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._embed_sync, text)
 
 
-# Instancia global para compatibilidad
-embedding_service = OpenAIEmbeddingService()
-get_embedding = embedding_service.get_embedding
+# Module-level exports preserved for backward compatibility with all callers
+embedding_service = FastEmbedService()
+
+
+async def get_embedding(text: str) -> list[float]:
+    return await embedding_service.get_embedding(text)

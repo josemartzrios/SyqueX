@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SyqueX — Documentation-First</title>
+<style>
+  /* ── Tokens ── */
+  :root {
+    /* Surfaces */
+    --surface-base:    #faf7f2;
+    --surface-sidebar: #f0ebe0;
+    --surface-input:   #e8e1d4;
+    --surface-note:    #fdfbf7;
+    --surface-hover:   #ece6d8;
+
+    /* Borders */
+    --border-soft:     rgba(90, 83, 74, 0.12);
+    --border-std:      rgba(90, 83, 74, 0.20);
+    --border-emphasis: rgba(90, 83, 74, 0.35);
+
+    /* Text */
+    --ink:             #1a1614;
+    --text-secondary:  #5a534a;
+    --text-tertiary:   #8a8278;
+    --text-muted:      #b5ada3;
+
+    /* Brand */
+    --sage:            #7a9e8e;
+    --sage-light:      #e8f0ec;
+    --sage-dark:       #5a7f70;
+    --amber:           #c4935a;
+    --amber-light:     #f5ead8;
+
+    /* Semantic */
+    --destructive:     #c0544a;
+
+    /* Type */
+    --font-sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-serif: 'Georgia', 'Times New Roman', serif;
+
+    /* Spacing */
+    --sp1: 4px;  --sp2: 8px;  --sp3: 12px;  --sp4: 16px;
+    --sp5: 20px; --sp6: 24px; --sp8: 32px;  --sp10: 40px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--surface-base);
+    color: var(--ink);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--surface-sidebar);
+    border-right: 1px solid var(--border-std);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: var(--sp4) var(--sp4) var(--sp3);
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .logo {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: var(--sp2);
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--sage);
+  }
+
+  .sidebar-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: var(--sp4) var(--sp4) var(--sp2);
+  }
+
+  .patient-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 var(--sp2);
+  }
+
+  .patient-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp3);
+    padding: var(--sp2) var(--sp3);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s;
+    margin-bottom: 1px;
+  }
+
+  .patient-item:hover { background: var(--surface-hover); }
+
+  .patient-item.active {
+    background: var(--sage-light);
+  }
+
+  .patient-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--surface-input);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .patient-item.active .patient-avatar {
+    background: var(--sage);
+    color: white;
+  }
+
+  .patient-info { flex: 1; min-width: 0; }
+
+  .patient-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .patient-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .sidebar-footer {
+    padding: var(--sp3) var(--sp4);
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .btn-new-patient {
+    width: 100%;
+    padding: var(--sp2) var(--sp3);
+    background: transparent;
+    border: 1px solid var(--border-emphasis);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    gap: var(--sp2);
+    transition: all 0.12s;
+  }
+
+  .btn-new-patient:hover {
+    background: var(--surface-input);
+    color: var(--ink);
+  }
+
+  /* ── Main ── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Patient Header ── */
+  .patient-header {
+    padding: var(--sp4) var(--sp6);
+    border-bottom: 1px solid var(--border-std);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface-base);
+    flex-shrink: 0;
+  }
+
+  .patient-header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--sp3);
+  }
+
+  .patient-header-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--sage);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+  }
+
+  .patient-header-name {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+    color: var(--ink);
+  }
+
+  .patient-header-sub {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 1px;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--sp2);
+  }
+
+  .btn-ghost {
+    padding: var(--sp2) var(--sp3);
+    background: transparent;
+    border: 1px solid var(--border-std);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex; align-items: center; gap: var(--sp1);
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+
+  .btn-ghost:hover {
+    background: var(--surface-input);
+    color: var(--ink);
+    border-color: var(--border-emphasis);
+  }
+
+  /* ── Session History ── */
+  .history-bar {
+    padding: var(--sp3) var(--sp6);
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    gap: var(--sp3);
+    overflow-x: auto;
+    flex-shrink: 0;
+    background: var(--surface-base);
+  }
+
+  .history-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .session-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--sp2);
+    padding: var(--sp1) var(--sp3);
+    background: var(--surface-sidebar);
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.12s;
+  }
+
+  .session-chip:hover {
+    background: var(--surface-input);
+    border-color: var(--border-std);
+  }
+
+  .session-chip-date {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+
+  .session-chip-preview {
+    font-size: 11px;
+    color: var(--text-muted);
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Work area ── */
+  .work-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Dictation Panel ── */
+  .dictation-panel {
+    width: 340px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border-std);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-base);
+    padding: var(--sp6);
+    gap: var(--sp4);
+  }
+
+  .panel-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .dictation-textarea {
+    flex: 1;
+    resize: none;
+    border: 1px solid var(--border-std);
+    border-radius: 8px;
+    padding: var(--sp4);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--ink);
+    background: var(--surface-input);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .dictation-textarea:focus {
+    border-color: var(--sage);
+    background: var(--surface-note);
+  }
+
+  .dictation-textarea::placeholder {
+    color: var(--text-muted);
+  }
+
+  .dictation-actions {
+    display: flex;
+    gap: var(--sp2);
+  }
+
+  .btn-record {
+    flex: 1;
+    padding: var(--sp3) var(--sp4);
+    background: var(--surface-sidebar);
+    border: 1px solid var(--border-std);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+    display: flex; align-items: center; justify-content: center;
+    gap: var(--sp2);
+    opacity: 0.7;
+  }
+
+  .record-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  .btn-primary {
+    flex: 2;
+    padding: var(--sp3) var(--sp4);
+    background: var(--sage);
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    gap: var(--sp2);
+    transition: background 0.12s;
+    letter-spacing: -0.1px;
+  }
+
+  .btn-primary:hover { background: var(--sage-dark); }
+
+  /* ── Note Panel ── */
+  .note-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-note);
+    overflow: hidden;
+  }
+
+  .note-header {
+    padding: var(--sp4) var(--sp8);
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .note-title {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    color: var(--text-secondary);
+    letter-spacing: 0.01em;
+  }
+
+  .note-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px var(--sp2);
+    border-radius: 4px;
+    background: var(--amber-light);
+    color: var(--amber);
+    border: 1px solid rgba(196, 147, 90, 0.25);
+  }
+
+  .note-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--sp8) var(--sp8) var(--sp6);
+  }
+
+  /* ── SOAP Sections ── */
+  .soap-section {
+    margin-bottom: var(--sp8);
+  }
+
+  .soap-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: var(--sp3);
+    display: flex;
+    align-items: center;
+    gap: var(--sp3);
+  }
+
+  .soap-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-soft);
+  }
+
+  .soap-label .soap-letter {
+    color: var(--sage);
+    font-size: 11px;
+  }
+
+  .soap-content {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--ink);
+  }
+
+  .soap-content.streaming {
+    color: var(--ink);
+    position: relative;
+  }
+
+  /* Typing cursor */
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 14px;
+    background: var(--sage);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .soap-pending {
+    display: flex;
+    align-items: center;
+    gap: var(--sp2);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-family: var(--font-sans);
+  }
+
+  .pending-dots {
+    display: flex; gap: 3px;
+  }
+
+  .pending-dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  .pending-dot:nth-child(2) { animation-delay: 0.2s; }
+  .pending-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes pulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.9); }
+    40% { opacity: 1; transform: scale(1); }
+  }
+
+  /* ── Note Footer ── */
+  .note-footer {
+    padding: var(--sp4) var(--sp8);
+    border-top: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--surface-note);
+  }
+
+  .note-footer-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .btn-confirm {
+    padding: var(--sp3) var(--sp6);
+    background: var(--ink);
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    display: flex; align-items: center; gap: var(--sp2);
+    transition: background 0.12s;
+    letter-spacing: -0.1px;
+    opacity: 0.5;
+  }
+
+  .btn-confirm:hover { background: #2d2824; }
+
+  /* ── Scrollbars ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-std);
+    border-radius: 3px;
+  }
+
+  /* ── Intake Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(26, 22, 20, 0.4);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(2px);
+  }
+
+  .modal {
+    background: var(--surface-note);
+    border-radius: 12px;
+    border: 1px solid var(--border-std);
+    width: 460px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .modal-header {
+    padding: var(--sp6);
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--ink);
+  }
+
+  .modal-sub {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 3px;
+  }
+
+  .modal-body {
+    padding: var(--sp6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp4);
+    overflow-y: auto;
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp2);
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp3);
+  }
+
+  .field-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+  }
+
+  .field-input {
+    padding: var(--sp2) var(--sp3);
+    background: var(--surface-input);
+    border: 1px solid var(--border-std);
+    border-radius: 6px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.12s;
+  }
+
+  .field-input:focus {
+    border-color: var(--sage);
+    background: var(--surface-note);
+  }
+
+  .field-textarea {
+    resize: none;
+    height: 72px;
+    line-height: 1.5;
+  }
+
+  .modal-footer {
+    padding: var(--sp4) var(--sp6);
+    border-top: 1px solid var(--border-soft);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp2);
+  }
+
+  .btn-modal-primary {
+    padding: var(--sp2) var(--sp5);
+    background: var(--sage);
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .btn-modal-primary:hover { background: var(--sage-dark); }
+
+  .btn-modal-ghost {
+    padding: var(--sp2) var(--sp4);
+    background: transparent;
+    border: 1px solid var(--border-std);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .btn-modal-ghost:hover {
+    background: var(--surface-input);
+    color: var(--ink);
+  }
+
+  /* State: modal hidden */
+  .modal-overlay.hidden { display: none; }
+
+  /* ── Evolución Side Panel ── */
+  .evolucion-panel {
+    width: 320px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border-std);
+    background: var(--surface-sidebar);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .evolucion-panel.hidden { display: none; }
+
+  .evolucion-header {
+    padding: var(--sp4) var(--sp5);
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .evolucion-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .btn-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: all 0.12s;
+  }
+
+  .btn-close:hover {
+    background: var(--surface-input);
+    color: var(--ink);
+  }
+
+  .evolucion-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--sp5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp4);
+  }
+
+  .evolucion-msg {
+    padding: var(--sp3) var(--sp4);
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .evolucion-msg.ai {
+    background: var(--surface-note);
+    border: 1px solid var(--border-soft);
+    color: var(--ink);
+  }
+
+  .evolucion-msg-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sage);
+    margin-bottom: var(--sp2);
+  }
+
+  .evolucion-input-area {
+    padding: var(--sp3) var(--sp5);
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .evolucion-input {
+    width: 100%;
+    padding: var(--sp2) var(--sp3);
+    background: var(--surface-input);
+    border: 1px solid var(--border-std);
+    border-radius: 6px;
+    font-family: var(--font-sans);
+    font-size: 12.5px;
+    color: var(--ink);
+    outline: none;
+    resize: none;
+    height: 60px;
+  }
+
+  /* ── View toggle ── */
+  .view-tabs {
+    display: flex;
+    gap: 0;
+  }
+
+  .view-tab {
+    padding: var(--sp1) var(--sp3);
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border-std);
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .view-tab:first-child { border-radius: 6px 0 0 6px; }
+  .view-tab:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+
+  .view-tab.active {
+    background: var(--surface-input);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* Highlight note states */
+  .soap-section.done .soap-label .soap-letter { color: var(--sage); }
+  .soap-section.streaming .soap-label .soap-letter { color: var(--amber); }
+  .soap-section.waiting .soap-label .soap-letter { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════
+     SIDEBAR
+════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      SyqueX
+    </div>
+  </div>
+
+  <div class="sidebar-section-label">Pacientes</div>
+
+  <div class="patient-list">
+    <div class="patient-item active">
+      <div class="patient-avatar">AG</div>
+      <div class="patient-info">
+        <div class="patient-name">Ana González</div>
+        <div class="patient-meta">Última sesión · hoy</div>
+      </div>
+    </div>
+
+    <div class="patient-item">
+      <div class="patient-avatar">LM</div>
+      <div class="patient-info">
+        <div class="patient-name">Luis Martínez</div>
+        <div class="patient-meta">Última sesión · 24 mar</div>
+      </div>
+    </div>
+
+    <div class="patient-item">
+      <div class="patient-avatar">CR</div>
+      <div class="patient-info">
+        <div class="patient-name">Carmen Rivas</div>
+        <div class="patient-meta">Última sesión · 21 mar</div>
+      </div>
+    </div>
+
+    <div class="patient-item">
+      <div class="patient-avatar">JP</div>
+      <div class="patient-info">
+        <div class="patient-name">Jorge Pérez</div>
+        <div class="patient-meta">Última sesión · 19 mar</div>
+      </div>
+    </div>
+
+    <div class="patient-item">
+      <div class="patient-avatar">MV</div>
+      <div class="patient-info">
+        <div class="patient-name">María Vidal</div>
+        <div class="patient-meta">Última sesión · 17 mar</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <button class="btn-new-patient" onclick="document.querySelector('.modal-overlay').classList.toggle('hidden')">
+      + Nuevo paciente
+    </button>
+  </div>
+</aside>
+
+<!-- ════════════════════════════════
+     MAIN
+════════════════════════════════ -->
+<main class="main">
+
+  <!-- Patient Header -->
+  <div class="patient-header">
+    <div class="patient-header-left">
+      <div class="patient-header-avatar">AG</div>
+      <div>
+        <div class="patient-header-name">Ana González</div>
+        <div class="patient-header-sub">32 años · Ansiedad generalizada · 14 sesiones</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="view-tabs">
+        <button class="view-tab active">Sesión</button>
+        <button class="view-tab">Historial</button>
+      </div>
+      <button class="btn-ghost" onclick="document.querySelector('.evolucion-panel').classList.toggle('hidden')">
+        ↗ Evolución del paciente
+      </button>
+    </div>
+  </div>
+
+  <!-- Session history bar -->
+  <div class="history-bar">
+    <span class="history-label">Sesiones anteriores</span>
+    <div class="session-chip">
+      <span class="session-chip-date">19 mar</span>
+      <span class="session-chip-preview">Trabajo en exposición gradual · bajo estrés laboral</span>
+    </div>
+    <div class="session-chip">
+      <span class="session-chip-date">12 mar</span>
+      <span class="session-chip-preview">Reporta mejoría en sueño · ejercicios de respiración</span>
+    </div>
+    <div class="session-chip">
+      <span class="session-chip-date">5 mar</span>
+      <span class="session-chip-preview">Crisis de ansiedad el martes · reestructuración cognitiva</span>
+    </div>
+    <div class="session-chip">
+      <span class="session-chip-date">26 feb</span>
+      <span class="session-chip-preview">Introducción técnicas de mindfulness</span>
+    </div>
+  </div>
+
+  <!-- Work Area -->
+  <div class="work-area">
+
+    <!-- Dictation Panel -->
+    <div class="dictation-panel">
+      <div class="panel-label">Dictado · Sesión 26 mar 2026</div>
+      <textarea class="dictation-textarea" placeholder="Dicta los puntos clave de la sesión…
+
+La paciente puede referir: cómo se sintió esta semana, eventos importantes, avances o retrocesos, tareas completadas…">La paciente refiere haber tenido una semana difícil por tensiones en el trabajo con su supervisor. Reporta episodios de insomnio los días martes y miércoles. Sin embargo, menciona que utilizó las técnicas de respiración diafragmática y logró calmar la ansiedad en aproximadamente 15 minutos. Se observa postura más abierta que en sesiones previas, contacto visual sostenido. Trabaja en identificar pensamientos automáticos relacionados con el miedo al rechazo. Plan: continuar registro de pensamientos, añadir técnica de defusión cognitiva.</textarea>
+      <div class="dictation-actions">
+        <button class="btn-record">
+          <div class="record-dot"></div>
+          Próximamente
+        </button>
+        <button class="btn-primary">
+          Generar nota →
+        </button>
+      </div>
+    </div>
+
+    <!-- Note Panel -->
+    <div class="note-panel">
+      <div class="note-header">
+        <div class="note-title">Nota clínica · 26 mar 2026</div>
+        <span class="note-badge">Borrador</span>
+      </div>
+
+      <div class="note-body">
+
+        <!-- S — Done -->
+        <div class="soap-section done">
+          <div class="soap-label">
+            <span class="soap-letter">S</span>
+            Subjetivo
+          </div>
+          <div class="soap-content">
+            La paciente refiere una semana de alta tensión laboral relacionada con su supervisor directo. Reporta episodios de insomnio los días martes y miércoles. Describe haber aplicado técnicas de respiración diafragmática durante un episodio de ansiedad, logrando autorregulación en aproximadamente 15 minutos. Expresa sentirse "más en control" comparado con semanas anteriores.
+          </div>
+        </div>
+
+        <!-- O — Done -->
+        <div class="soap-section done">
+          <div class="soap-label">
+            <span class="soap-letter">O</span>
+            Objetivo
+          </div>
+          <div class="soap-content">
+            Se observa postura corporal abierta y contacto visual sostenido durante la sesión. Tono de voz calmado. Afecto congruente con el contenido verbal. Sin signos de agitación psicomotriz. Mayor elaboración verbal respecto a sesiones previas al describir sus estados internos.
+          </div>
+        </div>
+
+        <!-- A — Streaming -->
+        <div class="soap-section streaming">
+          <div class="soap-label">
+            <span class="soap-letter">A</span>
+            Análisis
+          </div>
+          <div class="soap-content streaming">
+            Progreso notable en la aplicación autónoma de estrategias de regulación emocional. El uso exitoso de la respiración diafragmática sugiere consolidación de la habilidad. Persiste el patrón de pensamiento automático vinculado al miedo al rechazo, especialmente en contextos de autoridad<span class="cursor"></span>
+          </div>
+        </div>
+
+        <!-- P — Pending -->
+        <div class="soap-section waiting">
+          <div class="soap-label">
+            <span class="soap-letter">P</span>
+            Plan
+          </div>
+          <div class="soap-pending">
+            <div class="pending-dots">
+              <div class="pending-dot"></div>
+              <div class="pending-dot"></div>
+              <div class="pending-dot"></div>
+            </div>
+            Generando…
+          </div>
+        </div>
+
+      </div>
+
+      <div class="note-footer">
+        <div class="note-footer-meta">Generado por IA · requiere revisión clínica</div>
+        <button class="btn-confirm">
+          Confirmar y guardar →
+        </button>
+      </div>
+    </div>
+
+    <!-- Evolución Panel (hidden by default) -->
+    <div class="evolucion-panel hidden">
+      <div class="evolucion-header">
+        <div class="evolucion-title">Evolución del paciente</div>
+        <button class="btn-close" onclick="document.querySelector('.evolucion-panel').classList.toggle('hidden')">×</button>
+      </div>
+      <div class="evolucion-body">
+        <div class="evolucion-msg ai">
+          <div class="evolucion-msg-label">Análisis IA</div>
+          A lo largo de las últimas 6 sesiones, Ana muestra una tendencia positiva en autorregulación emocional. El insomnio ha disminuido de 4-5 noches a 1-2 noches por semana. El patrón central de miedo al rechazo en contextos de autoridad persiste y es el eje terapéutico principal.
+        </div>
+        <div class="evolucion-msg ai">
+          <div class="evolucion-msg-label">Indicadores</div>
+          <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+            <div style="font-size:12px; color:var(--text-secondary);">
+              <span style="color:var(--sage); font-weight:600;">↑ Regulación emocional</span> — mejora sostenida
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary);">
+              <span style="color:var(--amber); font-weight:600;">→ Sueño</span> — mejora parcial
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary);">
+              <span style="color:var(--text-muted); font-weight:600;">→ Patrón rechazo</span> — en trabajo
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="evolucion-input-area">
+        <textarea class="evolucion-input" placeholder="Pregunta sobre la evolución de Ana…"></textarea>
+      </div>
+    </div>
+
+  </div><!-- /work-area -->
+</main>
+
+<!-- ════════════════════════════════
+     INTAKE MODAL (Nuevo paciente)
+════════════════════════════════ -->
+<div class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Nuevo paciente</div>
+      <div class="modal-sub">Datos básicos — el agente completará el historial clínico durante la primera sesión</div>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">Nombre</label>
+          <input class="field-input" type="text" placeholder="Nombre completo">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Edad</label>
+          <input class="field-input" type="number" placeholder="Años">
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Motivo de consulta</label>
+        <textarea class="field-input field-textarea" placeholder="¿Por qué busca atención psicológica?"></textarea>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Antecedentes relevantes <span style="color:var(--text-muted); font-weight:400;">(opcional)</span></label>
+        <textarea class="field-input field-textarea" placeholder="Diagnósticos previos, tratamientos anteriores, medicación actual…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" onclick="document.querySelector('.modal-overlay').classList.toggle('hidden')">Cancelar</button>
+      <button class="btn-modal-primary" onclick="document.querySelector('.modal-overlay').classList.toggle('hidden')">Crear paciente →</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

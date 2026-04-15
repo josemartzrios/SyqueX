@@ -1,7 +1,19 @@
-import { useState, useEffect, useRef } from 'react'
-import ChatInput from './components/ChatInput'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
-import { processSession, createPatient, getPatientSessions, listConversations, archiveSession } from './api'
+import PatientSidebar from './components/PatientSidebar'
+import PatientHeader from './components/PatientHeader'
+import SoapNoteDocument from './components/SoapNoteDocument'
+import DictationPanel from './components/DictationPanel'
+import NewPatientModal from './components/NewPatientModal'
+import EvolucionPanel from './components/EvolucionPanel'
+import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout } from './api'
+import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
+import LoginScreen from './components/LoginScreen.jsx';
+import RegisterScreen from './components/RegisterScreen.jsx';
+import ForgotPasswordScreen from './components/ForgotPasswordScreen.jsx';
+import ResetPasswordScreen from './components/ResetPasswordScreen.jsx';
+import BillingScreen from './components/BillingScreen.jsx';
+import TrialBanner from './components/TrialBanner.jsx';
 
 // ── Module-level constants ─────────────────────────────────────────────────
 const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
@@ -44,7 +56,7 @@ function ClinicalNote({ text }) {
       const clean = line.replace(/^\*\*/, '').replace(/\*\*$/, '').replace(/^#+\s*/, '');
       result.push(
         <div key={i} className={`${result.length > 0 ? 'mt-5' : ''} mb-2`}>
-          <span className="text-[10px] font-bold text-sage tracking-[0.14em] uppercase">{clean}</span>
+          <span className="font-sans text-[10px] font-bold text-sage tracking-[0.14em] uppercase">{clean}</span>
           <div className="h-px bg-sage/20 mt-1.5" />
         </div>
       );
@@ -79,53 +91,7 @@ function ClinicalNote({ text }) {
     );
   });
 
-  return <div>{result}</div>;
-}
-
-// ── Desktop conversation item ────────────────────────────────────────────────
-function DesktopConvItem({ conv, active, onClick, onDelete }) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const handleDelete = (e) => {
-    e.stopPropagation();
-    if (confirmDelete) {
-      onDelete();
-    } else {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-    }
-  };
-
-  return (
-    <div
-      onClick={onClick}
-      className={`group px-3 py-2.5 mx-2 mb-0.5 rounded-xl cursor-pointer transition-colors relative
-        ${active ? 'bg-sage-light' : 'hover:bg-parchment-dark/70'}`}
-    >
-      <div className="pr-6">
-        <p className={`text-[13px] font-medium truncate leading-snug ${active ? 'text-ink' : 'text-ink-secondary'}`}>
-          {conv.patient_name}
-        </p>
-        <p className="text-[11px] text-ink-tertiary mt-0.5">
-          Sesión #{conv.session_number} · {formatDate(conv.session_date)}
-        </p>
-        {conv.dictation_preview && (
-          <p className="text-[11px] text-ink-muted mt-0.5 line-clamp-1">{conv.dictation_preview}</p>
-        )}
-      </div>
-      <button
-        onClick={handleDelete}
-        title={confirmDelete ? 'Confirmar' : 'Archivar'}
-        className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md transition-all opacity-0 group-hover:opacity-100
-          ${confirmDelete ? 'bg-red-50 text-red-400 !opacity-100' : 'text-ink-muted hover:text-red-400 hover:bg-red-50'}`}
-      >
-        {confirmDelete
-          ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-          : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-        }
-      </button>
-    </div>
-  );
+  return <div className="font-serif">{result}</div>;
 }
 
 function formatDate(dateStr) {
@@ -134,8 +100,25 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('es', { day: '2-digit', month: 'short' });
 }
 
+// ── Helper: mark pending SOAP notes as read-only ────────────────────────────
+export function markPendingNotesReadOnly(messages) {
+  return messages.map(msg =>
+    msg.type === 'bot' && msg.noteData
+      ? { ...msg, readOnly: true }
+      : msg
+  )
+}
+
 // ── App ──────────────────────────────────────────────────────────────────────
+export function toggleExpandedSession(currentId, clickedId) {
+  return currentId === clickedId ? null : clickedId;
+}
+
 function App() {
+  // Estado de pantalla
+  const [authScreen, setAuthScreen] = useState(() => getScreenFromUrl());
+  const [billingStatus, setBillingStatus] = useState(null);
+
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [messages, setMessages] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
@@ -144,7 +127,80 @@ function App() {
   const [newPatientName, setNewPatientName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
+  const [mobileTab, setMobileTab] = useState('dictar');
+  const [sessionHistory, setSessionHistory] = useState([]);
+  const [expandedSessionId, setExpandedSessionId] = useState(null);
+  
+  // Desktop two-mode layout state
+  const [desktopMode, setDesktopMode] = useState('session'); // 'session' | 'review'
+  const [reviewExpandedSessionId, setReviewExpandedSessionId] = useState(null);
+  
+  // Evolución tab state
+  const [evolutionMessages, setEvolutionMessages] = useState(new Map()); // Map<patientId, Message[]>
+  const [evolutionLoading, setEvolutionLoading] = useState(false);
+  const [evolutionSending, setEvolutionSending] = useState(false);
+  const [evolutionError, setEvolutionError] = useState(null);
+  const [patientProfile, setPatientProfile] = useState(null);
+  
+  const evolutionMessagesRef = useRef(evolutionMessages);
+  useEffect(() => { evolutionMessagesRef.current = evolutionMessages; }, [evolutionMessages]);
   const scrollRef = useRef(null);
+  const mobileScrollRef = useRef(null);
+
+  const checkBillingAndRoute = useCallback(async () => {
+    try {
+      const status = await getBillingStatus();
+      setBillingStatus(status);
+      if (status.status === 'trialing' || status.status === 'active') {
+        setAuthScreen({ screen: 'app' });
+      } else {
+        setAuthScreen({ screen: 'billing' });
+      }
+    } catch {
+      setAuthScreen({ screen: 'billing' });
+    }
+  }, []);
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      setAuthScreen({ screen: 'login' });
+    }
+  }
+
+  // Inicializar auth al montar
+  useEffect(() => {
+    setAuthCallbacks({
+      onUnauthorized: () => {
+        clearAccessToken();
+        setAuthScreen({ screen: 'login' });
+      },
+      onPaymentRequired: () => {
+        setAuthScreen({ screen: 'billing' });
+      },
+    });
+
+    async function initAuth() {
+      const { screen } = authScreen;
+      // Si es register o reset-password, no intentar refresh
+      if (screen === 'register' || screen === 'reset-password') return;
+
+      // Intentar refresh silencioso
+      const token = await refreshAccessToken(
+        (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api/v1'
+      );
+
+      if (token) {
+        setAccessToken(token);
+        await checkBillingAndRoute();
+      } else {
+        setAuthScreen({ screen: 'login' });
+      }
+    }
+
+    initAuth();
+  }, []); // solo al montar
 
   const fetchConversations = async () => {
     try {
@@ -158,16 +214,123 @@ function App() {
   const loadPatientChat = (patientId, patientName, history = []) => {
     setSelectedPatientId(patientId);
     setSelectedPatientName(patientName);
+    setMobileTab('dictar');
+    setSessionHistory(history);
+    setExpandedSessionId(null);
+    setDesktopMode('session');
+    setReviewExpandedSessionId(null);
+    // Reset evolution state for new patient (evolutionMessages Map se conserva)
+    setPatientProfile(null);
+    setEvolutionError(null);
+    setEvolutionSending(false);
+
     if (history.length === 0) {
       setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?` }]);
       return;
     }
+
     const historyMessages = [];
     history.forEach(session => {
-      if (session.raw_dictation) historyMessages.push({ role: 'user', text: session.raw_dictation });
-      if (session.ai_response) historyMessages.push({ role: 'assistant', type: 'bot', text: session.ai_response });
+      if (session.raw_dictation) {
+        historyMessages.push({ role: 'user', text: session.raw_dictation });
+      }
+
+      if (session.format === 'chat') {
+        if (session.ai_response) {
+          historyMessages.push({ role: 'assistant', type: 'chat', text: session.ai_response });
+        }
+        return;
+      }
+
+      const hasStructuredNote = session.status === 'confirmed' && session.structured_note;
+      if (hasStructuredNote) {
+        historyMessages.push({
+          role: 'assistant',
+          type: 'bot',
+          noteData: {
+            clinical_note: {
+              structured_note: session.structured_note,
+              detected_patterns: session.detected_patterns || [],
+              alerts: session.alerts || [],
+              session_id: String(session.id),
+            },
+            text_fallback: session.ai_response,
+          },
+          sessionId: String(session.id),
+          readOnly: true,
+        });
+      } else if (session.ai_response) {
+        historyMessages.push({
+          role: 'assistant',
+          type: 'bot',
+          noteData: {
+            clinical_note: null,
+            text_fallback: session.ai_response,
+            session_id: String(session.id),
+          },
+          sessionId: String(session.id),
+          readOnly: false,
+        });
+      }
     });
+
     setMessages(historyMessages);
+  };
+
+  const loadEvolutionChat = async (patientId) => {
+    setEvolutionLoading(true);
+    try {
+      const sessions = await getPatientSessions(patientId, 200);
+      const chatSessions = sessions
+        .filter(s => s.format === 'chat')
+        .sort((a, b) => a.session_number - b.session_number);
+      const messages = [];
+      chatSessions.forEach(s => {
+        messages.push({ role: 'user', content: s.raw_dictation });
+        if (s.ai_response) messages.push({ role: 'agent', content: s.ai_response });
+      });
+      setEvolutionMessages(prev => new Map(prev).set(patientId, messages));
+    } catch (err) {
+      console.error('Error loading evolution chat:', err);
+      setEvolutionMessages(prev => new Map(prev).set(patientId, []));
+    } finally {
+      setEvolutionLoading(false);
+    }
+  };
+
+  const loadPatientProfile = async (patientId) => {
+    try {
+      const profile = await getPatientProfile(patientId);
+      setPatientProfile(profile);
+    } catch (err) {
+      console.error('Error loading patient profile:', err);
+      setPatientProfile(null);
+    }
+  };
+
+  const handleEvolutionSend = async (text) => {
+    if (!selectedPatientId || !text.trim()) return;
+    const patientId = selectedPatientId;
+
+    // Optimistic user append
+    setEvolutionMessages(prev => {
+      const current = prev.get(patientId) || [];
+      return new Map(prev).set(patientId, [...current, { role: 'user', content: text }]);
+    });
+    setEvolutionSending(true);
+    setEvolutionError(null);
+
+    try {
+      const response = await processSession(patientId, text, 'chat');
+      setEvolutionMessages(prev => {
+        const current = prev.get(patientId) || [];
+        return new Map(prev).set(patientId, [...current, { role: 'agent', content: response.text_fallback || '' }]);
+      });
+    } catch (err) {
+      setEvolutionError('No se pudo enviar. Intenta de nuevo.');
+    } finally {
+      setEvolutionSending(false);
+    }
   };
 
   const handleSelectConversation = async (conv) => {
@@ -179,10 +342,10 @@ function App() {
     }
   };
 
-  const handleDeleteConversation = async (sessionId) => {
+  const handleDeleteConversation = async (sessionId, patientId) => {
     try {
-      await archiveSession(sessionId);
-      setConversations(prev => prev.filter(c => c.id !== sessionId));
+      if (patientId) await archivePatientSessions(patientId);
+      setConversations(prev => prev.filter(c => c.patient_id !== patientId));
     } catch (err) {
       console.error("Error archiving conversation:", err);
     }
@@ -195,10 +358,39 @@ function App() {
       setIsCreatingPatient(false);
       setNewPatientName("");
       loadPatientChat(resp.id, newPatientName);
-      fetchConversations();
+      setConversations(prev => [{
+        id: null,
+        patient_id: String(resp.id),
+        patient_name: newPatientName,
+        session_number: null,
+        session_date: null,
+        dictation_preview: null,
+        status: null,
+        message_count: 0,
+      }, ...prev]);
     } catch (err) {
       alert("Error al crear paciente: " + err.message);
     }
+  };
+
+  // Callback for NewPatientModal
+  const handleModalPatientCreated = (patient) => {
+    setIsCreatingPatient(false);
+    loadPatientChat(patient.id, patient.name);
+    setConversations(prev => [{
+      id: null,
+      patient_id: String(patient.id),
+      patient_name: patient.name,
+      session_number: null,
+      session_date: null,
+      dictation_preview: null,
+      status: null,
+      message_count: 0,
+    }, ...prev]);
+  };
+
+  const handleToggleSession = (sessionId) => {
+    setExpandedSessionId(prev => toggleExpandedSession(prev, sessionId));
   };
 
   useEffect(() => { fetchConversations(); }, []);
@@ -207,18 +399,48 @@ function App() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
+  useEffect(() => {
+    if (mobileScrollRef.current) mobileScrollRef.current.scrollTop = mobileScrollRef.current.scrollHeight;
+  }, [messages]);
+
+  useEffect(() => {
+    if (mobileTab === 'evolucion' && selectedPatientId) {
+      if (!evolutionMessagesRef.current.has(selectedPatientId)) {
+        loadEvolutionChat(selectedPatientId);
+      }
+      if (!patientProfile) {
+        loadPatientProfile(selectedPatientId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobileTab, selectedPatientId]);
+
+  // Desktop: lazy load evolution cuando se activa modo Revisión
+  useEffect(() => {
+    if (desktopMode === 'review' && selectedPatientId) {
+      if (!evolutionMessagesRef.current.has(selectedPatientId)) {
+        loadEvolutionChat(selectedPatientId);
+      }
+      if (!patientProfile) {
+        loadPatientProfile(selectedPatientId);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desktopMode, selectedPatientId]);
+
   const handleSendDictation = async (dictation, format) => {
     setMessages(prev => [
-      ...prev,
+      ...markPendingNotesReadOnly(prev),
       { role: 'user', text: dictation },
       { role: 'assistant', type: 'loading' }
     ]);
+    if (format === 'SOAP') setMobileTab('nota');
     try {
       const noteData = await processSession(selectedPatientId, dictation, format);
-      setMessages(prev => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', type: 'bot', text: noteData.text_fallback || "Sin respuesta recibida.", sessionId: noteData.session_id }
-      ]);
+      const botMessage = format === 'SOAP'
+        ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
+        : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
+      setMessages(prev => [...prev.slice(0, -1), botMessage]);
       fetchConversations();
     } catch (err) {
       setMessages(prev => [
@@ -228,11 +450,70 @@ function App() {
     }
   };
 
+
   const isLoading = messages[messages.length - 1]?.type === 'loading';
   const hasActivePatient = !!selectedPatientId;
+  const soapSessions = sessionHistory.filter(s => s.format !== 'chat');
+
+  // Derive the latest note message for the note panel
+  const latestNoteMsg = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.type === 'loading' || (m.type === 'bot' && m.noteData) || m.type === 'error') return m;
+    }
+    return null;
+  })();
+
+  // Screen manager — antes del return principal
+  if (authScreen.screen === 'loading') {
+    return (
+      <div className="min-h-screen bg-parchment flex items-center justify-center">
+        <div className="text-ink-tertiary text-sm">Cargando…</div>
+      </div>
+    );
+  }
+  if (authScreen.screen === 'login') {
+    return <LoginScreen
+      onSuccess={() => checkBillingAndRoute()}
+      onRegister={() => { navigateTo('/registro'); setAuthScreen({ screen: 'register' }); }}
+      onForgotPassword={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
+    />;
+  }
+  if (authScreen.screen === 'register') {
+    return <RegisterScreen
+      onSuccess={() => checkBillingAndRoute()}
+      onLogin={() => { navigateTo('/'); setAuthScreen({ screen: 'login' }); }}
+    />;
+  }
+  if (authScreen.screen === 'forgot-password') {
+    return <ForgotPasswordScreen
+      onBack={() => { navigateTo('/'); setAuthScreen({ screen: 'login' }); }}
+    />;
+  }
+  if (authScreen.screen === 'reset-password') {
+    return <ResetPasswordScreen
+      resetToken={authScreen.resetToken}
+      onSuccess={() => checkBillingAndRoute()}
+      onInvalidToken={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
+    />;
+  }
+  if (authScreen.screen === 'billing') {
+    return <BillingScreen
+      onActivated={() => checkBillingAndRoute()}
+    />;
+  }
 
   return (
-    <div className="h-screen bg-parchment font-sans flex flex-col overflow-hidden">
+    <div className="h-screen bg-white font-sans flex flex-col overflow-hidden">
+      {billingStatus?.status === 'trialing' && billingStatus?.days_remaining != null && (
+        <TrialBanner
+          daysRemaining={billingStatus.days_remaining}
+          onActivate={async () => {
+            const { checkout_url } = await createCheckout();
+            window.location.href = checkout_url;
+          }}
+        />
+      )}
 
       {/* Disclaimer modal */}
       {showDisclaimer && (
@@ -263,196 +544,389 @@ function App() {
         conversations={conversations}
         onSelectConversation={handleSelectConversation}
         onDeleteConversation={handleDeleteConversation}
+        onLogout={handleLogout}
       />
 
-      {/* Main layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* ── DESKTOP LAYOUT (md+) ── */}
+      <div className="hidden md:flex flex-1 overflow-hidden">
 
-        {/* Desktop persistent left panel */}
-        <aside className="hidden md:flex w-60 flex-col border-r border-ink/[0.07] bg-white/40 flex-shrink-0">
-          <div className="px-4 py-4 border-b border-ink/[0.07] flex items-center justify-between flex-shrink-0">
-            <span className="font-semibold text-ink text-[15px] tracking-tight">SyqueX</span>
-            <span className="text-[10px] text-ink-tertiary font-mono">v1.2</span>
-          </div>
-          <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-tertiary font-bold">Sesiones</span>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {conversations.length === 0 ? (
-              <div className="px-4 py-6 text-center">
-                <p className="text-ink-tertiary text-[13px]">Sin sesiones aún.</p>
-                <p className="text-ink-muted text-xs mt-1">Crea un paciente para comenzar.</p>
-              </div>
-            ) : (
-              conversations.map(conv => (
-                <DesktopConvItem
-                  key={conv.id}
-                  conv={conv}
-                  active={conv.patient_id === selectedPatientId}
-                  onClick={() => handleSelectConversation(conv)}
-                  onDelete={() => handleDeleteConversation(conv.id)}
-                />
-              ))
-            )}
-          </div>
-        </aside>
+        {/* Left sidebar — patient list */}
+        <PatientSidebar
+          conversations={conversations}
+          selectedPatientId={selectedPatientId}
+          onSelectConversation={handleSelectConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onNewPatient={() => setIsCreatingPatient(true)}
+          isCreatingPatient={isCreatingPatient}
+          newPatientName={newPatientName}
+          onNewPatientNameChange={(e) => setNewPatientName(e.target.value)}
+          onSavePatient={handleSavePatient}
+          onCancelNewPatient={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
+          onLogout={handleLogout}
+        />
 
-        {/* Right workspace */}
+        {/* Right work area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-          {/* Top bar */}
-          <header className="px-3 sm:px-5 py-3 border-b border-ink/[0.07] bg-white/60 backdrop-blur z-20 flex items-center justify-between gap-3 flex-shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Mobile menu */}
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="md:hidden p-2 rounded-lg text-ink-secondary hover:text-ink hover:bg-ink/[0.05] transition-colors flex-shrink-0"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              {/* Logo — mobile only */}
-              <span className="md:hidden font-semibold text-ink text-[15px] tracking-tight">SyqueX</span>
-              {/* Patient breadcrumb — desktop */}
-              {selectedPatientName && (
-                <div className="hidden md:flex items-center gap-2">
-                  <span className="text-ink-muted text-[13px]">/</span>
-                  <span className="text-ink text-[14px] font-medium">{selectedPatientName}</span>
-                </div>
-              )}
-            </div>
+          {/* Patient header */}
+          <PatientHeader
+            patientName={hasActivePatient ? selectedPatientName : null}
+            sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+            mode={desktopMode}
+            onModeChange={hasActivePatient ? setDesktopMode : undefined}
+          />
 
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Mobile patient badge */}
-              {selectedPatientName && (
-                <div className="md:hidden flex items-center gap-1.5 bg-parchment-dark border border-ink/[0.08] rounded-full px-3 py-1.5 min-w-0 max-w-[140px]">
-                  <span className="text-ink-secondary text-[12px] font-medium truncate">{selectedPatientName}</span>
-                </div>
-              )}
+          {/* Content area */}
+          {!hasActivePatient ? (
+            EMPTY_STATE
+          ) : (
+            /* Split: Dictation (320px) | Note (flex) */
+            <div className="flex-1 flex overflow-hidden min-h-0">
+              {desktopMode === 'session' ? (
+                <>
+                  {/* Left: Dictation panel */}
+                  <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
+                    <DictationPanel
+                      onGenerate={(d) => handleSendDictation(d, 'SOAP')}
+                      loading={isLoading}
+                    />
 
-              {isCreatingPatient ? (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    autoFocus
-                    type="text"
-                    placeholder="Nombre del paciente..."
-                    className="bg-parchment border border-ink/[0.15] rounded-full px-3 py-1.5 text-sm text-ink placeholder-ink-tertiary focus:outline-none focus:border-sage/60 transition-all w-36 sm:w-52"
-                    value={newPatientName}
-                    onChange={(e) => setNewPatientName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSavePatient()}
-                  />
-                  <button onClick={handleSavePatient} className="text-sage hover:text-sage-dark p-1.5 flex-shrink-0">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
-                  </button>
-                  <button onClick={() => { setIsCreatingPatient(false); setNewPatientName(""); }} className="text-ink-tertiary hover:text-ink-secondary p-1.5 flex-shrink-0">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsCreatingPatient(true)}
-                  className="flex items-center gap-1.5 text-sage hover:text-sage-dark border border-sage/30 hover:border-sage/60 bg-sage-light/50 hover:bg-sage-light rounded-full px-3 py-1.5 transition-all text-[13px] font-medium flex-shrink-0"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
-                  <span className="hidden sm:inline">Nuevo paciente</span>
-                </button>
-              )}
-            </div>
-          </header>
-
-          {/* Workspace */}
-          <main className="flex-1 flex flex-col relative min-h-0 overflow-hidden">
-
-            {/* Empty state */}
-            {!hasActivePatient && EMPTY_STATE}
-
-            {/* Message feed */}
-            {hasActivePatient && (
-              <div ref={scrollRef} className="flex-1 overflow-y-auto w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-7 pb-10">
-                {messages.map((msg, idx) => (
-                  <div key={idx} className="w-full">
-
-                    {msg.role === 'user' && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-2.5">
-                          <span className="text-[10px] uppercase tracking-[0.13em] text-ink-tertiary font-bold">Dictado</span>
-                          <div className="flex-1 h-px bg-ink/[0.06]" />
-                        </div>
-                        <p className="text-ink-secondary text-[14px] leading-relaxed pl-3 border-l-2 border-parchment-dark whitespace-pre-wrap">{msg.text}</p>
-                      </div>
-                    )}
-
-                    {msg.role === 'assistant' && (
-                      <div>
-                        {msg.type === 'welcome' && (
-                          <p className="text-ink-secondary text-[15px] leading-relaxed">
-                            {msg.text}
-                            <span className="inline-block w-1.5 h-1.5 bg-sage rounded-full animate-pulse ml-2 mb-0.5 align-middle"></span>
-                          </p>
-                        )}
-
-                        {msg.type === 'loading' && LOADING_DOTS}
-
-                        {msg.type === 'error' && (
-                          <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                            <strong className="font-medium">Error:</strong> {msg.text}
-                          </div>
-                        )}
-
-                        {msg.type === 'bot' && (
-                          <div className="w-full">
-                            {/* Clinical note document */}
-                            <div className="bg-white border border-ink/[0.07] rounded-2xl p-5 sm:p-6">
-                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-ink/[0.06]">
-                                <span className="text-[10px] uppercase tracking-[0.14em] text-sage font-bold">Nota Clínica · SOAP</span>
-                                <span className="text-[11px] text-ink-tertiary font-mono">
-                                  {new Date().toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                </span>
-                              </div>
-                              <ClinicalNote text={msg.text} />
-                            </div>
-                            {/* Actions */}
-                            <div className="flex gap-2 mt-3 pl-1">
-                              <button
-                                onClick={() => {
-                                  const blob = new Blob([msg.text], { type: 'text/plain' });
-                                  const url = URL.createObjectURL(blob);
-                                  const link = document.createElement('a');
-                                  link.href = url;
-                                  link.download = `SyqueX_Nota_${new Date().toISOString().split('T')[0]}.txt`;
-                                  link.click();
-                                  URL.revokeObjectURL(url);
-                                }}
-                                className="text-[12px] font-medium text-ink-secondary hover:text-ink border border-ink/[0.10] hover:border-ink/20 bg-parchment hover:bg-parchment-dark py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-colors"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                Descargar .TXT
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
-                ))}
-              </div>
-            )}
 
-            {/* Dictation input */}
-            {hasActivePatient && (
-              <div className="px-3 sm:px-6 pb-5 sm:pb-6 pt-2 bg-gradient-to-t from-parchment via-parchment/95 to-transparent z-20 flex-shrink-0">
-                <div className="max-w-2xl mx-auto">
-                  <ChatInput onSend={handleSendDictation} loading={isLoading} />
-                  <p className="text-center mt-3 text-[10px] text-ink-muted tracking-wide">
-                    SyqueX Clinical AI puede cometer errores. El contenido debe ser revisado por el profesional.
-                  </p>
-                </div>
-              </div>
-            )}
-          </main>
+                  {/* Right: Note panel */}
+                  <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-7 bg-white">
+                    {latestNoteMsg === null ? (
+                      <div className="h-full flex flex-col items-center justify-center gap-4">
+                        <svg
+                          className="w-8 h-8 text-gray-200"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="1.5"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="h-2 w-32 bg-gray-100 rounded-full" />
+                          <div className="h-2 w-24 bg-gray-100 rounded-full" />
+                          <div className="h-2 w-28 bg-gray-100 rounded-full" />
+                        </div>
+                      </div>
+                    ) : latestNoteMsg.type === 'loading' ? (
+                      <div className="flex items-center gap-3 py-6">
+                        {LOADING_DOTS}
+                        <span className="text-ink-tertiary text-[14px]">Generando nota SOAP…</span>
+                      </div>
+                    ) : latestNoteMsg.type === 'error' ? (
+                      <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                        <strong className="font-medium">Error:</strong> {latestNoteMsg.text}
+                      </div>
+                    ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                      <SoapNoteDocument
+                        noteData={latestNoteMsg.noteData}
+                        onConfirm={fetchConversations}
+                        readOnly={latestNoteMsg.readOnly}
+                      />
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Mode: Review */}
+                  {/* Left: Historial (380px wide in Review mode) */}
+                  <div className="w-[380px] flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2] overflow-y-auto px-5 py-6">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-4 px-2">Historial de Notas</p>
+                    <div className="space-y-3">
+                      {soapSessions.length === 0 ? (
+                        <p className="text-ink-tertiary text-xs px-2 italic">Sin notas SOAP registradas.</p>
+                      ) : (
+                        soapSessions.map((s, i) => {
+                          const isExpanded = reviewExpandedSessionId === String(s.id);
+                          const hasNote = s.status === 'confirmed' && s.structured_note;
+                          return (
+                            <div
+                              key={s.id || i}
+                              className={`rounded-xl overflow-hidden transition-all duration-200 ${
+                                isExpanded ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25' : 'bg-[#f4f4f2]'
+                              }`}
+                            >
+                              <div
+                                className="px-3 py-3 flex items-start gap-3 cursor-pointer group"
+                                onClick={() => hasNote && setReviewExpandedSessionId(toggleExpandedSession(reviewExpandedSessionId, String(s.id)))}
+                              >
+                                <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[13px] font-semibold text-ink">Sesión #{s.session_number || (soapSessions.length - i)}</p>
+                                    <span className="text-[11px] text-ink-tertiary font-medium">{formatDate(s.session_date)}</span>
+                                  </div>
+                                  {!isExpanded && s.raw_dictation && (
+                                    <>
+                                      <p className="text-[11px] text-ink-muted line-clamp-2 mt-0.5 leading-relaxed">
+                                        {s.raw_dictation}
+                                      </p>
+                                      <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${
+                                        s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'
+                                      }`}>
+                                        {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                                {hasNote && (
+                                  <svg
+                                    className={`w-4 h-4 mt-0.5 text-ink-tertiary group-hover:text-ink-secondary transition-transform duration-200 ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : ''}`}
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                )}
+                              </div>
+                              {isExpanded && hasNote && (
+                                <div className="bg-white border-t border-ink/[0.04]">
+                                  <SoapNoteDocument
+                                    noteData={{
+                                      clinical_note: {
+                                        structured_note: s.structured_note,
+                                        detected_patterns: s.detected_patterns || [],
+                                        alerts: s.alerts || [],
+                                        session_id: String(s.id),
+                                      },
+                                      text_fallback: s.ai_response,
+                                    }}
+                                    readOnly
+                                    compact
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Evolution Area */}
+                  <div className="flex-1 flex flex-col bg-white overflow-hidden">
+                    <EvolucionPanel
+                      patient={{ id: selectedPatientId, name: selectedPatientName }}
+                      messages={evolutionMessages.get(selectedPatientId) || []}
+                      profile={patientProfile}
+                      loading={evolutionLoading}
+                      onSend={handleEvolutionSend}
+                      sending={evolutionSending}
+                      error={evolutionError}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ── MOBILE LAYOUT (<md) ── */}
+      <div className="md:hidden flex-1 flex flex-col overflow-hidden">
+
+        {/* Mobile top bar */}
+        <header className="px-4 py-3 border-b border-ink/[0.07] bg-white flex items-center justify-between gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 rounded-lg text-ink-secondary hover:text-ink hover:bg-ink/[0.05] transition-colors flex-shrink-0"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">SyqueX</span>
+          </div>
+          <button
+            onClick={() => setIsCreatingPatient(true)}
+            className="flex items-center gap-1.5 text-[#5a9e8a] border border-[#5a9e8a]/30 bg-[#5a9e8a]/[0.06] rounded-full px-3 py-1.5 text-[13px] font-medium"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            Nuevo
+          </button>
+        </header>
+
+        {/* No patient selected — empty state */}
+        {!hasActivePatient && EMPTY_STATE}
+
+        {/* Patient active — strip + tabs */}
+        {hasActivePatient && (
+          <div className="flex flex-col flex-1 min-h-0">
+
+            {/* Patient strip */}
+            <PatientHeader
+              patientName={selectedPatientName}
+              sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+              compact
+            />
+
+            {/* Tab nav */}
+            <div className="flex border-b border-ink/[0.07] bg-white flex-shrink-0">
+              {['dictar', 'nota', 'historial', 'evolucion'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setMobileTab(tab)}
+                  className={`flex-1 py-3 text-[12px] font-medium capitalize transition-colors border-b-2 ${
+                    mobileTab === tab
+                      ? 'border-[#5a9e8a] text-[#5a9e8a]'
+                      : 'border-transparent text-ink-secondary hover:text-ink'
+                  }`}
+                >
+                  {tab === 'dictar' ? 'Dictar'
+                    : tab === 'nota' ? 'Nota'
+                    : tab === 'historial' ? 'Historial'
+                    : 'Evolución'}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab: Dictar */}
+            {mobileTab === 'dictar' && (
+              <div className="flex flex-col flex-1 min-h-0 bg-[#f4f4f2]">
+                <DictationPanel
+                  onGenerate={(d) => handleSendDictation(d, 'SOAP')}
+                  loading={isLoading}
+                />
+              </div>
+            )}
+
+            {/* Tab: Nota */}
+            {mobileTab === 'nota' && (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div ref={mobileScrollRef} className="flex-1 overflow-y-auto px-4 py-5">
+                  {latestNoteMsg === null ? (
+                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
+                      Dicta una sesión para generar la nota SOAP.
+                    </p>
+                  ) : latestNoteMsg.type === 'loading' ? (
+                    <div className="flex gap-2 items-center py-4">
+                      {[0, 0.2, 0.4].map((d, i) => (
+                        <div key={i} className="w-2 h-2 rounded-full bg-ink-muted animate-pulse" style={{ animationDelay: `${d}s` }} />
+                      ))}
+                      <span className="text-ink-tertiary text-sm">Generando nota…</span>
+                    </div>
+                  ) : latestNoteMsg.type === 'error' ? (
+                    <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                      <strong>Error:</strong> {latestNoteMsg.text}
+                    </div>
+                  ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                    <SoapNoteDocument
+                      noteData={latestNoteMsg.noteData}
+                      onConfirm={fetchConversations}
+                      readOnly={latestNoteMsg.readOnly}
+                    />
+                  ) : (
+                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
+                      Dicta una sesión para generar la nota SOAP.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Historial */}
+            {mobileTab === 'historial' && (
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                {soapSessions.length === 0 ? (
+                    <p className="text-ink-tertiary text-[14px] text-center mt-10">Sin sesiones registradas aún.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {soapSessions.map((s, i) => {
+                        const isExpanded = expandedSessionId === String(s.id);
+                        const hasNote = s.status === 'confirmed' && s.structured_note;
+                        return (
+                          <div
+                            key={s.id || i}
+                            className={`rounded-xl overflow-hidden transition-all ${
+                              isExpanded
+                                ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25'
+                                : 'bg-[#f4f4f2]'
+                            }`}
+                          >
+                            <div
+                              className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-black/[0.02] transition-colors"
+                              onClick={() => hasNote && handleToggleSession(String(s.id))}
+                            >
+                              <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-medium text-ink">
+                                  Sesión #{s.session_number || (soapSessions.length - i)} · {formatDate(s.session_date)}
+                                </p>
+                                {s.raw_dictation && (
+                                  <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
+                                )}
+                                <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'}`}>
+                                  {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                                </span>
+                              </div>
+                              {hasNote && (
+                                <svg
+                                  className={`w-4 h-4 mt-1 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : 'text-[#9ca3af]'}`}
+                                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9l6 6 6-6" />
+                                </svg>
+                              )}
+                            </div>
+                            {isExpanded && hasNote && (
+                              <div className="border-t border-ink/[0.06]">
+                                <SoapNoteDocument
+                                  noteData={{
+                                    clinical_note: {
+                                      structured_note: s.structured_note,
+                                      detected_patterns: s.detected_patterns || [],
+                                      alerts: s.alerts || [],
+                                      session_id: String(s.id),
+                                    },
+                                    text_fallback: s.ai_response,
+                                  }}
+                                  readOnly
+                                  compact
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+              </div>
+            )}
+
+            {/* Tab: Evolución */}
+            {mobileTab === 'evolucion' && (
+              <EvolucionPanel
+                patient={{ id: selectedPatientId, name: selectedPatientName }}
+                messages={evolutionMessages.get(selectedPatientId) || []}
+                profile={patientProfile}
+                loading={evolutionLoading}
+                onSend={handleEvolutionSend}
+                sending={evolutionSending}
+                error={evolutionError}
+              />
+            )}
+
+          </div>
+        )}
+      </div>
+
+      {/* NewPatientModal — shared between desktop + mobile */}
+      <NewPatientModal
+        open={isCreatingPatient}
+        onClose={() => setIsCreatingPatient(false)}
+        onCreated={handleModalPatientCreated}
+      />
+
     </div>
   );
 }
