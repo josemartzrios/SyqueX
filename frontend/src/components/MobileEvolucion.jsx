@@ -45,7 +45,7 @@ export default function MobileEvolucion({ messages, patientName, onSendChat, loa
           <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-sage-dark mb-1.5">
             Resumen del paciente
           </p>
-          <p className="text-[13px] leading-relaxed text-ink" style={{ fontFamily: 'Georgia, serif' }}>
+          <p className="font-serif text-[13px] leading-relaxed text-ink">
             {summary}
           </p>
         </div>
@@ -54,7 +54,7 @@ export default function MobileEvolucion({ messages, patientName, onSendChat, loa
           <p className="text-[10px] font-bold uppercase tracking-[0.09em] text-sage-dark mb-1.5">
             Resumen del paciente
           </p>
-          <p className="text-[13px] text-ink-tertiary italic" style={{ fontFamily: 'Georgia, serif' }}>
+          <p className="font-serif text-[13px] text-ink-tertiary italic">
             Confirma la primera nota para ver el resumen clínico.
           </p>
         </div>
