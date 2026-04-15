@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SyqueX v2 — Mobile</title>
+<style>
+  :root {
+    --surface-base:    #ffffff;
+    --surface-sheet:   #f4f4f2;
+    --surface-input:   #ebebе9;
+    --surface-hover:   #eeeeec;
+
+    --border-soft:     rgba(0,0,0,0.06);
+    --border-std:      rgba(0,0,0,0.10);
+
+    --ink:             #18181b;
+    --text-secondary:  #52525b;
+    --text-tertiary:   #71717a;
+    --text-muted:      #a1a1aa;
+
+    --sage:            #5a9e8a;
+    --sage-light:      #eaf4f0;
+    --sage-dark:       #3d7a68;
+    --amber:           #c4935a;
+    --amber-light:     #fdf3e7;
+    --red:             #dc2626;
+
+    --font-sans:  -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-serif: 'Georgia', 'Times New Roman', serif;
+
+    --sp1:4px; --sp2:8px; --sp3:12px; --sp4:16px;
+    --sp5:20px; --sp6:24px;
+  }
+
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+
+  body {
+    font-family: var(--font-sans);
+    background: #e8e8e6;
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 32px 16px;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  /* Phone frame */
+  .phone {
+    width: 375px;
+    height: 812px;
+    background: var(--surface-base);
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.08);
+  }
+
+  .phone-label {
+    width: 375px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #71717a;
+    margin-bottom: 10px;
+  }
+
+  /* Status bar */
+  .status-bar {
+    height: 44px;
+    padding: 14px var(--sp6) 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--surface-base);
+  }
+
+  .status-time { font-size: 15px; font-weight: 600; }
+
+  .status-icons {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 12px; color: var(--ink);
+  }
+
+  /* Nav header */
+  .nav-header {
+    padding: var(--sp3) var(--sp5);
+    border-bottom: 1px solid var(--border-std);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--surface-base);
+  }
+
+  .nav-back {
+    display: flex; align-items: center; gap: 3px;
+    color: var(--sage); font-size: 15px; font-weight: 500;
+    background: none; border: none; cursor: pointer; padding: 4px 0;
+  }
+
+  .nav-title {
+    font-size: 16px; font-weight: 600; letter-spacing: -0.3px;
+  }
+
+  .nav-action {
+    background: none; border: none;
+    color: var(--sage); font-size: 14px; font-weight: 500;
+    cursor: pointer;
+  }
+
+  /* Patient info strip */
+  .patient-strip {
+    padding: var(--sp3) var(--sp5);
+    background: var(--surface-sheet);
+    border-bottom: 1px solid var(--border-soft);
+    display: flex; align-items: center;
+    flex-shrink: 0;
+  }
+
+  .ps-left { display: flex; align-items: center; gap: var(--sp3); }
+
+  .ps-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--sage);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: white;
+    flex-shrink: 0;
+  }
+
+  .ps-name { font-size: 14px; font-weight: 600; }
+  .ps-sub  { font-size: 11px; color: var(--text-tertiary); }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-std);
+    flex-shrink: 0;
+    background: var(--surface-base);
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: var(--sp3) 0;
+    background: none; border: none;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+
+  .tab-btn.active {
+    color: var(--sage);
+    border-bottom-color: var(--sage);
+    font-weight: 600;
+  }
+
+  /* Scrollable content area */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* History chips */
+  .history-scroll {
+    padding: var(--sp3) var(--sp5);
+    display: flex; gap: var(--sp2);
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border-soft);
+    background: var(--surface-base);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .history-scroll::-webkit-scrollbar { display: none; }
+
+  .h-chip {
+    display: flex; flex-direction: column;
+    padding: var(--sp2) var(--sp3);
+    background: var(--surface-sheet);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    flex-shrink: 0; cursor: pointer;
+    min-width: 120px;
+    transition: all 0.1s;
+  }
+
+  .h-chip:active { background: var(--surface-hover); }
+  .h-chip-date { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+  .h-chip-prev { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 130px; }
+
+  /* Dictation */
+  .dictation-section {
+    padding: var(--sp5);
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .section-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: var(--sp3);
+  }
+
+  .textarea {
+    width: 100%;
+    height: 130px;
+    resize: none;
+    border: 1px solid var(--border-std);
+    border-radius: 10px;
+    padding: var(--sp3) var(--sp4);
+    font-family: var(--font-sans);
+    font-size: 14px; line-height: 1.6;
+    color: var(--ink);
+    background: #f9f9f8;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .textarea:focus { border-color: var(--sage); background: white; }
+  .textarea::placeholder { color: var(--text-muted); }
+
+  /* Action buttons */
+  .action-row {
+    padding: var(--sp4) var(--sp5);
+    display: flex; gap: var(--sp3);
+    border-top: 1px solid var(--border-soft);
+    background: white;
+    flex-shrink: 0;
+  }
+
+  .btn-mic {
+    flex: 1;
+    padding: var(--sp3);
+    background: var(--surface-sheet);
+    border: 1px solid var(--border-std);
+    border-radius: 10px;
+    font-size: 12px; font-weight: 500;
+    color: var(--text-muted);
+    cursor: not-allowed;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    opacity: 0.6;
+  }
+
+  .btn-gen {
+    flex: 2;
+    padding: var(--sp3);
+    background: var(--sage);
+    border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 600;
+    color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: background 0.1s;
+  }
+
+  .btn-gen:active { background: var(--sage-dark); }
+
+  /* ── VIEW: Nota ── */
+  .note-section { padding: var(--sp5); }
+
+  .note-header-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: var(--sp5);
+  }
+
+  .note-date-label {
+    font-family: var(--font-serif);
+    font-size: 13px; color: var(--text-secondary);
+  }
+
+  .badge {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 4px;
+    background: var(--amber-light); color: var(--amber);
+    border: 1px solid rgba(196,147,90,0.2);
+  }
+
+  .soap-block { margin-bottom: var(--sp6); }
+
+  .soap-row {
+    display: flex; align-items: center; gap: var(--sp3);
+    margin-bottom: var(--sp3);
+  }
+
+  .soap-letter-badge {
+    width: 22px; height: 22px;
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+
+  .done-badge   { background: var(--sage-light); color: var(--sage-dark); }
+  .active-badge { background: var(--amber-light); color: var(--amber); }
+  .wait-badge   { background: var(--surface-sheet); color: var(--text-muted); }
+
+  .soap-section-name {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.10em; text-transform: uppercase;
+    color: var(--text-muted); flex: 1;
+  }
+
+  .soap-content {
+    font-family: var(--font-serif);
+    font-size: 14px; line-height: 1.8; color: var(--ink);
+    padding-left: 0;
+  }
+
+  .cursor {
+    display: inline-block; width: 2px; height: 14px;
+    background: var(--amber); margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .pending-row {
+    display: flex; align-items: center; gap: var(--sp2);
+    color: var(--text-muted); font-size: 13px;
+  }
+
+  .dots { display: flex; gap: 3px; }
+  .dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--text-muted);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse { 0%,80%,100%{opacity:0.3;transform:scale(0.9)} 40%{opacity:1;transform:scale(1)} }
+
+  /* Confirm button sticky */
+  .confirm-bar {
+    padding: var(--sp4) var(--sp5);
+    border-top: 1px solid var(--border-soft);
+    background: white;
+    flex-shrink: 0;
+  }
+
+  .btn-confirm {
+    width: 100%;
+    padding: var(--sp4);
+    background: var(--ink);
+    border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 600;
+    color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background 0.1s;
+    opacity: 0.45;
+  }
+
+  /* ── VIEW: Evolución ── */
+  .evolucion-summary {
+    padding: var(--sp4) var(--sp5);
+    background: var(--sage-light);
+    border-bottom: 1px solid rgba(90,158,138,0.15);
+    flex-shrink: 0;
+  }
+
+  .evolucion-summary-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--sage-dark); margin-bottom: var(--sp2);
+  }
+
+  .evolucion-summary-text {
+    font-family: var(--font-serif);
+    font-size: 13px; line-height: 1.7; color: var(--ink);
+  }
+
+  .quick-chips-section {
+    padding: var(--sp3) var(--sp5) var(--sp4);
+    border-bottom: 1px solid var(--border-soft);
+    background: var(--surface-base);
+    flex-shrink: 0;
+  }
+
+  .quick-chips-label {
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: var(--sp2);
+  }
+
+  .quick-chips {
+    display: flex; flex-wrap: wrap; gap: var(--sp2);
+  }
+
+  .quick-chip {
+    padding: 6px var(--sp3);
+    background: white;
+    border: 1px solid rgba(90,158,138,0.3);
+    border-radius: 20px;
+    font-size: 12px; font-weight: 500;
+    color: var(--sage-dark);
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+
+  .quick-chip:active { background: var(--sage-light); }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--sp4) var(--sp5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp4);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chat-msg { display: flex; flex-direction: column; }
+
+  .chat-msg-agent { align-items: flex-start; }
+  .chat-msg-user  { align-items: flex-end; }
+
+  .chat-sender {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .chat-bubble {
+    max-width: 82%;
+    padding: var(--sp3) var(--sp4);
+    font-size: 14px; line-height: 1.6;
+    border-radius: 4px;
+  }
+
+  .chat-bubble-agent {
+    background: white;
+    border: 1px solid var(--border-std);
+    border-radius: 0 12px 12px 12px;
+    color: var(--ink);
+  }
+
+  .chat-bubble-user {
+    background: var(--sage);
+    border-radius: 12px 0 12px 12px;
+    color: white;
+  }
+
+  .chat-input-row {
+    padding: var(--sp3) var(--sp4);
+    border-top: 1px solid var(--border-soft);
+    background: white;
+    display: flex; gap: var(--sp2); align-items: center;
+    flex-shrink: 0;
+  }
+
+  .chat-input {
+    flex: 1;
+    padding: 9px var(--sp4);
+    background: var(--surface-sheet);
+    border: none;
+    border-radius: 20px;
+    font-family: var(--font-sans);
+    font-size: 14px; color: var(--ink);
+    outline: none;
+  }
+
+  .chat-input::placeholder { color: var(--text-muted); }
+
+  .chat-send-btn {
+    width: 36px; height: 36px; flex-shrink: 0;
+    background: var(--sage);
+    border: none; border-radius: 50%;
+    color: white; font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s;
+  }
+
+  .chat-send-btn:active { background: var(--sage-dark); }
+
+  /* ── VIEW: Pacientes list ── */
+  .patients-view { padding: var(--sp4) var(--sp3); }
+
+  .search-input {
+    width: 100%;
+    padding: 10px var(--sp4);
+    background: var(--surface-sheet);
+    border: none;
+    border-radius: 10px;
+    font-size: 14px; color: var(--ink);
+    outline: none; margin-bottom: var(--sp4);
+  }
+
+  .patient-row {
+    display: flex; align-items: center; gap: var(--sp3);
+    padding: var(--sp3) var(--sp3);
+    border-radius: 10px; cursor: pointer;
+    transition: background 0.1s;
+    margin-bottom: 2px;
+  }
+
+  .patient-row:active { background: var(--surface-hover); }
+
+  .p-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: #e4e4e2;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .p-info { flex: 1; }
+  .p-fullname { font-size: 15px; font-weight: 500; }
+  .p-last { font-size: 12px; color: var(--text-muted); }
+
+  .p-chevron { color: var(--text-muted); font-size: 16px; }
+
+  .btn-new-patient {
+    width: 100%;
+    padding: var(--sp4);
+    background: var(--sage);
+    border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 600; color: white;
+    cursor: pointer; margin-top: var(--sp4);
+    transition: background 0.1s;
+  }
+
+  .btn-new-patient:active { background: var(--sage-dark); }
+
+  /* Bottom nav */
+  .bottom-nav {
+    height: 83px;
+    border-top: 1px solid var(--border-std);
+    display: flex;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(10px);
+    flex-shrink: 0;
+    padding-bottom: 20px; /* safe area */
+  }
+
+  .nav-item {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 3px;
+    cursor: pointer;
+    background: none; border: none;
+    transition: all 0.1s;
+  }
+
+  .nav-icon {
+    font-size: 22px;
+    color: var(--text-muted);
+    transition: color 0.1s;
+  }
+
+  .nav-label {
+    font-size: 10px; font-weight: 500;
+    color: var(--text-muted);
+    transition: color 0.1s;
+  }
+
+  .nav-item.active .nav-icon,
+  .nav-item.active .nav-label {
+    color: var(--sage);
+  }
+
+  .nav-item.active .nav-label { font-weight: 600; }
+
+  /* Modal sheet */
+  .sheet-overlay {
+    position: absolute; inset: 0;
+    background: rgba(24,24,27,0.4);
+    display: flex; align-items: flex-end;
+    z-index: 100;
+    backdrop-filter: blur(2px);
+  }
+
+  .sheet-overlay.hidden { display: none; }
+
+  .sheet {
+    width: 100%; background: white;
+    border-radius: 20px 20px 0 0;
+    padding: var(--sp3) var(--sp5) var(--sp6);
+    max-height: 85%;
+    overflow-y: auto;
+  }
+
+  .sheet-handle {
+    width: 36px; height: 4px; border-radius: 2px;
+    background: var(--border-std);
+    margin: 0 auto var(--sp5);
+  }
+
+  .sheet-title { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 4px; }
+  .sheet-sub   { font-size: 13px; color: var(--text-tertiary); margin-bottom: var(--sp5); }
+
+  .sheet-field { display: flex; flex-direction: column; gap: var(--sp2); margin-bottom: var(--sp4); }
+
+  .sheet-label {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+    color: var(--text-secondary);
+  }
+
+  .sheet-input {
+    padding: 11px var(--sp4);
+    background: var(--surface-sheet);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    font-family: var(--font-sans);
+    font-size: 15px; color: var(--ink); outline: none;
+    transition: border-color 0.12s, background 0.12s;
+  }
+
+  .sheet-input:focus { border-color: var(--sage); background: white; }
+  textarea.sheet-input { resize: none; height: 80px; line-height: 1.5; }
+
+  .sheet-btn {
+    width: 100%; padding: var(--sp4);
+    background: var(--sage); border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 600; color: white;
+    cursor: pointer; margin-top: var(--sp2);
+    transition: background 0.1s;
+  }
+
+  .sheet-btn:active { background: var(--sage-dark); }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════
+     PHONE 1: Sesión activa — Dictar
+══════════════════════════════ -->
+<div>
+  <div class="phone-label">Sesión activa — Dictar</div>
+  <div class="phone">
+    <div class="status-bar">
+      <span class="status-time">9:41</span>
+      <div class="status-icons">
+        <span>●●●</span>
+        <span>WiFi</span>
+        <span>🔋</span>
+      </div>
+    </div>
+
+    <div class="nav-header">
+      <button class="nav-back">‹ Pacientes</button>
+      <span class="nav-title">Ana González</span>
+      <button class="nav-action">···</button>
+    </div>
+
+    <div class="patient-strip">
+      <div class="ps-left">
+        <div class="ps-avatar">AG</div>
+        <div>
+          <div class="ps-name">Ana González</div>
+          <div class="ps-sub">32 años · 14 sesiones</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active">Dictar</button>
+      <button class="tab-btn">Nota</button>
+      <button class="tab-btn">Evolución</button>
+    </div>
+
+    <div class="content">
+      <!-- Chips de sesiones anteriores -->
+      <div class="history-scroll">
+        <div class="h-chip">
+          <span class="h-chip-date">19 mar</span>
+          <span class="h-chip-prev">Regulación emocional…</span>
+        </div>
+        <div class="h-chip">
+          <span class="h-chip-date">12 mar</span>
+          <span class="h-chip-prev">Conflicto laboral…</span>
+        </div>
+        <div class="h-chip">
+          <span class="h-chip-date">5 mar</span>
+          <span class="h-chip-prev">Ansiedad anticipatoria…</span>
+        </div>
+        <div class="h-chip">
+          <span class="h-chip-date">26 feb</span>
+          <span class="h-chip-prev">Relación con madre…</span>
+        </div>
+      </div>
+
+      <!-- Dictado -->
+      <div class="dictation-section">
+        <div class="section-label">Dictado · 26 mar 2026</div>
+        <textarea class="textarea" placeholder="Dicta los puntos clave de la sesión…">La paciente refiere una semana difícil por tensiones con su supervisor. Reporta insomnio martes y miércoles. Usó respiración diafragmática y se calmó en 15 minutos. Postura abierta, buen contacto visual.</textarea>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn-mic">⏺ Próximamente</button>
+      <button class="btn-gen">Generar nota →</button>
+    </div>
+
+    <div class="bottom-nav">
+      <button class="nav-item">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Pacientes</span>
+      </button>
+      <button class="nav-item active">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">Sesión</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Ajustes</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     PHONE 2: Nota generándose
+══════════════════════════════ -->
+<div>
+  <div class="phone-label">Nota generándose</div>
+  <div class="phone">
+    <div class="status-bar">
+      <span class="status-time">9:42</span>
+      <div class="status-icons"><span>●●●</span><span>WiFi</span><span>🔋</span></div>
+    </div>
+
+    <div class="nav-header">
+      <button class="nav-back">‹ Pacientes</button>
+      <span class="nav-title">Ana González</span>
+      <button class="nav-action">···</button>
+    </div>
+
+    <div class="patient-strip">
+      <div class="ps-left">
+        <div class="ps-avatar">AG</div>
+        <div>
+          <div class="ps-name">Ana González</div>
+          <div class="ps-sub">32 años · 14 sesiones</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn">Dictar</button>
+      <button class="tab-btn active">Nota</button>
+      <button class="tab-btn">Evolución</button>
+    </div>
+
+    <div class="content">
+      <div class="note-section">
+        <div class="note-header-row">
+          <span class="note-date-label">Nota · 26 mar 2026</span>
+          <span class="badge">Borrador</span>
+        </div>
+
+        <div class="soap-block">
+          <div class="soap-row">
+            <div class="soap-letter-badge done-badge">S</div>
+            <span class="soap-section-name">Subjetivo</span>
+          </div>
+          <div class="soap-content">La paciente refiere una semana de alta tensión laboral con su supervisor. Reporta insomnio martes y miércoles. Describe haber aplicado respiración diafragmática, logrando autorregulación en ~15 minutos. Expresa sentirse "más en control".</div>
+        </div>
+
+        <div class="soap-block">
+          <div class="soap-row">
+            <div class="soap-letter-badge done-badge">O</div>
+            <span class="soap-section-name">Objetivo</span>
+          </div>
+          <div class="soap-content">Postura corporal abierta, contacto visual sostenido. Tono calmado, afecto congruente. Sin signos de agitación psicomotriz.</div>
+        </div>
+
+        <div class="soap-block">
+          <div class="soap-row">
+            <div class="soap-letter-badge active-badge">A</div>
+            <span class="soap-section-name">Análisis</span>
+          </div>
+          <div class="soap-content">Progreso notable en regulación emocional autónoma. Persiste patrón de miedo al rechazo en contextos de autoridad<span class="cursor"></span></div>
+        </div>
+
+        <div class="soap-block">
+          <div class="soap-row">
+            <div class="soap-letter-badge wait-badge">P</div>
+            <span class="soap-section-name">Plan</span>
+          </div>
+          <div class="pending-row">
+            <div class="dots">
+              <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+            Generando…
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="confirm-bar">
+      <button class="btn-confirm">Confirmar y guardar</button>
+    </div>
+
+    <div class="bottom-nav">
+      <button class="nav-item">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Pacientes</span>
+      </button>
+      <button class="nav-item active">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">Sesión</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Ajustes</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     PHONE 3: Tab Evolución
+══════════════════════════════ -->
+<div>
+  <div class="phone-label">Evolución del paciente</div>
+  <div class="phone">
+    <div class="status-bar">
+      <span class="status-time">9:44</span>
+      <div class="status-icons"><span>●●●</span><span>WiFi</span><span>🔋</span></div>
+    </div>
+
+    <div class="nav-header">
+      <button class="nav-back">‹ Pacientes</button>
+      <span class="nav-title">Ana González</span>
+      <button class="nav-action">···</button>
+    </div>
+
+    <div class="patient-strip">
+      <div class="ps-left">
+        <div class="ps-avatar">AG</div>
+        <div>
+          <div class="ps-name">Ana González</div>
+          <div class="ps-sub">32 años · 14 sesiones</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn">Dictar</button>
+      <button class="tab-btn">Nota</button>
+      <button class="tab-btn active">Evolución</button>
+    </div>
+
+    <!-- Resumen automático -->
+    <div class="evolucion-summary">
+      <div class="evolucion-summary-label">Resumen del paciente</div>
+      <div class="evolucion-summary-text">Regulación emocional: progreso sostenido. Miedo al rechazo en autoridad: activo. Alianza terapéutica: sólida.</div>
+    </div>
+
+    <!-- Preguntas rápidas -->
+    <div class="quick-chips-section">
+      <div class="quick-chips-label">Preguntas frecuentes</div>
+      <div class="quick-chips">
+        <button class="quick-chip">¿Evolución de riesgo?</button>
+        <button class="quick-chip">¿Temas recurrentes?</button>
+        <button class="quick-chip">¿Progreso en objetivos?</button>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="chat-messages">
+      <div class="chat-msg chat-msg-agent">
+        <span class="chat-sender">Agente clínico</span>
+        <div class="chat-bubble chat-bubble-agent">Ana muestra progreso sostenido en regulación emocional. El patrón de miedo al rechazo en figuras de autoridad se mantiene activo en las últimas 4 sesiones.</div>
+      </div>
+      <div class="chat-msg chat-msg-user">
+        <div class="chat-bubble chat-bubble-user">¿Qué tan consistente es ese patrón?</div>
+      </div>
+      <div class="chat-msg chat-msg-agent">
+        <span class="chat-sender">Agente clínico</span>
+        <div class="chat-bubble chat-bubble-agent">Presente en 6 de las últimas 7 sesiones. Se activa principalmente ante conflictos laborales y evaluaciones de desempeño.<span class="cursor"></span></div>
+      </div>
+    </div>
+
+    <div class="chat-input-row">
+      <input class="chat-input" type="text" placeholder="Pregunta sobre Ana…">
+      <button class="chat-send-btn">↑</button>
+    </div>
+
+    <div class="bottom-nav">
+      <button class="nav-item">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Pacientes</span>
+      </button>
+      <button class="nav-item active">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">Sesión</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Ajustes</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     PHONE 4: Lista de Pacientes
+══════════════════════════════ -->
+<div>
+  <div class="phone-label">Lista de pacientes</div>
+  <div class="phone">
+    <div class="status-bar">
+      <span class="status-time">9:41</span>
+      <div class="status-icons"><span>●●●</span><span>WiFi</span><span>🔋</span></div>
+    </div>
+
+    <div class="nav-header">
+      <div style="width:60px"></div>
+      <span class="nav-title">SyqueX</span>
+      <button class="nav-action" style="color:var(--sage);font-size:20px;background:none;border:none;cursor:pointer" onclick="document.querySelector('.sheet-overlay').classList.toggle('hidden')">+</button>
+    </div>
+
+    <div class="content">
+      <div class="patients-view">
+        <input class="search-input" type="text" placeholder="🔍  Buscar paciente…">
+
+        <div class="patient-row">
+          <div class="p-avatar" style="background:var(--sage);color:white">AG</div>
+          <div class="p-info">
+            <div class="p-fullname">Ana González</div>
+            <div class="p-last">Hoy · sesión activa</div>
+          </div>
+          <span class="p-chevron">›</span>
+        </div>
+
+        <div class="patient-row">
+          <div class="p-avatar">LM</div>
+          <div class="p-info">
+            <div class="p-fullname">Luis Martínez</div>
+            <div class="p-last">Última sesión · 24 mar</div>
+          </div>
+          <span class="p-chevron">›</span>
+        </div>
+
+        <div class="patient-row">
+          <div class="p-avatar">CR</div>
+          <div class="p-info">
+            <div class="p-fullname">Carmen Rivas</div>
+            <div class="p-last">Última sesión · 21 mar</div>
+          </div>
+          <span class="p-chevron">›</span>
+        </div>
+
+        <div class="patient-row">
+          <div class="p-avatar">JP</div>
+          <div class="p-info">
+            <div class="p-fullname">Jorge Pérez</div>
+            <div class="p-last">Última sesión · 19 mar</div>
+          </div>
+          <span class="p-chevron">›</span>
+        </div>
+
+        <div class="patient-row">
+          <div class="p-avatar">MV</div>
+          <div class="p-info">
+            <div class="p-fullname">María Vidal</div>
+            <div class="p-last">Última sesión · 17 mar</div>
+          </div>
+          <span class="p-chevron">›</span>
+        </div>
+
+        <button class="btn-new-patient" onclick="document.querySelector('.sheet-overlay').classList.toggle('hidden')">+ Nuevo paciente</button>
+      </div>
+    </div>
+
+    <div class="bottom-nav">
+      <button class="nav-item active">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Pacientes</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">Sesión</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Ajustes</span>
+      </button>
+    </div>
+
+    <!-- Nuevo paciente sheet -->
+    <div class="sheet-overlay hidden">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Nuevo paciente</div>
+        <div class="sheet-sub">El agente completará el historial clínico en la primera sesión</div>
+
+        <div class="sheet-field">
+          <label class="sheet-label">Nombre completo</label>
+          <input class="sheet-input" type="text" placeholder="Nombre y apellido">
+        </div>
+
+        <div class="sheet-field">
+          <label class="sheet-label">Edad</label>
+          <input class="sheet-input" type="number" placeholder="Años">
+        </div>
+
+        <div class="sheet-field">
+          <label class="sheet-label">Motivo de consulta</label>
+          <textarea class="sheet-input" placeholder="¿Por qué busca atención psicológica?"></textarea>
+        </div>
+
+        <div class="sheet-field">
+          <label class="sheet-label">Antecedentes <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label>
+          <textarea class="sheet-input" placeholder="Diagnósticos previos, medicación…"></textarea>
+        </div>
+
+        <button class="sheet-btn" onclick="document.querySelector('.sheet-overlay').classList.toggle('hidden')">Crear paciente →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,16 +1,17 @@
 import { useState } from 'react';
 
-export default function Sidebar({ open, onClose, conversations, onSelectConversation, onDeleteConversation }) {
+export default function Sidebar({ open, onClose, conversations, onSelectConversation, onDeleteConversation, onLogout }) {
   return (
     <>
       {open && (
         <div
+          data-testid="sidebar-backdrop"
           className="fixed inset-0 bg-ink/20 backdrop-blur-[2px] z-30"
           onClick={onClose}
         />
       )}
 
-      <div className={`fixed left-0 top-0 h-full w-[85vw] max-w-sm bg-white z-40 flex flex-col transform transition-transform duration-300 ease-out border-r border-ink/[0.07] shadow-xl ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div data-testid="sidebar-panel" className={`fixed left-0 top-0 h-full w-[85vw] max-w-sm bg-white z-40 flex flex-col transform transition-transform duration-300 ease-out border-r border-ink/[0.07] shadow-xl ${open ? 'translate-x-0' : '-translate-x-full'}`}>
 
         <div className="px-5 py-4 border-b border-ink/[0.07] flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
@@ -19,6 +20,7 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
           </div>
           <button
             onClick={onClose}
+            aria-label="Cerrar"
             className="p-1.5 rounded-lg text-ink-tertiary hover:text-ink-secondary hover:bg-parchment transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -46,13 +48,23 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
           ) : (
             conversations.map(conv => (
               <ConversationItem
-                key={conv.id}
+                key={conv.patient_id}
                 conv={conv}
                 onClick={() => { onSelectConversation(conv); onClose(); }}
-                onDelete={() => onDeleteConversation(conv.id)}
+                onDelete={() => onDeleteConversation(conv.id, conv.patient_id)}
               />
             ))
           )}
+        </div>
+        
+        {/* Logout — pinned to bottom of drawer */}
+        <div className="border-t border-ink/[0.07] flex-shrink-0">
+          <button
+            onClick={onLogout}
+            className="w-full text-left px-5 py-3 text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Cerrar sesión
+          </button>
         </div>
       </div>
     </>
@@ -93,11 +105,6 @@ function ConversationItem({ conv, onClick, onDelete }) {
         {conv.status === 'confirmed' && (
           <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
             <span className="w-1 h-1 bg-emerald-500 rounded-full inline-block"></span>Confirmada
-          </span>
-        )}
-        {conv.status === 'draft' && (
-          <span className="text-[10px] text-amber-600 font-medium flex items-center gap-1">
-            <span className="w-1 h-1 bg-amber-500 rounded-full inline-block"></span>Borrador
           </span>
         )}
       </div>
