@@ -591,69 +591,30 @@ function App() {
                       loading={isLoading}
                     />
 
-                    {/* Session history list below dictation */}
-                    {soapSessions.length > 0 && (
-                      <div className="flex-1 overflow-y-auto border-t border-black/[0.07] px-4 py-3">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-2">Historial</p>
-                        <div className="space-y-1">
-                          {soapSessions.map((s, i) => {
-                            const isExpanded = expandedSessionId === String(s.id);
-                            const hasNote = s.status === 'confirmed' && s.structured_note;
-                            return (
-                              <div
-                                key={s.id || i}
-                                className={`rounded-lg overflow-hidden transition-all ${
-                                  isExpanded ? 'bg-[#fafaf9] border border-[#5a9e8a]/25' : ''
-                                }`}
-                              >
-                                <div
-                                  className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-black/[0.04] transition-colors cursor-pointer"
-                                  onClick={() => hasNote && handleToggleSession(String(s.id))}
-                                >
-                                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
-                                  <span className="text-[12px] text-ink-secondary truncate flex-1">
-                                    Sesión #{s.session_number || (soapSessions.length - i)} · {formatDate(s.session_date)}
-                                  </span>
-                                  {hasNote && (
-                                    <svg
-                                      className={`w-3 h-3 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : 'text-[#9ca3af]'}`}
-                                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9l6 6 6-6" />
-                                    </svg>
-                                  )}
-                                </div>
-                                {isExpanded && hasNote && (
-                                  <div className="border-t border-ink/[0.06]">
-                                    <SoapNoteDocument
-                                      noteData={{
-                                        clinical_note: {
-                                          structured_note: s.structured_note,
-                                          detected_patterns: s.detected_patterns || [],
-                                          alerts: s.alerts || [],
-                                          session_id: String(s.id),
-                                        },
-                                        text_fallback: s.ai_response,
-                                      }}
-                                      readOnly
-                                      compact
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Right: Note panel */}
                   <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-7 bg-white">
                     {latestNoteMsg === null ? (
-                      <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
-                        <p className="text-ink-tertiary text-[14px]">La nota SOAP aparecerá aquí.</p>
-                        <p className="text-ink-muted text-[12px]">Escribe un dictado y haz clic en "Generar nota".</p>
+                      <div className="h-full flex flex-col items-center justify-center gap-4">
+                        <svg
+                          className="w-8 h-8 text-gray-200"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="1.5"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="h-2 w-32 bg-gray-100 rounded-full" />
+                          <div className="h-2 w-24 bg-gray-100 rounded-full" />
+                          <div className="h-2 w-28 bg-gray-100 rounded-full" />
+                        </div>
                       </div>
                     ) : latestNoteMsg.type === 'loading' ? (
                       <div className="flex items-center gap-3 py-6">
@@ -690,9 +651,7 @@ function App() {
                             <div
                               key={s.id || i}
                               className={`rounded-xl overflow-hidden transition-all duration-200 ${
-                                isExpanded
-                                  ? 'bg-white shadow-sm ring-1 ring-[#5a9e8a]/20'
-                                  : 'bg-transparent hover:bg-black/[0.02]'
+                                isExpanded ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25' : 'bg-[#f4f4f2]'
                               }`}
                             >
                               <div
@@ -706,7 +665,16 @@ function App() {
                                     <span className="text-[11px] text-ink-tertiary font-medium">{formatDate(s.session_date)}</span>
                                   </div>
                                   {!isExpanded && s.raw_dictation && (
-                                    <p className="text-[11px] text-ink-muted line-clamp-1 mt-0.5 leading-relaxed">{s.raw_dictation}</p>
+                                    <>
+                                      <p className="text-[11px] text-ink-muted line-clamp-2 mt-0.5 leading-relaxed">
+                                        {s.raw_dictation}
+                                      </p>
+                                      <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${
+                                        s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'
+                                      }`}>
+                                        {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                                      </span>
+                                    </>
                                   )}
                                 </div>
                                 {hasNote && (
