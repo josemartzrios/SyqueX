@@ -2,9 +2,8 @@ import { useState } from 'react';
 import { register } from '../api.js';
 import { setAccessToken } from '../auth.js';
 import PasswordStrength from './PasswordStrength.jsx';
-
-const PRIVACY_URL = '/aviso-privacidad.pdf';
-const TERMS_URL = '/terminos-condiciones.pdf';
+const PRIVACY_URL = 'https://syquex.mx/privacidad';
+const TERMS_URL = 'https://syquex.mx/terminos';
 
 export default function RegisterScreen({ onSuccess, onLogin }) {
   const [form, setForm] = useState({
