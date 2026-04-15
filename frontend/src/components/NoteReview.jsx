@@ -151,7 +151,7 @@ export default function NoteReview({ noteData, onConfirm, readOnly = false }) {
                     </span>
                   </div>
                   <div className="bg-white px-3.5 py-2.5">
-                    <p className="text-[14px] leading-relaxed text-ink-secondary">{content}</p>
+                    <p className="font-serif text-[14px] leading-relaxed text-ink-secondary">{content}</p>
                   </div>
                 </div>
               )
