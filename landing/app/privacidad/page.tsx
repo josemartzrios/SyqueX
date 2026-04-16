@@ -19,7 +19,7 @@ export default function Privacidad() {
           <section>
             <h2 className="font-semibold text-ink text-base mb-2">1. Identidad del responsable</h2>
             <p>
-              [Nombre completo del responsable], con RFC [RFC], con domicilio en
+              José Francisco Martínez Ríos, con RFC MARF9712139DA, con domicilio en
               Ciudad de México, México, es el responsable del tratamiento de sus
               datos personales (en adelante "SyqueX").
             </p>
@@ -46,17 +46,46 @@ export default function Privacidad() {
           </section>
 
           <section>
-            <h2 className="font-semibold text-ink text-base mb-2">4. Transferencias de datos</h2>
+            <h2 className="font-semibold text-ink text-base mb-2">4. Datos clínicos de pacientes</h2>
             <p>
-              Para proveer el servicio, SyqueX comparte datos con: (a) Stripe
-              Inc., para el procesamiento de pagos; (b) Anthropic PBC, para la
-              generación de notas clínicas mediante inteligencia artificial.
-              Ambos proveedores cuentan con políticas de privacidad propias.
+              SyqueX procesa los textos de dictado y notas clínicas que el
+              psicólogo usuario ingresa a la plataforma. Estos contenidos pueden
+              incluir datos de salud de terceros (pacientes). El psicólogo
+              usuario es el responsable del tratamiento de los datos de sus
+              propios pacientes y debe contar con el consentimiento
+              correspondiente conforme a la LFPDPPP y a las normas profesionales
+              aplicables. Al aceptar este Aviso, el psicólogo declara haber
+              cumplido con dicha obligación.
             </p>
           </section>
 
           <section>
-            <h2 className="font-semibold text-ink text-base mb-2">5. Derechos ARCO</h2>
+            <h2 className="font-semibold text-ink text-base mb-2">5. Transferencias de datos</h2>
+            <p>
+              Para proveer el servicio, SyqueX comparte datos con: (a) Stripe
+              Inc., para el procesamiento de pagos; (b) Anthropic PBC, para la
+              generación de notas clínicas — los textos de dictado se envían a
+              Anthropic vía API para su procesamiento; Anthropic no almacena
+              estos datos según su política de uso de API. Ambos proveedores
+              cuentan con políticas de privacidad propias.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="font-semibold text-ink text-base mb-2">6. Retención y supresión de datos</h2>
+            <p>
+              Los datos de cuenta (nombre, correo) se conservan durante la
+              vigencia de la suscripción. Los datos clínicos (dictados y notas)
+              se conservan mientras la cuenta esté activa y por 30 días
+              adicionales tras la cancelación, para permitir su exportación.
+              Transcurrido ese plazo, se eliminan de forma permanente. El
+              usuario puede solicitar la eliminación anticipada ejerciendo sus
+              derechos ARCO.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="font-semibold text-ink text-base mb-2">7. Derechos ARCO</h2>
             <p>
               Usted tiene derecho a Acceder, Rectificar, Cancelar u Oponerse al
               tratamiento de sus datos personales (derechos ARCO). Para
@@ -70,7 +99,7 @@ export default function Privacidad() {
           </section>
 
           <section>
-            <h2 className="font-semibold text-ink text-base mb-2">6. Limitación del uso</h2>
+            <h2 className="font-semibold text-ink text-base mb-2">8. Limitación del uso</h2>
             <p>
               Para limitar el uso o divulgación de sus datos, puede enviarnos
               un correo a hola@syquex.mx en cualquier momento.
@@ -78,7 +107,7 @@ export default function Privacidad() {
           </section>
 
           <section>
-            <h2 className="font-semibold text-ink text-base mb-2">7. Cambios a este aviso</h2>
+            <h2 className="font-semibold text-ink text-base mb-2">9. Cambios a este aviso</h2>
             <p>
               Cualquier modificación a este Aviso de Privacidad será notificada
               a través de la aplicación o por correo electrónico. La versión
