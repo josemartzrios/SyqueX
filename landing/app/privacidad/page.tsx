@@ -20,7 +20,7 @@ export default function Privacidad() {
             <h2 className="font-semibold text-ink text-base mb-2">1. Identidad del responsable</h2>
             <p>
               José Francisco Martínez Ríos, con RFC MARF9712139DA, con domicilio en
-              Ciudad de México, México, es el responsable del tratamiento de sus
+              Culiacán, Sinaloa, México, es el responsable del tratamiento de sus
               datos personales (en adelante "SyqueX").
             </p>
           </section>
