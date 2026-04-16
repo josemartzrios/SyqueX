@@ -142,6 +142,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [mobileTab, setMobileTab] = useState('dictar');
+  const [currentSessionNote, setCurrentSessionNote] = useState(null);
   const [sessionHistory, setSessionHistory] = useState([]);
   const [expandedSessionId, setExpandedSessionId] = useState(null);
   
@@ -237,6 +238,7 @@ function App() {
     setPatientProfile(null);
     setEvolutionError(null);
     setEvolutionSending(false);
+    setCurrentSessionNote(null);
 
     if (history.length === 0) {
       setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?` }]);
