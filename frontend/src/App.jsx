@@ -816,32 +816,26 @@ function App() {
             {mobileTab === 'nota' && (
               <div className="flex flex-col flex-1 min-h-0">
                 <div ref={mobileScrollRef} className="flex-1 overflow-y-auto px-4 py-5">
-                  {latestNoteMsg === null ? (
-                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
-                      Dicta una sesión para generar la nota SOAP.
-                    </p>
-                  ) : latestNoteMsg.type === 'loading' ? (
+                  {currentSessionNote === null ? (
+                    NOTE_EMPTY_STATE
+                  ) : currentSessionNote.type === 'loading' ? (
                     <div className="flex gap-2 items-center py-4">
                       {[0, 0.2, 0.4].map((d, i) => (
                         <div key={i} className="w-2 h-2 rounded-full bg-ink-muted animate-pulse" style={{ animationDelay: `${d}s` }} />
                       ))}
                       <span className="text-ink-tertiary text-sm">Generando nota…</span>
                     </div>
-                  ) : latestNoteMsg.type === 'error' ? (
+                  ) : currentSessionNote.type === 'error' ? (
                     <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                      <strong>Error:</strong> {latestNoteMsg.text}
+                      <strong>Error:</strong> {currentSessionNote.text}
                     </div>
-                  ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                  ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
                     <SoapNoteDocument
-                      noteData={latestNoteMsg.noteData}
+                      noteData={currentSessionNote.noteData}
                       onConfirm={fetchConversations}
-                      readOnly={latestNoteMsg.readOnly}
+                      readOnly={currentSessionNote.readOnly}
                     />
-                  ) : (
-                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
-                      Dicta una sesión para generar la nota SOAP.
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )}
