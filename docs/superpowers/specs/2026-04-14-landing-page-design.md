@@ -142,11 +142,11 @@ Incluye todos los pacientes · Cancela cuando quieras
 ### Footer
 ```
 © 2026 SyqueX · Aviso de Privacidad · Términos y Condiciones · hola@syquex.mx
-Ciudad de México, México
+Culiacán, Sinaloa, México
 ```
 - Links internos `/privacidad` y `/terminos`
 - Incluir dirección física y RFC en el footer — requerido por Stripe para verificar la empresa
-- Formato: `Ciudad de México, México · RFC: [RFC del responsable]`
+- Formato: `Culiacán, Sinaloa, México · RFC: MARF9712139DA`
 
 ---
 

@@ -5,7 +5,7 @@ export default function Footer() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-sm text-ink-secondary">
           <div className="space-y-1">
             <p>© 2026 SyqueX</p>
-            <p>Ciudad de México, México · RFC: [RFC]</p>
+            <p>Culiacán, Sinaloa, México · RFC: MARF9712139DA</p>
           </div>
           <div className="flex flex-wrap gap-4">
             <a href="/privacidad" className="hover:text-ink transition-colors">
