@@ -662,15 +662,14 @@ function App() {
                           return (
                             <div
                               key={s.id || i}
-                              className={`rounded-xl overflow-hidden transition-all duration-200 ${
-                                isExpanded ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25' : 'bg-[#f4f4f2]'
-                              }`}
+                              className={`rounded-xl overflow-hidden transition-all duration-200 bg-white border-l-[3px] ${
+                                s.status === 'confirmed' ? 'border-l-[#5a9e8a]' : 'border-l-[#c4935a]'
+                              } ${isExpanded ? 'ring-1 ring-[#5a9e8a]/20' : ''}`}
                             >
                               <div
                                 className="px-3 py-3 flex items-start gap-3 cursor-pointer group"
                                 onClick={() => hasNote && setReviewExpandedSessionId(toggleExpandedSession(reviewExpandedSessionId, String(s.id)))}
                               >
-                                <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between gap-2">
                                     <p className="text-[13px] font-semibold text-ink">Sesión #{s.session_number || (soapSessions.length - i)}</p>
