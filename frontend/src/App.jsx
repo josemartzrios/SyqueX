@@ -451,18 +451,33 @@ function App() {
       { role: 'assistant', type: 'loading' }
     ]);
     if (format === 'SOAP') setMobileTab('nota');
+    if (format === 'SOAP') setCurrentSessionNote({ type: 'loading' });
     try {
       const noteData = await processSession(selectedPatientId, dictation, format);
       const botMessage = format === 'SOAP'
         ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
         : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
       setMessages(prev => [...prev.slice(0, -1), botMessage]);
+      if (format === 'SOAP') {
+        setCurrentSessionNote({
+          type: 'bot',
+          noteData,
+          sessionId: noteData.session_id,
+          readOnly: false,
+        });
+      }
       fetchConversations();
     } catch (err) {
       setMessages(prev => [
         ...prev.slice(0, -1),
         { role: 'assistant', type: 'error', text: 'Anomalía de conexión: ' + err.message }
       ]);
+      if (format === 'SOAP') {
+        setCurrentSessionNote({
+          type: 'error',
+          text: 'Anomalía de conexión: ' + err.message,
+        });
+      }
     }
   };
 
