@@ -177,6 +177,16 @@ En `create_patient` y `update_patient`, escribir a `audit_logs`:
 - `date_of_birth`: debe ser pasada y edad ≤ 120 años (validator arriba).
 - `emergency_contact.phone`: solo validación de longitud (7-20 chars). No se valida formato — el paciente puede dar número extranjero, con extensión, etc.
 
+### Semántica de `PATCH`
+
+- **Campos opcionales pueden limpiarse enviando `null` explícito.** Ejemplo: `PATCH {"emergency_contact": null}` borra el contacto de emergencia; `PATCH {"occupation": null}` limpia la ocupación.
+- **Los 3 campos mínimos (`name`, `date_of_birth`, `reason_for_consultation`) no se pueden limpiar.** Se pueden editar a un valor nuevo no vacío, pero enviar `null` o string vacío → 422. Validación en Pydantic con `min_length=1` y chequeo explícito de `null` si el campo aparece en el payload.
+- Para distinguir "no se envió" vs. "se envió como null" en Pydantic v2: usar `model_fields_set` o un sentinel. Decidir en implementación cuál patrón encaja mejor con el resto del código.
+
+### Auditoría de lectura
+
+No se escribe `audit_logs` en `GET /patients/{id}` en el MVP. LFPDPPP no exige log por cada lectura para un practitioner accediendo a sus propios pacientes. Revisitar si se añade acceso multi-usuario o roles (ej. asistente que lee expedientes del psicólogo).
+
 ---
 
 ## Sección 3 — Frontend
@@ -262,7 +272,7 @@ export async function createPatient(payload) {
 }
 ```
 
-`createPatient` hoy recibe solo `name`. Cambio de firma obliga a actualizar todos los call sites en el mismo commit.
+El backend (`PatientCreate` en `routes.py:41-46`) ya acepta `name`, `date_of_birth`, `diagnosis_tags` y `risk_level`; solo el wrapper frontend `api.js#createPatient` está limitado a `name`. Al ampliar la firma del wrapper, verificar todos los call sites con grep y actualizarlos en el mismo commit. No es un breaking change del contrato HTTP, solo de la función JS.
 
 ### Helper puro
 
