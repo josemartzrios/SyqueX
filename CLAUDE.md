@@ -189,6 +189,7 @@ Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueante
 | 3 | **Borrador / guardado automático** | Guardar dictado y nota en progreso antes de confirmar — previene pérdida de datos |
 | 4 | **Tipografía nota clínica** | Selector de fuente en el panel SOAP (serif / sans) |
 | 5 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
+| 6 | **Crear correo hola@syquex.mx** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
 
 ---
 
@@ -257,3 +258,23 @@ La variable de entorno `ALLOWED_ORIGINS=https://syquex.vercel.app` está configu
 **Workaround activo:** `allow_origin_regex=r"https://syquex(-[a-z0-9]+)*\.vercel\.app"` en `main.py` — no depende del env var.
 
 **Al investigar:** Railway → servicio → Logs → buscar `[CORS_DEBUG]`. Si muestra `NOT_SET` o caracteres raros, el env var no llega al proceso Python. Verificar que el env var está en el environment correcto (Production vs Preview en Railway) y que el servicio redesplegó después de guardarlo.
+
+---
+
+## Pendientes landing page (retomar 2026-04-16)
+
+### Datos legales
+- RFC en el footer aparece como `[RFC]` y "Ciudad de México" — corregirlo con el RFC real de Culiacán, Sinaloa. La congruencia entre datos legales importa para la credibilidad.
+
+### Conversión / prueba social
+- No hay testimonios — ninguna prueba social real.
+- No hay capturas de pantalla del producto.
+- No hay respuesta a objeciones comunes.
+- No hay sección "¿Para quién es SyqueX?".
+
+### Acciones concretas
+1. **Captura prioritaria:** pestaña Evolución con las preguntas clínicas generadas automáticamente. Esa imagen sola vale más que tres párrafos de descripción.
+2. **CTA duplicado:** hay dos botones idénticos "Empieza gratis — 14 días". El segundo debería ser "Ver demo" o "¿Cómo funciona?" para usuarios que aún no están convencidos.
+3. **Prueba social real (no inventada):** después del primer demo positivo, pedir permiso para usar una frase del psicólogo, con formato:
+   > "Por fin algo que entiende mi flujo de trabajo"
+   > — Psicóloga, consulta privada, Culiacán

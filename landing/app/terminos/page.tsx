@@ -55,7 +55,7 @@ export default function Terminos() {
               </a>
               . Al cancelar, tu acceso continúa hasta el fin del período pagado
               en curso. <strong className="text-ink">No se emiten reembolsos
-              por períodos parciales.</strong>
+                por períodos parciales.</strong>
             </p>
           </section>
 
@@ -98,7 +98,7 @@ export default function Terminos() {
             <p>
               Estos términos se rigen por las leyes de los Estados Unidos
               Mexicanos. Cualquier controversia se resolverá ante los
-              tribunales competentes de la Ciudad de México.
+              tribunales competentes.
             </p>
           </section>
 
