@@ -43,9 +43,8 @@ function PatientConversationItem({ conv, active, onClick, onDelete }) {
     >
       <div className="pr-6">
         <p
-          className={`text-[14px] font-medium truncate leading-snug ${
-            active ? 'text-[#18181b]' : 'text-gray-600'
-          }`}
+          className={`text-[14px] font-medium truncate leading-snug ${active ? 'text-[#18181b]' : 'text-gray-600'
+            }`}
         >
           {conv.patient_name}
         </p>
@@ -62,10 +61,9 @@ function PatientConversationItem({ conv, active, onClick, onDelete }) {
         onClick={handleDelete}
         title={confirmDelete ? 'Confirmar' : 'Archivar'}
         className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md transition-all opacity-0 group-hover:opacity-100
-          ${
-            confirmDelete
-              ? 'bg-red-50 text-red-400 !opacity-100'
-              : 'text-gray-400 hover:text-red-400 hover:bg-red-50'
+          ${confirmDelete
+            ? 'bg-red-50 text-red-400 !opacity-100'
+            : 'text-gray-400 hover:text-red-400 hover:bg-red-50'
           }`}
       >
         {confirmDelete ? (
@@ -128,7 +126,6 @@ export default function PatientSidebar({
         <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">
           SyqueX
         </span>
-        <span className="text-[10px] text-gray-400 font-mono">v2.0</span>
       </div>
 
       {/* Section Label: Pacientes + New button */}
