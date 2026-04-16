@@ -60,7 +60,19 @@ export default function Terminos() {
           </section>
 
           <section>
-            <h2 className="font-semibold text-ink text-base mb-2">5. Uso aceptable</h2>
+            <h2 className="font-semibold text-ink text-base mb-2">5. Propiedad de los datos clínicos</h2>
+            <p>
+              Los contenidos clínicos que el usuario ingresa a la plataforma
+              (dictados, notas, información de pacientes) son de su exclusiva
+              propiedad. SyqueX no reivindica derechos sobre ellos y los
+              utiliza únicamente para proveer el servicio. El usuario es
+              responsable de obtener el consentimiento de sus pacientes conforme
+              a la LFPDPPP antes de ingresar sus datos a la plataforma.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="font-semibold text-ink text-base mb-2">6. Uso aceptable</h2>
             <p>
               El servicio está destinado exclusivamente a profesionales de la
               salud mental con cédula profesional vigente. El usuario es
@@ -71,7 +83,7 @@ export default function Terminos() {
           </section>
 
           <section>
-            <h2 className="font-semibold text-ink text-base mb-2">6. Limitación de responsabilidad</h2>
+            <h2 className="font-semibold text-ink text-base mb-2">7. Limitación de responsabilidad</h2>
             <p>
               SyqueX proporciona una herramienta de apoyo a la documentación.
               Las notas generadas por IA deben ser revisadas y validadas por el
@@ -82,7 +94,7 @@ export default function Terminos() {
           </section>
 
           <section>
-            <h2 className="font-semibold text-ink text-base mb-2">7. Ley aplicable</h2>
+            <h2 className="font-semibold text-ink text-base mb-2">8. Ley aplicable</h2>
             <p>
               Estos términos se rigen por las leyes de los Estados Unidos
               Mexicanos. Cualquier controversia se resolverá ante los
