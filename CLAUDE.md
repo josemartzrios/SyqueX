@@ -263,9 +263,6 @@ La variable de entorno `ALLOWED_ORIGINS=https://syquex.vercel.app` está configu
 
 ## Pendientes landing page (retomar 2026-04-16)
 
-### Datos legales
-- RFC en el footer aparece como `[RFC]` y "Ciudad de México" — corregirlo con el RFC real de Culiacán, Sinaloa. La congruencia entre datos legales importa para la credibilidad.
-
 ### Conversión / prueba social
 - No hay testimonios — ninguna prueba social real.
 - No hay capturas de pantalla del producto.

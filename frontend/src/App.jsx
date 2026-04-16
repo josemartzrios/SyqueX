@@ -44,6 +44,20 @@ const LOADING_DOTS = (
   </div>
 );
 
+const NOTE_EMPTY_STATE = (
+  <div className="flex flex-col items-center justify-center gap-4 text-center px-8 h-full">
+    <div className="w-14 h-14 rounded-2xl bg-parchment-dark border border-ink/[0.07] flex items-center justify-center">
+      <svg className="w-7 h-7 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    </div>
+    <div>
+      <p className="text-ink-secondary text-sm font-medium">Aún no hay nota generada</p>
+      <p className="text-ink-tertiary text-xs mt-1">Dicta los puntos de la sesión y presiona «Generar nota →»</p>
+    </div>
+  </div>
+);
+
 // ── Clinical note renderer ───────────────────────────────────────────────────
 function ClinicalNote({ text }) {
   const lines = text.split('\n');
@@ -128,6 +142,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [mobileTab, setMobileTab] = useState('dictar');
+  const [currentSessionNote, setCurrentSessionNote] = useState(null);
   const [sessionHistory, setSessionHistory] = useState([]);
   const [expandedSessionId, setExpandedSessionId] = useState(null);
   
@@ -223,6 +238,7 @@ function App() {
     setPatientProfile(null);
     setEvolutionError(null);
     setEvolutionSending(false);
+    setCurrentSessionNote(null);
 
     if (history.length === 0) {
       setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?` }]);
@@ -435,18 +451,33 @@ function App() {
       { role: 'assistant', type: 'loading' }
     ]);
     if (format === 'SOAP') setMobileTab('nota');
+    if (format === 'SOAP') setCurrentSessionNote({ type: 'loading' });
     try {
       const noteData = await processSession(selectedPatientId, dictation, format);
       const botMessage = format === 'SOAP'
         ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
         : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
       setMessages(prev => [...prev.slice(0, -1), botMessage]);
+      if (format === 'SOAP') {
+        setCurrentSessionNote({
+          type: 'bot',
+          noteData,
+          sessionId: noteData.session_id,
+          readOnly: false,
+        });
+      }
       fetchConversations();
     } catch (err) {
       setMessages(prev => [
         ...prev.slice(0, -1),
         { role: 'assistant', type: 'error', text: 'Anomalía de conexión: ' + err.message }
       ]);
+      if (format === 'SOAP') {
+        setCurrentSessionNote({
+          type: 'error',
+          text: 'Anomalía de conexión: ' + err.message,
+        });
+      }
     }
   };
 
@@ -595,41 +626,22 @@ function App() {
 
                   {/* Right: Note panel */}
                   <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-7 bg-white">
-                    {latestNoteMsg === null ? (
-                      <div className="h-full flex flex-col items-center justify-center gap-4">
-                        <svg
-                          className="w-8 h-8 text-gray-200"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.5"
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                          />
-                        </svg>
-                        <div className="flex flex-col items-center gap-2">
-                          <div className="h-2 w-32 bg-gray-100 rounded-full" />
-                          <div className="h-2 w-24 bg-gray-100 rounded-full" />
-                          <div className="h-2 w-28 bg-gray-100 rounded-full" />
-                        </div>
-                      </div>
-                    ) : latestNoteMsg.type === 'loading' ? (
+                    {currentSessionNote === null ? (
+                      NOTE_EMPTY_STATE
+                    ) : currentSessionNote.type === 'loading' ? (
                       <div className="flex items-center gap-3 py-6">
                         {LOADING_DOTS}
                         <span className="text-ink-tertiary text-[14px]">Generando nota SOAP…</span>
                       </div>
-                    ) : latestNoteMsg.type === 'error' ? (
+                    ) : currentSessionNote.type === 'error' ? (
                       <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                        <strong className="font-medium">Error:</strong> {latestNoteMsg.text}
+                        <strong className="font-medium">Error:</strong> {currentSessionNote.text}
                       </div>
-                    ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                    ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
                       <SoapNoteDocument
-                        noteData={latestNoteMsg.noteData}
+                        noteData={currentSessionNote.noteData}
                         onConfirm={fetchConversations}
-                        readOnly={latestNoteMsg.readOnly}
+                        readOnly={currentSessionNote.readOnly}
                       />
                     ) : null}
                   </div>
@@ -650,15 +662,14 @@ function App() {
                           return (
                             <div
                               key={s.id || i}
-                              className={`rounded-xl overflow-hidden transition-all duration-200 ${
-                                isExpanded ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25' : 'bg-[#f4f4f2]'
-                              }`}
+                              className={`rounded-xl overflow-hidden transition-all duration-200 bg-white border-l-[3px] ${
+                                s.status === 'confirmed' ? 'border-l-[#5a9e8a]' : 'border-l-[#c4935a]'
+                              } ${isExpanded ? 'ring-1 ring-[#5a9e8a]/20' : ''}`}
                             >
                               <div
                                 className="px-3 py-3 flex items-start gap-3 cursor-pointer group"
                                 onClick={() => hasNote && setReviewExpandedSessionId(toggleExpandedSession(reviewExpandedSessionId, String(s.id)))}
                               >
-                                <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between gap-2">
                                     <p className="text-[13px] font-semibold text-ink">Sesión #{s.session_number || (soapSessions.length - i)}</p>
@@ -804,32 +815,26 @@ function App() {
             {mobileTab === 'nota' && (
               <div className="flex flex-col flex-1 min-h-0">
                 <div ref={mobileScrollRef} className="flex-1 overflow-y-auto px-4 py-5">
-                  {latestNoteMsg === null ? (
-                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
-                      Dicta una sesión para generar la nota SOAP.
-                    </p>
-                  ) : latestNoteMsg.type === 'loading' ? (
+                  {currentSessionNote === null ? (
+                    NOTE_EMPTY_STATE
+                  ) : currentSessionNote.type === 'loading' ? (
                     <div className="flex gap-2 items-center py-4">
                       {[0, 0.2, 0.4].map((d, i) => (
                         <div key={i} className="w-2 h-2 rounded-full bg-ink-muted animate-pulse" style={{ animationDelay: `${d}s` }} />
                       ))}
                       <span className="text-ink-tertiary text-sm">Generando nota…</span>
                     </div>
-                  ) : latestNoteMsg.type === 'error' ? (
+                  ) : currentSessionNote.type === 'error' ? (
                     <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                      <strong>Error:</strong> {latestNoteMsg.text}
+                      <strong>Error:</strong> {currentSessionNote.text}
                     </div>
-                  ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                  ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
                     <SoapNoteDocument
-                      noteData={latestNoteMsg.noteData}
+                      noteData={currentSessionNote.noteData}
                       onConfirm={fetchConversations}
-                      readOnly={latestNoteMsg.readOnly}
+                      readOnly={currentSessionNote.readOnly}
                     />
-                  ) : (
-                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
-                      Dicta una sesión para generar la nota SOAP.
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )}

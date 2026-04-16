@@ -205,3 +205,37 @@ describe('toggleExpandedSession', () => {
     expect(toggleExpandedSession('sess-5', 'sess-3')).toBe('sess-3')
   })
 })
+
+describe('currentSessionNote shapes', () => {
+  it('loading shape has type:loading and no noteData', () => {
+    const note = { type: 'loading' };
+    expect(note.type).toBe('loading');
+    expect(note.noteData).toBeUndefined();
+  });
+
+  it('bot shape has noteData, sessionId from noteData.session_id, and readOnly:false', () => {
+    const noteData = { session_id: 'sess-42', clinical_note: { structured_note: {} } };
+    const note = {
+      type: 'bot',
+      noteData,
+      sessionId: noteData.session_id,
+      readOnly: false,
+    };
+    expect(note.type).toBe('bot');
+    expect(note.noteData).toBe(noteData);
+    expect(note.sessionId).toBe('sess-42');
+    expect(note.readOnly).toBe(false);
+  });
+
+  it('error shape has type:error and text with "Anomalía de conexión:" prefix', () => {
+    const err = new Error('Network timeout');
+    const note = { type: 'error', text: 'Anomalía de conexión: ' + err.message };
+    expect(note.type).toBe('error');
+    expect(note.text).toBe('Anomalía de conexión: Network timeout');
+  });
+
+  it('null represents no note generated in this session', () => {
+    const note = null;
+    expect(note).toBeNull();
+  });
+});

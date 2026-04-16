@@ -141,3 +141,169 @@ describe('App - Registration routing', () => {
     })
   })
 })
+
+describe('App - Nota panel empty state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    auth.getScreenFromUrl.mockReturnValue({ screen: 'app' })
+    auth.refreshAccessToken.mockResolvedValue('fake-token')
+    api.getBillingStatus.mockResolvedValue({ status: 'active' })
+    api.listConversations.mockResolvedValue([
+      { patient_id: 'p1', patient_name: 'Ana López' }
+    ])
+    // Patient has a confirmed SOAP session in history
+    api.getPatientSessions.mockResolvedValue([
+      {
+        id: 's1',
+        format: 'SOAP',
+        session_number: 1,
+        status: 'confirmed',
+        raw_dictation: 'Dictado previo',
+        ai_response: '**S — Sesión previa**',
+        structured_note: { subjective: 'S', objective: 'O', assessment: 'A', plan: 'P' },
+        detected_patterns: [],
+        alerts: [],
+      }
+    ])
+    api.getPatientProfile.mockResolvedValue({ profile: { recurring_themes: [], risk_factors: [] } })
+    api.processSession.mockResolvedValue({
+      session_id: 'new-sess',
+      clinical_note: {
+        structured_note: { subjective: 'Nueva S', objective: 'O', assessment: 'A', plan: 'P' },
+        detected_patterns: [],
+        alerts: [],
+        session_id: 'new-sess',
+      },
+      text_fallback: '**S — Nueva sesión**',
+    })
+  })
+
+  it('shows empty state in Nota tab when patient with history is selected', async () => {
+    render(<App />)
+    const user = userEvent.setup()
+
+    await waitFor(() => expect(api.listConversations).toHaveBeenCalled())
+    const patients = await screen.findAllByText('Ana López')
+    await user.click(patients[0])
+
+    // Switch to Nota tab (use exact:false in case tab has minor whitespace)
+    const notaTab = (await screen.findAllByRole('button', { name: /nota/i, exact: false }))[0]
+    await user.click(notaTab)
+
+    expect((await screen.findAllByText('Aún no hay nota generada'))[0]).toBeInTheDocument()
+    expect((await screen.findAllByText(/Dicta los puntos de la sesión/))[0]).toBeInTheDocument()
+  })
+
+  it('shows loading state while generating note', async () => {
+    // Delay the API response so we can assert on the loading state
+    api.processSession.mockImplementation(
+      () => new Promise(resolve => setTimeout(() => resolve({
+        session_id: 'new-sess',
+        clinical_note: { structured_note: {}, detected_patterns: [], alerts: [], session_id: 'new-sess' },
+        text_fallback: '',
+      }), 200))
+    )
+
+    render(<App />)
+    const user = userEvent.setup()
+
+    await waitFor(() => expect(api.listConversations).toHaveBeenCalled())
+    const patients = await screen.findAllByText('Ana López')
+    await user.click(patients[0])
+
+    // Type in Dictar tab and click generate
+    const dictarTab = (await screen.findAllByRole('button', { name: /dictar/i }))[0]
+    await user.click(dictarTab)
+    const textarea = (await screen.findAllByPlaceholderText(/Dicta los puntos clave/i))[0]
+    await user.type(textarea, 'Paciente presenta mejoría.')
+    await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
+
+    // handleSendDictation auto-switches to Nota tab — loading indicator must appear
+    expect((await screen.findAllByText(/Generando nota/i))[0]).toBeInTheDocument()
+    expect(screen.queryAllByText('Aún no hay nota generada').length).toBe(0)
+  })
+
+  it('shows note after generation completes', async () => {
+    render(<App />)
+    const user = userEvent.setup()
+
+    await waitFor(() => expect(api.listConversations).toHaveBeenCalled())
+    const patients = await screen.findAllByText('Ana López')
+    await user.click(patients[0])
+
+    const dictarTab = (await screen.findAllByRole('button', { name: /dictar/i }))[0]
+    await user.click(dictarTab)
+    const textarea = (await screen.findAllByPlaceholderText(/Dicta los puntos clave/i))[0]
+    await user.type(textarea, 'Paciente presenta mejoría.')
+    await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
+
+    // Wait for loading to resolve
+    await waitFor(() => {
+      expect(screen.queryByText(/Generando nota/i)).not.toBeInTheDocument()
+    })
+    // Empty state gone, note content visible
+    expect(screen.queryAllByText('Aún no hay nota generada').length).toBe(0)
+    // SoapNoteDocument should render (it receives structured_note with subjective: 'Nueva S')
+    expect((await screen.findAllByText(/Nueva S/i))[0]).toBeInTheDocument()
+  })
+
+  it('shows error state when generation fails', async () => {
+    api.processSession.mockRejectedValue(new Error('Server unreachable'))
+
+    render(<App />)
+    const user = userEvent.setup()
+
+    await waitFor(() => expect(api.listConversations).toHaveBeenCalled())
+    const patients = await screen.findAllByText('Ana López')
+    await user.click(patients[0])
+
+    const dictarTab = (await screen.findAllByRole('button', { name: /dictar/i }))[0]
+    await user.click(dictarTab)
+    const textarea = (await screen.findAllByPlaceholderText(/Dicta los puntos clave/i))[0]
+    await user.type(textarea, 'Paciente presenta mejoría.')
+    await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
+
+    await waitFor(() => {
+      expect(screen.queryAllByText(/Anomalía de conexión: Server unreachable/).length).toBeGreaterThan(0)
+    })
+  })
+
+  it('resets to empty state when switching to a different patient', async () => {
+    api.listConversations.mockResolvedValue([
+      { patient_id: 'p1', patient_name: 'Ana López' },
+      { patient_id: 'p2', patient_name: 'Carlos Ruiz' },
+    ])
+    api.getPatientSessions
+      .mockResolvedValueOnce([
+        { id: 's1', format: 'SOAP', session_number: 1, status: 'confirmed',
+          raw_dictation: 'Dictado', ai_response: '**S**',
+          structured_note: { subjective: 'S', objective: 'O', assessment: 'A', plan: 'P' },
+          detected_patterns: [], alerts: [] }
+      ])
+      .mockResolvedValueOnce([]) // p2 has no history
+
+    render(<App />)
+    const user = userEvent.setup()
+
+    await waitFor(() => expect(api.listConversations).toHaveBeenCalled())
+
+    // Select Ana and generate a note
+    const anas = await screen.findAllByText('Ana López')
+    await user.click(anas[0])
+    const dictarTab = (await screen.findAllByRole('button', { name: /dictar/i }))[0]
+    await user.click(dictarTab)
+    const textarea = (await screen.findAllByPlaceholderText(/Dicta los puntos clave/i))[0]
+    await user.type(textarea, 'Sesión de Ana.')
+    await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
+    await waitFor(() => expect(api.processSession).toHaveBeenCalled())
+
+    // Switch to Carlos
+    const carloss = await screen.findAllByText('Carlos Ruiz')
+    await user.click(carloss[0])
+
+    // Nota tab must reset to empty state
+    const notaTab = (await screen.findAllByRole('button', { name: /nota/i, exact: false }))[0]
+    await user.click(notaTab)
+    expect((await screen.findAllByText('Aún no hay nota generada'))[0]).toBeInTheDocument()
+  })
+})
