@@ -278,6 +278,28 @@ async def create_patient(
     return PatientOut.model_validate(patient)
 
 
+@router.get("/patients/{patient_id}", response_model=PatientOut, tags=["patients"])
+async def get_patient(
+    patient_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Psychologist = Depends(get_current_psychologist),
+):
+    puuid = _parse_uuid(patient_id, "patient_id")
+    res = await db.execute(
+        select(Patient).where(
+            Patient.id == puuid,
+            Patient.deleted_at.is_(None),
+        )
+    )
+    patient = res.scalar_one_or_none()
+
+    # Ownership: no revelar existencia de pacientes ajenos
+    if not patient or patient.psychologist_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    return PatientOut.model_validate(patient)
+
+
 @router.get("/patients/{patient_id}/profile", response_model=ProfileOut, tags=["patients"])
 async def get_patient_profile(
     patient_id: str,
