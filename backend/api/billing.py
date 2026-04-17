@@ -1,4 +1,5 @@
 import os
+import logging
 import stripe
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -6,6 +7,8 @@ from database import get_db, Subscription, ProcessedStripeEvent
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from .auth import get_current_psychologist
+
+logger = logging.getLogger("syquex.billing")
 
 router = APIRouter()
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -64,19 +67,25 @@ async def create_checkout_session(
         )
         return {"checkout_url": session.url}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Stripe checkout error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al crear sesión de pago")
 
 @router.post("/webhook")
 async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get('stripe-signature')
-    
+    webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+
+    if not webhook_secret:
+        logger.error("STRIPE_WEBHOOK_SECRET not configured")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, os.getenv('STRIPE_WEBHOOK_SECRET', '')
-        )
-    except Exception as e:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except stripe.error.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Firma inválida")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Payload inválido")
 
     # Idempotencia
     result = await db.execute(
@@ -86,7 +95,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         return {"status": "already_processed"}
         
     # Guardar evento
-    db.add(ProcessedStripeEvent(id=event.id, type=event.type))
+    db.add(ProcessedStripeEvent(id=event.id))
 
     # Manejar pago exitoso
     if event.type == 'checkout.session.completed':
@@ -95,7 +104,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             psychologist_id = session.metadata.get('psychologist_id')
             if psychologist_id:
                 sub_result = await db.execute(
-                    select(Subscription).where(Subscription.psychologist_id == int(psychologist_id))
+                    select(Subscription).where(Subscription.psychologist_id == psychologist_id)
                 )
                 sub = sub_result.scalar_one_or_none()
                 if sub:

@@ -178,7 +178,7 @@ Spec de referencia: `docs/superpowers/specs/2026-03-30-auth-billing-launch-desig
 
 ---
 
-### Pre-deploy backlog
+### Pre-deploy backlog 499
 
 Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueantes.
 
@@ -190,20 +190,23 @@ Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueante
 | 4 | **Tipografía nota clínica** | Selector de fuente en el panel SOAP (serif / sans) |
 | 5 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
 | 6 | **Crear correo hola@syquex.mx** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
+| 7 | **Vulnerabilidades criticas** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
+| 8 | **Flujo olvide mi contraseña** | Configurar flujo de recuperación de contraseña |
 
 ---
 
-### Post-MVP
+### Post-MVP 799
 
 | # | Feature | Descripción |
 |---|---------|-------------|
 | 1 | **Dictado de voz con streaming** | Transcripción en tiempo real + SOAP construyéndose progresivamente (Whisper API) |
-| 2 | **Descargar nota clínica como PDF** | Export con membrete profesional |
-| 3 | **Vincular Google Drive** | Guardar notas automáticamente en carpetas del psicólogo |
-| 4 | **Vincular Google Calendar** | Vincular sesiones con eventos del calendario |
-| 5 | **Cargar texto desde archivo** | Subir texto para procesarlo como dictado |
-| 6 | **Pegar texto largo (referencia parcial)** | Referenciar fragmentos sin pegar el contenido completo |
-| 7 | **Visualizar contraseña** | Toggle show/hide en login y registro |
+| 2 | **Crear nota personalizada para usuario** | Export con membrete profesional |
+| 3 | **Descargar nota clínica como PDF** | Export con membrete profesional |
+| 4 | **Vincular Google Drive** | Guardar notas automáticamente en carpetas del psicólogo |
+| 5 | **Vincular Google Calendar** | Vincular sesiones con eventos del calendario |
+| 6 | **Cargar texto desde archivo** | Subir texto para procesarlo como dictado |
+| 7 | **Pegar texto largo (referencia parcial)** | Referenciar fragmentos sin pegar el contenido completo |
+| 8 | **Visualizar contraseña** | Toggle show/hide en login y registro |
 
 ---
 

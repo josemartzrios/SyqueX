@@ -70,3 +70,34 @@ def _make_execute_result(scalars_all=None, scalar_one_or_none=None, scalar_one=0
     r.scalar_one.return_value = scalar_one
     r.all.return_value = all_rows or []
     return r
+
+from unittest.mock import patch as _patch
+from httpx import AsyncClient, ASGITransport
+
+
+@pytest.fixture
+def fake_psychologist():
+    psy = MagicMock()
+    psy.id = uuid.UUID("99999999-9999-9999-9999-999999999999")
+    psy.is_active = True
+    return psy
+
+
+@pytest.fixture
+def authed_app(mock_db, fake_psychologist):
+    """FastAPI app with DB + auth mocked for integration tests."""
+    with _patch("database.init_db", new=AsyncMock()):
+        from main import app as _app
+        from database import get_db
+        from api.auth import get_current_psychologist
+
+        async def override_get_db():
+            yield mock_db
+
+        async def override_current_user():
+            return fake_psychologist
+
+        _app.dependency_overrides[get_db] = override_get_db
+        _app.dependency_overrides[get_current_psychologist] = override_current_user
+        yield _app
+        _app.dependency_overrides.clear()

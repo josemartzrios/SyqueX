@@ -1,10 +1,10 @@
 import uuid
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, BackgroundTasks
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import date, datetime
 
 from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal
@@ -12,7 +12,9 @@ from agent import process_session, update_patient_profile_summary
 from agent.tools import generate_evolution_report, search_patient_history
 from agent.embeddings import get_embedding
 from api.limiter import limiter
-from exceptions import InvalidUUIDError, SessionNotFoundError, PatientNotFoundError
+from exceptions import InvalidUUIDError, SessionNotFoundError, PatientNotFoundError, UnauthorizedAccessError
+from api.auth import get_current_psychologist
+from api.audit import log_audit
 
 
 def _parse_uuid(value: str, label: str = "ID") -> uuid.UUID:
@@ -30,6 +32,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["clinical"])
 
+
+# ---------------------------------------------------------------------------
+# Ownership verification — OWASP A01 Broken Access Control
+# ---------------------------------------------------------------------------
+
+async def _get_owned_patient(
+    db: AsyncSession, psychologist_id: uuid.UUID, patient_id: str
+) -> Patient:
+    """Verifica que el paciente exista y pertenezca al psicólogo autenticado."""
+    puuid = _parse_uuid(patient_id, "patient_id")
+    patient = await db.get(Patient, puuid)
+    if not patient or patient.deleted_at is not None:
+        raise PatientNotFoundError("Paciente no encontrado.", code="PATIENT_NOT_FOUND")
+    if patient.psychologist_id != psychologist_id:
+        raise UnauthorizedAccessError("Acceso no autorizado a este paciente.", code="FORBIDDEN")
+    return patient
+
+
 @router.get("/health", tags=["ops"])
 async def health():
     return {"status": "ok"}
@@ -38,11 +58,72 @@ async def health():
 # Request schemas
 # ---------------------------------------------------------------------------
 
+MaritalStatus = Literal[
+    "soltero", "casado", "divorciado", "viudo", "union_libre", "otro"
+]
+
+
+class EmergencyContact(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    relationship: str = Field(..., min_length=1, max_length=60)
+    phone: str = Field(..., min_length=7, max_length=20)
+
+
 class PatientCreate(BaseModel):
-    name: str
-    date_of_birth: Optional[date] = None
+    # Obligatorios (flujo híbrido)
+    name: str = Field(..., min_length=1, max_length=255)
+    date_of_birth: date
+    reason_for_consultation: str = Field(..., min_length=1, max_length=2000)
+
+    # Opcionales
+    marital_status: Optional[MaritalStatus] = None
+    occupation: Optional[str] = Field(None, max_length=120)
+    address: Optional[str] = Field(None, max_length=500)
+    emergency_contact: Optional[EmergencyContact] = None
+    medical_history: Optional[str] = Field(None, max_length=5000)
+    psychological_history: Optional[str] = Field(None, max_length=5000)
+
+    # Pre-existentes
     diagnosis_tags: Optional[List[str]] = []
     risk_level: str = "low"
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def dob_must_be_past_and_reasonable(cls, v: date) -> date:
+        today = date.today()
+        if v >= today:
+            raise ValueError("Fecha de nacimiento debe ser pasada")
+        if v < today.replace(year=today.year - 120):
+            raise ValueError("Fecha de nacimiento no razonable")
+        return v
+
+
+class PatientUpdate(BaseModel):
+    # Todos opcionales — PATCH parcial. Los 3 campos mínimos validan min_length=1
+    # cuando se envían (no se pueden limpiar con "").
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    date_of_birth: Optional[date] = None
+    reason_for_consultation: Optional[str] = Field(None, min_length=1, max_length=2000)
+    marital_status: Optional[MaritalStatus] = None
+    occupation: Optional[str] = Field(None, max_length=120)
+    address: Optional[str] = Field(None, max_length=500)
+    emergency_contact: Optional[EmergencyContact] = None
+    medical_history: Optional[str] = Field(None, max_length=5000)
+    psychological_history: Optional[str] = Field(None, max_length=5000)
+    diagnosis_tags: Optional[List[str]] = None
+    risk_level: Optional[str] = None
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def dob_must_be_past_and_reasonable(cls, v: Optional[date]) -> Optional[date]:
+        if v is None:
+            return v
+        today = date.today()
+        if v >= today:
+            raise ValueError("Fecha de nacimiento debe ser pasada")
+        if v < today.replace(year=today.year - 120):
+            raise ValueError("Fecha de nacimiento no razonable")
+        return v
 
 class ProcessSessionRequest(BaseModel):
     raw_dictation: str
@@ -61,6 +142,15 @@ class PatientOut(BaseModel):
     risk_level: Optional[str] = None
     date_of_birth: Optional[date] = None
     diagnosis_tags: Optional[List[str]] = []
+
+    # Intake
+    marital_status: Optional[str] = None
+    occupation: Optional[str] = None
+    address: Optional[str] = None
+    emergency_contact: Optional[Dict[str, Any]] = None
+    reason_for_consultation: Optional[str] = None
+    medical_history: Optional[str] = None
+    psychological_history: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -130,79 +220,150 @@ class ProfileOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/patients", response_model=List[PatientOut], tags=["patients"])
-async def list_patients(db: AsyncSession = Depends(get_db)):
-    query = select(Patient).where(Patient.deleted_at.is_(None)).order_by(Patient.name)
+async def list_patients(
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(Patient).where(
+        Patient.psychologist_id == psychologist.id,
+        Patient.deleted_at.is_(None),
+    ).order_by(Patient.name)
     res = await db.execute(query)
     patients = res.scalars().all()
-
-    if not patients:
-        psy_query = select(Psychologist).limit(1)
-        psy_res = await db.execute(psy_query)
-        psy = psy_res.scalar_one_or_none()
-        if not psy:
-            psy = Psychologist(name="Dr. Default", email="dr@default.com")
-            db.add(psy)
-            await db.commit()
-            await db.refresh(psy)
-
-        default_patient = Patient(
-            id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
-            psychologist_id=psy.id,
-            name="Paciente de Prueba",
-            risk_level="low"
-        )
-        db.add(default_patient)
-        db.add(PatientProfile(patient_id=default_patient.id))
-        await db.commit()
-        return [PatientOut(id=default_patient.id, name=default_patient.name, risk_level="low")]
 
     return [PatientOut(id=p.id, name=p.name, risk_level=p.risk_level) for p in patients]
 
 
 @router.post("/patients", response_model=PatientOut, status_code=status.HTTP_201_CREATED, tags=["patients"])
-async def create_patient(payload: PatientCreate, db: AsyncSession = Depends(get_db)):
-    query = select(Psychologist).limit(1)
-    res = await db.execute(query)
-    psy = res.scalar_one_or_none()
-
-    if not psy:
-        psy = Psychologist(name="Dr. Default", email="dr@default.com")
-        db.add(psy)
-        await db.commit()
-
+async def create_patient(
+    payload: PatientCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Psychologist = Depends(get_current_psychologist),
+):
     patient = Patient(
-        psychologist_id=psy.id,
+        psychologist_id=current_user.id,
         name=payload.name,
         date_of_birth=payload.date_of_birth,
-        diagnosis_tags=payload.diagnosis_tags,
-        risk_level=payload.risk_level
+        diagnosis_tags=payload.diagnosis_tags or [],
+        risk_level=payload.risk_level,
+        marital_status=payload.marital_status,
+        occupation=payload.occupation,
+        address=payload.address,
+        emergency_contact=payload.emergency_contact.model_dump() if payload.emergency_contact else None,
+        reason_for_consultation=payload.reason_for_consultation,
+        medical_history=payload.medical_history,
+        psychological_history=payload.psychological_history,
     )
     db.add(patient)
+    await db.flush()  # populate patient.id
+
+    db.add(PatientProfile(patient_id=patient.id))
+
+    # Audit: nombres de campos enviados (solo los set explícitamente), sin valores
+    fields_set = sorted(payload.model_fields_set)
+    await log_audit(
+        db=db,
+        action="CREATE",
+        entity="patient",
+        entity_id=str(patient.id),
+        psychologist_id=str(current_user.id),
+        ip_address=request.client.host if request.client else None,
+        metadata={"fields_set": fields_set},
+    )
+
     await db.commit()
     await db.refresh(patient)
 
-    db.add(PatientProfile(patient_id=patient.id))
-    await db.commit()
+    return PatientOut.model_validate(patient)
 
-    return PatientOut(
-        id=patient.id,
-        name=patient.name,
-        risk_level=patient.risk_level,
-        date_of_birth=patient.date_of_birth,
-        diagnosis_tags=patient.diagnosis_tags or [],
+
+@router.get("/patients/{patient_id}", response_model=PatientOut, tags=["patients"])
+async def get_patient(
+    patient_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Psychologist = Depends(get_current_psychologist),
+):
+    puuid = _parse_uuid(patient_id, "patient_id")
+    res = await db.execute(
+        select(Patient).where(
+            Patient.id == puuid,
+            Patient.deleted_at.is_(None),
+        )
     )
+    patient = res.scalar_one_or_none()
+
+    # Ownership: no revelar existencia de pacientes ajenos
+    if not patient or patient.psychologist_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    return PatientOut.model_validate(patient)
+
+
+@router.patch("/patients/{patient_id}", response_model=PatientOut, tags=["patients"])
+async def update_patient(
+    patient_id: str,
+    payload: PatientUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Psychologist = Depends(get_current_psychologist),
+):
+    puuid = _parse_uuid(patient_id, "patient_id")
+    res = await db.execute(
+        select(Patient).where(
+            Patient.id == puuid,
+            Patient.deleted_at.is_(None),
+        )
+    )
+    patient = res.scalar_one_or_none()
+
+    if not patient or patient.psychologist_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    # Solo los campos explícitamente enviados — permite setear null en opcionales
+    updates = payload.model_dump(exclude_unset=True)
+
+    for field, value in updates.items():
+        if field == "emergency_contact":
+            # Pydantic ya validó la sub-estructura; persistir como dict (o None)
+            setattr(
+                patient,
+                field,
+                value.model_dump() if hasattr(value, "model_dump") else value,
+            )
+        else:
+            setattr(patient, field, value)
+
+    fields_changed = sorted(updates.keys())
+    await log_audit(
+        db=db,
+        action="UPDATE",
+        entity="patient",
+        entity_id=str(patient.id),
+        psychologist_id=str(current_user.id),
+        ip_address=request.client.host if request.client else None,
+        metadata={"fields_changed": fields_changed},
+    )
+
+    await db.commit()
+    await db.refresh(patient)
+    return PatientOut.model_validate(patient)
 
 
 @router.get("/patients/{patient_id}/profile", response_model=ProfileOut, tags=["patients"])
-async def get_patient_profile(patient_id: str, db: AsyncSession = Depends(get_db)):
-    puuid = _parse_uuid(patient_id, "patient_id")
-    res = await db.execute(select(PatientProfile).where(PatientProfile.patient_id == puuid))
+async def get_patient_profile(
+    patient_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
+    patient = await _get_owned_patient(db, psychologist.id, patient_id)
+    res = await db.execute(select(PatientProfile).where(PatientProfile.patient_id == patient.id))
     profile = res.scalar_one_or_none()
 
     res_s = await db.execute(
         select(Session, ClinicalNote)
         .join(ClinicalNote, Session.id == ClinicalNote.session_id)
-        .where(Session.patient_id == puuid, Session.status == "confirmed")
+        .where(Session.patient_id == patient.id, Session.status == "confirmed")
         .order_by(Session.session_date.desc())
         .limit(3)
     )
@@ -224,9 +385,11 @@ async def get_patient_sessions(
     patient_id: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    psychologist: Psychologist = Depends(get_current_psychologist),
     db: AsyncSession = Depends(get_db),
 ):
-    puuid = _parse_uuid(patient_id, "patient_id")
+    patient = await _get_owned_patient(db, psychologist.id, patient_id)
+    puuid = patient.id
     offset = (page - 1) * page_size
 
     total_res = await db.execute(
@@ -271,13 +434,25 @@ async def get_patient_sessions(
 
 
 @router.get("/patients/{patient_id}/report", tags=["patients"])
-async def patient_report(patient_id: str, period: str = "quarterly", db: AsyncSession = Depends(get_db)):
-    return await generate_evolution_report(db, patient_id, period)
+async def patient_report(
+    patient_id: str,
+    period: str = "quarterly",
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
+    patient = await _get_owned_patient(db, psychologist.id, patient_id)
+    return await generate_evolution_report(db, str(patient.id), period)
 
 
 @router.get("/patients/{patient_id}/search", tags=["patients"])
-async def patient_search(patient_id: str, q: str = Query(..., min_length=1), db: AsyncSession = Depends(get_db)):
-    return await search_patient_history(db, patient_id, q)
+async def patient_search(
+    patient_id: str,
+    q: str = Query(..., min_length=1),
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
+    patient = await _get_owned_patient(db, psychologist.id, patient_id)
+    return await search_patient_history(db, str(patient.id), q)
 
 # ---------------------------------------------------------------------------
 # Sessions
@@ -289,13 +464,11 @@ async def process_session_endpoint(
     request: Request,
     patient_id: str,
     rec: ProcessSessionRequest,
+    psychologist: Psychologist = Depends(get_current_psychologist),
     db: AsyncSession = Depends(get_db),
 ):
-    patient_uuid = _parse_uuid(patient_id, "patient_id")
-
-    patient_check = await db.execute(select(Patient).where(Patient.id == patient_uuid))
-    if not patient_check.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = await _get_owned_patient(db, psychologist.id, patient_id)
+    patient_uuid = patient.id
 
     response = await process_session(db, patient_id, rec.raw_dictation, None, rec.format)
 
@@ -344,9 +517,20 @@ async def _background_update_profile(patient_id: uuid.UUID, session_note: dict) 
 
 
 @router.post("/sessions/{session_id}/confirm", response_model=ConfirmNoteOut, tags=["sessions"])
-async def confirm_session(session_id: str, req: ConfirmNoteRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
+async def confirm_session(
+    session_id: str,
+    req: ConfirmNoteRequest,
+    background_tasks: BackgroundTasks,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
     session_uuid = _parse_uuid(session_id, "session_id")
-    res = await db.execute(select(Session).where(Session.id == session_uuid))
+    res = await db.execute(
+        select(Session).join(Patient).where(
+            Session.id == session_uuid,
+            Patient.psychologist_id == psychologist.id,
+        )
+    )
     sess = res.scalar_one_or_none()
 
     if not sess:
@@ -386,9 +570,18 @@ async def confirm_session(session_id: str, req: ConfirmNoteRequest, background_t
 
 
 @router.patch("/sessions/{session_id}/archive", response_model=ArchiveOut, tags=["sessions"])
-async def archive_session(session_id: str, db: AsyncSession = Depends(get_db)):
+async def archive_session(
+    session_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
     session_uuid = _parse_uuid(session_id, "session_id")
-    res = await db.execute(select(Session).where(Session.id == session_uuid))
+    res = await db.execute(
+        select(Session).join(Patient).where(
+            Session.id == session_uuid,
+            Patient.psychologist_id == psychologist.id,
+        )
+    )
     sess = res.scalar_one_or_none()
 
     if not sess:
@@ -401,9 +594,14 @@ async def archive_session(session_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("/patients/{patient_id}/sessions/archive", response_model=ArchiveOut, tags=["sessions"])
-async def archive_patient_sessions(patient_id: str, db: AsyncSession = Depends(get_db)):
+async def archive_patient_sessions(
+    patient_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
     """Archive all sessions for a patient so they disappear from the conversations list."""
-    patient_uuid = _parse_uuid(patient_id, "patient_id")
+    patient = await _get_owned_patient(db, psychologist.id, patient_id)
+    patient_uuid = patient.id
     res = await db.execute(
         select(Session).where(Session.patient_id == patient_uuid, Session.is_archived == False)
     )
@@ -421,10 +619,11 @@ async def archive_patient_sessions(patient_id: str, db: AsyncSession = Depends(g
 async def list_conversations(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    psychologist: Psychologist = Depends(get_current_psychologist),
     db: AsyncSession = Depends(get_db),
 ):
-    # One entry per patient: most recent Session with real content via DISTINCT ON (PostgreSQL)
-    # INNER JOIN ensures only patients with at least one non-empty, non-archived session appear
+    # One entry per patient: most recent non-archived session via DISTINCT ON (PostgreSQL).
+    # LEFT JOIN so patients without any session still appear in the list.
     sql = text("""
         SELECT DISTINCT ON (p.id)
             p.id            AS patient_id,
@@ -436,15 +635,16 @@ async def list_conversations(
             s.status,
             s.messages
         FROM patients p
-        INNER JOIN sessions s
+        LEFT JOIN sessions s
             ON s.patient_id = p.id
             AND s.is_archived = FALSE
             AND s.raw_dictation IS NOT NULL
         WHERE p.deleted_at IS NULL
+          AND p.psychologist_id = :psy_id
         ORDER BY p.id, s.created_at DESC NULLS LAST
     """)
 
-    res = await db.execute(sql)
+    res = await db.execute(sql, {"psy_id": psychologist.id})
     rows = res.mappings().all()
 
     items = []

@@ -8,9 +8,19 @@
  *   - patientName: string | null
  *   - sessionCount: number  (confirmed sessions)
  *   - compact: boolean      (mobile strip uses smaller sizing)
+ *   - patientId: string | null    (id del paciente activo — requerido para editar)
+ *   - onEditPatient: (id) => void (abre el modal de edición; solo desktop)
  */
 
-export default function PatientHeader({ patientName, sessionCount = 0, compact = false, mode = 'session', onModeChange }) {
+export default function PatientHeader({
+  patientName,
+  sessionCount = 0,
+  compact = false,
+  mode = 'session',
+  onModeChange,
+  patientId = null,
+  onEditPatient = null,
+}) {
   if (!patientName) {
     return (
       <header className="px-6 py-3.5 border-b border-black/[0.07] bg-white flex items-center gap-3 flex-shrink-0 min-h-[52px]">
@@ -48,6 +58,21 @@ export default function PatientHeader({ patientName, sessionCount = 0, compact =
       <span className="text-ink-muted text-[12px] ml-1">
         · {sessionCount} {sessionCount === 1 ? 'sesión' : 'sesiones'}
       </span>
+
+      {/* Edit expediente — desktop only, requires patientId + handler */}
+      {onEditPatient && patientId && (
+        <button
+          onClick={() => onEditPatient(patientId)}
+          className="ml-2 p-1.5 rounded-lg text-ink-tertiary hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors"
+          aria-label="Editar expediente"
+          title="Editar expediente"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+        </button>
+      )}
 
       {/* Segmented control — desktop only, only when onModeChange is provided */}
       {onModeChange && (

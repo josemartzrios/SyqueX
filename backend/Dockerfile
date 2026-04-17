@@ -10,5 +10,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# LOW-02: Run as non-root user to limit blast radius of potential RCE
+RUN adduser --disabled-password --no-create-home appuser
+USER appuser
+
 ENV PORT=8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
