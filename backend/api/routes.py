@@ -1,10 +1,10 @@
 import uuid
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, BackgroundTasks
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import date, datetime
 
 from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal
@@ -57,11 +57,72 @@ async def health():
 # Request schemas
 # ---------------------------------------------------------------------------
 
+MaritalStatus = Literal[
+    "soltero", "casado", "divorciado", "viudo", "union_libre", "otro"
+]
+
+
+class EmergencyContact(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    relationship: str = Field(..., min_length=1, max_length=60)
+    phone: str = Field(..., min_length=7, max_length=20)
+
+
 class PatientCreate(BaseModel):
-    name: str
-    date_of_birth: Optional[date] = None
+    # Obligatorios (flujo híbrido)
+    name: str = Field(..., min_length=1, max_length=255)
+    date_of_birth: date
+    reason_for_consultation: str = Field(..., min_length=1, max_length=2000)
+
+    # Opcionales
+    marital_status: Optional[MaritalStatus] = None
+    occupation: Optional[str] = Field(None, max_length=120)
+    address: Optional[str] = Field(None, max_length=500)
+    emergency_contact: Optional[EmergencyContact] = None
+    medical_history: Optional[str] = Field(None, max_length=5000)
+    psychological_history: Optional[str] = Field(None, max_length=5000)
+
+    # Pre-existentes
     diagnosis_tags: Optional[List[str]] = []
     risk_level: str = "low"
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def dob_must_be_past_and_reasonable(cls, v: date) -> date:
+        today = date.today()
+        if v >= today:
+            raise ValueError("Fecha de nacimiento debe ser pasada")
+        if v < today.replace(year=today.year - 120):
+            raise ValueError("Fecha de nacimiento no razonable")
+        return v
+
+
+class PatientUpdate(BaseModel):
+    # Todos opcionales — PATCH parcial. Los 3 campos mínimos validan min_length=1
+    # cuando se envían (no se pueden limpiar con "").
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    date_of_birth: Optional[date] = None
+    reason_for_consultation: Optional[str] = Field(None, min_length=1, max_length=2000)
+    marital_status: Optional[MaritalStatus] = None
+    occupation: Optional[str] = Field(None, max_length=120)
+    address: Optional[str] = Field(None, max_length=500)
+    emergency_contact: Optional[EmergencyContact] = None
+    medical_history: Optional[str] = Field(None, max_length=5000)
+    psychological_history: Optional[str] = Field(None, max_length=5000)
+    diagnosis_tags: Optional[List[str]] = None
+    risk_level: Optional[str] = None
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def dob_must_be_past_and_reasonable(cls, v: Optional[date]) -> Optional[date]:
+        if v is None:
+            return v
+        today = date.today()
+        if v >= today:
+            raise ValueError("Fecha de nacimiento debe ser pasada")
+        if v < today.replace(year=today.year - 120):
+            raise ValueError("Fecha de nacimiento no razonable")
+        return v
 
 class ProcessSessionRequest(BaseModel):
     raw_dictation: str
@@ -80,6 +141,15 @@ class PatientOut(BaseModel):
     risk_level: Optional[str] = None
     date_of_birth: Optional[date] = None
     diagnosis_tags: Optional[List[str]] = []
+
+    # Intake
+    marital_status: Optional[str] = None
+    occupation: Optional[str] = None
+    address: Optional[str] = None
+    emergency_contact: Optional[Dict[str, Any]] = None
+    reason_for_consultation: Optional[str] = None
+    medical_history: Optional[str] = None
+    psychological_history: Optional[str] = None
 
     class Config:
         from_attributes = True
