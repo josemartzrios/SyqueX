@@ -300,6 +300,56 @@ async def get_patient(
     return PatientOut.model_validate(patient)
 
 
+@router.patch("/patients/{patient_id}", response_model=PatientOut, tags=["patients"])
+async def update_patient(
+    patient_id: str,
+    payload: PatientUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Psychologist = Depends(get_current_psychologist),
+):
+    puuid = _parse_uuid(patient_id, "patient_id")
+    res = await db.execute(
+        select(Patient).where(
+            Patient.id == puuid,
+            Patient.deleted_at.is_(None),
+        )
+    )
+    patient = res.scalar_one_or_none()
+
+    if not patient or patient.psychologist_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    # Solo los campos explícitamente enviados — permite setear null en opcionales
+    updates = payload.model_dump(exclude_unset=True)
+
+    for field, value in updates.items():
+        if field == "emergency_contact":
+            # Pydantic ya validó la sub-estructura; persistir como dict (o None)
+            setattr(
+                patient,
+                field,
+                value.model_dump() if hasattr(value, "model_dump") else value,
+            )
+        else:
+            setattr(patient, field, value)
+
+    fields_changed = sorted(updates.keys())
+    await log_audit(
+        db=db,
+        action="UPDATE",
+        entity="patient",
+        entity_id=str(patient.id),
+        psychologist_id=str(current_user.id),
+        ip_address=request.client.host if request.client else None,
+        metadata={"fields_changed": fields_changed},
+    )
+
+    await db.commit()
+    await db.refresh(patient)
+    return PatientOut.model_validate(patient)
+
+
 @router.get("/patients/{patient_id}/profile", response_model=ProfileOut, tags=["patients"])
 async def get_patient_profile(
     patient_id: str,
