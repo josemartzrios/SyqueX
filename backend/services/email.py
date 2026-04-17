@@ -27,7 +27,8 @@ async def send_welcome_email(to_email: str, name: str, trial_ends_at):
         return None
 
 async def send_reset_email(to_email: str, name: str, token: str):
-    reset_url = f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/?reset-token={token}"
+    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+    reset_url = f"{frontend_url}/?reset-token={token}"
     if not resend.api_key:
         print(f"Mock email: Reset for {to_email} -> {reset_url}")
         return None
@@ -35,19 +36,18 @@ async def send_reset_email(to_email: str, name: str, token: str):
         r = resend.Emails.send({
             "from": FROM_EMAIL,
             "to": to_email,
-            "subject": "Tu prueba gratuita de SyqueX termina pronto",
-            "html": """
-            <p>Hola,</p>
-            <p>Esperamos que estés disfrutando SyqueX. Tu período de prueba de 14 días termina en menos de 48 horas.</p>
-            <p>Para seguir teniendo acceso completo a todas las funciones y dictados ilimitados, por favor actualiza 
-            tu suscripción al plan Pro iniciando sesión en tu cuenta.</p>
-            <p><a href="https://syquex.vercel.app">Ir a SyqueX</a></p>
-            <p>Si tienes alguna pregunta, no dudes en responder este correo.</p>
+            "subject": "Restablece tu contraseña — SyqueX",
+            "html": f"""
+            <p>Hola {name},</p>
+            <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta de SyqueX.</p>
+            <p>Haz clic en el siguiente enlace para crear una nueva contraseña. Este enlace expira en 60 minutos.</p>
+            <p><a href="{reset_url}">Restablecer contraseña</a></p>
+            <p>Si no solicitaste este cambio, puedes ignorar este correo. Tu contraseña actual seguirá funcionando.</p>
             <br>
             <p>El equipo de SyqueX</p>
             """
         })
         return r
     except Exception as e:
-        print(f"Error enviando email trial ending: {e}")
+        print(f"Error enviando email reset: {e}")
         return None

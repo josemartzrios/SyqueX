@@ -36,8 +36,19 @@ async def _add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-    if settings.is_production():
+    if settings.ENVIRONMENT in ("production", "staging"):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://js.stripe.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "connect-src 'self' https://*.supabase.co https://api.stripe.com; "
+            "frame-src https://js.stripe.com; "
+            "img-src 'self' data:; "
+            "object-src 'none'; "
+            "base-uri 'self'"
+        )
     for header in ("X-Powered-By", "Server"):
         if header in response.headers:
             del response.headers[header]
@@ -51,7 +62,7 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=_add_security_headers)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.get_allowed_origins(),
-    allow_origin_regex=r"https://syquex(-[a-z0-9]+)*\.vercel\.app",
+    allow_origin_regex=r"^https://syquex(-[a-z0-9]+)*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
@@ -89,8 +100,9 @@ async def startup_event():
     import os
     raw = os.environ.get("ALLOWED_ORIGINS", "NOT_SET")
     parsed = settings.get_allowed_origins()
-    print(f"[CORS_DEBUG] raw env: {repr(raw)}", flush=True)
-    print(f"[CORS_DEBUG] parsed origins: {parsed}", flush=True)
+    if settings.ENVIRONMENT == "development":
+        print(f"[CORS_DEBUG] raw env: {repr(raw)}", flush=True)
+        print(f"[CORS_DEBUG] parsed origins: {parsed}", flush=True)
     await init_db()
 
 app.include_router(auth_router, prefix="/api/v1")
