@@ -363,7 +363,7 @@ async def get_patient_profile(
     res_s = await db.execute(
         select(Session, ClinicalNote)
         .join(ClinicalNote, Session.id == ClinicalNote.session_id)
-        .where(Session.patient_id == puuid, Session.status == "confirmed")
+        .where(Session.patient_id == patient.id, Session.status == "confirmed")
         .order_by(Session.session_date.desc())
         .limit(3)
     )
