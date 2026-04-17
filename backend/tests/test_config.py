@@ -28,11 +28,11 @@ class TestSettings:
         assert s.is_production() is False
 
     def test_is_production_returns_false_in_staging(self):
-        s = Settings(ENVIRONMENT="staging")
+        s = Settings(ENVIRONMENT="staging", SECRET_KEY="a"*64, ANTHROPIC_API_KEY="sk-...", STRIPE_SECRET_KEY="sk_...", STRIPE_WEBHOOK_SECRET="whsec_...")
         assert s.is_production() is False
 
     def test_is_production_returns_true_in_production(self):
-        s = Settings(ENVIRONMENT="production")
+        s = Settings(ENVIRONMENT="production", SECRET_KEY="a"*64, ANTHROPIC_API_KEY="sk-...", STRIPE_SECRET_KEY="sk_...", STRIPE_WEBHOOK_SECRET="whsec_...")
         assert s.is_production() is True
 
     def test_get_allowed_origins_single(self):
