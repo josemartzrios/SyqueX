@@ -27,7 +27,14 @@ async function _handleResponse(res) {
   let code = null;
   try {
     const body = await res.json();
-    detail = body.detail || detail;
+    if (Array.isArray(body.detail)) {
+      // FastAPI 422: detail is an array of { msg, loc, ... }
+      detail = body.detail
+        .map((e) => (typeof e === 'object' && e.msg ? e.msg.replace(/^Value error,\s*/i, '') : String(e)))
+        .join('; ');
+    } else {
+      detail = body.detail || detail;
+    }
     code = body.code || null;
   } catch (_) { /* response body not JSON */ }
 
