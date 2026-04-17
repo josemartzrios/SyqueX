@@ -1,0 +1,75 @@
+# 🛡️ Security Fixes Applied — 2026-04-16
+
+## Summary: 16 vulnerabilities fixed across 4 files
+
+---
+
+## Changes by File
+
+### 1. `backend/api/routes.py` — 14 chunks, ~80 lines changed
+**Fixes:** CRIT-01, CRIT-02, HIGH-01, HIGH-02, HIGH-03
+
+| Fix | What changed |
+|---|---|
+| Added `get_current_psychologist` import | Auth dependency now available |
+| Added `_get_owned_patient()` helper | Reusable ownership verification |
+| `list_patients` | Auth + filter by `psychologist.id` |
+| `list_patients` | Removed auto-creation of "Dr. Default" + "Paciente de Prueba" |
+| `create_patient` | Auth + uses authenticated psychologist (not `LIMIT 1`) |
+| `get_patient_profile` | Auth + ownership check via `_get_owned_patient` |
+| `get_patient_sessions` | Auth + ownership check |
+| `patient_report` | Auth + ownership check |
+| `patient_search` | Auth + ownership check |
+| `process_session_endpoint` | Auth + ownership (replaces old patient check) |
+| `confirm_session` | Auth + `JOIN Patient` ownership filter |
+| `archive_session` | Auth + `JOIN Patient` ownership filter |
+| `archive_patient_sessions` | Auth + ownership check |
+| `list_conversations` | Auth + SQL `WHERE psychologist_id = :psy_id` |
+
+### 2. `backend/config.py` — 2 chunks
+**Fix:** CRIT-04
+
+- Added `pydantic.model_validator` import
+- Added `_validate_production_secrets()` validator:
+  - SECRET_KEY must be 64+ chars and not the default
+  - ANTHROPIC_API_KEY required
+  - STRIPE_SECRET_KEY required
+  - STRIPE_WEBHOOK_SECRET required
+  - INTERNAL_API_KEY must not be default
+
+### 3. `backend/main.py` — 3 chunks
+**Fixes:** HIGH-07, MED-03, MED-06
+
+- Added `Content-Security-Policy` header in production/staging
+- Extended `Strict-Transport-Security` to staging
+- Anchored CORS regex with `^` and `$`
+- Gated debug prints behind `ENVIRONMENT == "development"`
+
+### 4. `backend/api/billing.py` — 6 chunks
+**Fixes:** HIGH-04, HIGH-05, LOW-03, + UUID crash fix
+
+- Added `logging` import + logger
+- Webhook validates secret exists before use
+- Catches `stripe.error.SignatureVerificationError` specifically (not generic `Exception`)
+- Catches `ValueError` for bad payloads
+- `create_checkout` no longer leaks `str(e)` to client
+- Removed non-existent `type` column from `ProcessedStripeEvent`
+- Fixed `int(psychologist_id)` → `psychologist_id` (would crash on UUID)
+
+---
+
+## Remaining Items (not fixed yet)
+
+| # | Severity | Item | Note |
+|---|---|---|---|
+| CRIT-03 | 🔴 | API keys in `backend/.env` | Manual: rotate keys in Anthropic/OpenAI dashboards |
+| CRIT-05 | 🔴 | Clinical notes in plaintext | Requires data migration + ENCRYPTION_KEY setup |
+| HIGH-06 | 🟠 | No subscription enforcement | Needs `require_active_subscription` dependency |
+| MED-01 | 🟡 | In-memory rate limiting | Needs Redis (Railway Marketplace) |
+| MED-02 | 🟡 | No DB SSL verification | Set `ssl=require` in Railway DATABASE_URL |
+| MED-04 | 🟡 | Unpinned dependency versions | Pin in requirements.txt + package.json |
+| MED-05 | 🟡 | Reset token in URL + wrong email body | Fix email.py templates |
+| LOW-01 | 🔵 | `datetime.utcnow()` deprecated | Replace with `datetime.now(UTC)` |
+| LOW-02 | 🔵 | Dockerfile runs as root | Add `USER appuser` |
+| LOW-04 | 🔵 | Cron secret naming mismatch | Use `settings.INTERNAL_API_KEY` |
+| LOW-05 | 🔵 | Tailwind CDN in production | Use build-time Tailwind |

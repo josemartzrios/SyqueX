@@ -27,7 +27,14 @@ async function _handleResponse(res) {
   let code = null;
   try {
     const body = await res.json();
-    detail = body.detail || detail;
+    if (Array.isArray(body.detail)) {
+      // FastAPI 422: detail is an array of { msg, loc, ... }
+      detail = body.detail
+        .map((e) => (typeof e === 'object' && e.msg ? e.msg.replace(/^Value error,\s*/i, '') : String(e)))
+        .join('; ');
+    } else {
+      detail = body.detail || detail;
+    }
     code = body.code || null;
   } catch (_) { /* response body not JSON */ }
 
@@ -92,10 +99,22 @@ export async function listPatients() {
   return await _authFetch(`${API_BASE}/patients`);
 }
 
-export async function createPatient(name) {
+export async function getPatient(patientId) {
+  return await _authFetch(`${API_BASE}/patients/${patientId}`);
+}
+
+export async function createPatient(data) {
+  const payload = typeof data === 'string' ? { name: data, reason_for_consultation: "N/A", date_of_birth: "1900-01-01" } : data;
   return await _authFetch(`${API_BASE}/patients`, {
     method: 'POST',
-    body: JSON.stringify({ name, risk_level: 'low' })
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updatePatient(patientId, data) {
+  return await _authFetch(`${API_BASE}/patients/${patientId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data)
   });
 }
 
