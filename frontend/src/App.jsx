@@ -592,6 +592,8 @@ function App() {
             sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
             mode={desktopMode}
             onModeChange={hasActivePatient ? setDesktopMode : undefined}
+            patientId={selectedPatientId}
+            onEditPatient={(id) => setEditingPatientId(id)}
           />
 
           {/* Content area */}
