@@ -14,6 +14,7 @@ from agent.embeddings import get_embedding
 from api.limiter import limiter
 from exceptions import InvalidUUIDError, SessionNotFoundError, PatientNotFoundError, UnauthorizedAccessError
 from api.auth import get_current_psychologist
+from api.audit import log_audit
 
 
 def _parse_uuid(value: str, label: str = "ID") -> uuid.UUID:
@@ -236,30 +237,45 @@ async def list_patients(
 @router.post("/patients", response_model=PatientOut, status_code=status.HTTP_201_CREATED, tags=["patients"])
 async def create_patient(
     payload: PatientCreate,
-    psychologist: Psychologist = Depends(get_current_psychologist),
+    request: Request,
     db: AsyncSession = Depends(get_db),
+    current_user: Psychologist = Depends(get_current_psychologist),
 ):
     patient = Patient(
-        psychologist_id=psychologist.id,
+        psychologist_id=current_user.id,
         name=payload.name,
         date_of_birth=payload.date_of_birth,
-        diagnosis_tags=payload.diagnosis_tags,
-        risk_level=payload.risk_level
+        diagnosis_tags=payload.diagnosis_tags or [],
+        risk_level=payload.risk_level,
+        marital_status=payload.marital_status,
+        occupation=payload.occupation,
+        address=payload.address,
+        emergency_contact=payload.emergency_contact.model_dump() if payload.emergency_contact else None,
+        reason_for_consultation=payload.reason_for_consultation,
+        medical_history=payload.medical_history,
+        psychological_history=payload.psychological_history,
     )
     db.add(patient)
+    await db.flush()  # populate patient.id
+
+    db.add(PatientProfile(patient_id=patient.id))
+
+    # Audit: nombres de campos enviados (solo los set explícitamente), sin valores
+    fields_set = sorted(payload.model_fields_set)
+    await log_audit(
+        db=db,
+        action="CREATE",
+        entity="patient",
+        entity_id=str(patient.id),
+        psychologist_id=str(current_user.id),
+        ip_address=request.client.host if request.client else None,
+        metadata={"fields_set": fields_set},
+    )
+
     await db.commit()
     await db.refresh(patient)
 
-    db.add(PatientProfile(patient_id=patient.id))
-    await db.commit()
-
-    return PatientOut(
-        id=patient.id,
-        name=patient.name,
-        risk_level=patient.risk_level,
-        date_of_birth=patient.date_of_birth,
-        diagnosis_tags=patient.diagnosis_tags or [],
-    )
+    return PatientOut.model_validate(patient)
 
 
 @router.get("/patients/{patient_id}/profile", response_model=ProfileOut, tags=["patients"])

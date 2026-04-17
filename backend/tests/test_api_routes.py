@@ -31,15 +31,24 @@ def mock_db():
 
 @pytest.fixture
 def app(mock_db):
-    """FastAPI app with get_db overridden and init_db patched."""
+    """FastAPI app with get_db overridden, auth mocked, init_db patched."""
     with patch("database.init_db", new=AsyncMock()):
         from main import app as _app
-        from database import get_db
+        from database import get_db, Psychologist
+        from api.auth import get_current_psychologist
 
         async def override_get_db():
             yield mock_db
 
+        fake_psy = MagicMock(spec=Psychologist)
+        fake_psy.id = uuid.UUID("99999999-9999-9999-9999-999999999999")
+        fake_psy.is_active = True
+
+        async def override_current_user():
+            return fake_psy
+
         _app.dependency_overrides[get_db] = override_get_db
+        _app.dependency_overrides[get_current_psychologist] = override_current_user
         yield _app
         _app.dependency_overrides.clear()
 
@@ -124,64 +133,43 @@ class TestListPatients:
 
 class TestCreatePatient:
     @pytest.mark.asyncio
-    async def test_returns_201(self, app, mock_db):
-        psy = MagicMock()
-        psy.id = uuid.uuid4()
+    async def test_create_with_minimum_payload(self, app, mock_db):
+        from datetime import date
 
-        patient = MagicMock()
-        patient.id = uuid.uuid4()
-        patient.name = "Carlos Ruiz"
-        patient.risk_level = "medium"
-        patient.date_of_birth = None
-        patient.diagnosis_tags = []
+        created = MagicMock()
+        created.id = uuid.uuid4()
+        created.name = "Carlos Ruiz"
+        created.risk_level = "low"
+        created.date_of_birth = date(1990, 5, 20)
+        created.diagnosis_tags = []
+        created.marital_status = None
+        created.occupation = None
+        created.address = None
+        created.emergency_contact = None
+        created.reason_for_consultation = "Ansiedad laboral"
+        created.medical_history = None
+        created.psychological_history = None
 
-        # execute() called twice: select Psychologist, then PatientProfile add
-        mock_db.execute.side_effect = [
-            _result(scalar_one_or_none=psy),  # select Psychologist
-        ]
-
-        async def fake_refresh(obj):
-            obj.id = patient.id
-            obj.name = patient.name
-            obj.risk_level = patient.risk_level
-            obj.date_of_birth = None
-            obj.diagnosis_tags = []
-
-        mock_db.refresh.side_effect = fake_refresh
+        async def refresh(obj):
+            for k, v in created.__dict__.items():
+                if not k.startswith("_"):
+                    setattr(obj, k, v)
+        mock_db.refresh.side_effect = refresh
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/v1/patients",
-                json={"name": "Carlos Ruiz", "risk_level": "medium"},
+                json={
+                    "name": "Carlos Ruiz",
+                    "date_of_birth": "1990-05-20",
+                    "reason_for_consultation": "Ansiedad laboral",
+                },
             )
 
         assert response.status_code == 201
-
-    @pytest.mark.asyncio
-    async def test_returns_patient_name(self, app, mock_db):
-        psy = MagicMock()
-        psy.id = uuid.uuid4()
-        mock_db.execute.side_effect = [_result(scalar_one_or_none=psy)]
-
-        new_id = uuid.uuid4()
-
-        async def fake_refresh(obj):
-            obj.id = new_id
-            obj.name = "Laura Méndez"
-            obj.risk_level = "low"
-            obj.date_of_birth = None
-            obj.diagnosis_tags = []
-
-        mock_db.refresh.side_effect = fake_refresh
-
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.post(
-                "/api/v1/patients",
-                json={"name": "Laura Méndez", "risk_level": "low"},
-            )
-
-        assert response.status_code == 201
-        assert response.json()["name"] == "Laura Méndez"
+        body = response.json()
+        assert body["name"] == "Carlos Ruiz"
+        assert body["reason_for_consultation"] == "Ansiedad laboral"
 
 
 # ---------------------------------------------------------------------------
