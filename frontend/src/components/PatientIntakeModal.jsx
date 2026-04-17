@@ -162,11 +162,11 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
     <div
       id="patient-intake-modal-backdrop"
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm px-3 sm:px-4"
     >
       <div className="bg-white border border-ink/[0.08] rounded-2xl shadow-xl max-w-2xl w-full flex flex-col overflow-hidden max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 pt-6 pb-3 flex items-center justify-between flex-shrink-0">
+        <div className="px-4 sm:px-6 pt-6 pb-3 flex items-center justify-between flex-shrink-0">
           <div className="flex flex-col gap-0.5">
             <span className="text-[10px] uppercase tracking-[0.15em] text-[#5a9e8a] font-bold">
               {isEdit ? 'Expediente clínico' : 'Nuevo expediente'}
@@ -187,7 +187,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
         </div>
 
         {/* Aviso LFPDPPP */}
-        <div className="mx-6 mb-4 bg-[#f4f4f2] rounded-lg px-3 py-2 flex items-start gap-2">
+        <div className="mx-4 sm:mx-6 mb-4 bg-[#f4f4f2] rounded-lg px-3 py-2 flex items-start gap-2">
           <svg className="w-4 h-4 text-[#5a9e8a] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
@@ -197,7 +197,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 pb-6 flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 flex flex-col gap-6">
           {loading && (
             <p className="text-ink-tertiary text-[13px]">Cargando expediente…</p>
           )}
@@ -218,7 +218,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
               />
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Fecha de nacimiento" required hint={age != null ? `Edad: ${age}` : null}>
                 <input
                   type="date"
@@ -272,7 +272,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
 
             <div>
               <p className="text-[12px] font-medium text-[#18181b] mb-2">Contacto de emergencia</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <input
                   type="text"
                   value={form.ec_name}
@@ -354,7 +354,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 sticky bottom-0 bg-white pt-4 pb-1 -mx-6 px-6 border-t border-ink/[0.06]">
+          <div className="flex gap-3 sticky bottom-0 bg-white pt-4 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-ink/[0.06]">
             <button
               type="button"
               onClick={handleClose}
