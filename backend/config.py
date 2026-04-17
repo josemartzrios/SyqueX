@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import model_validator
 from typing import List
 
 class Settings(BaseSettings):
@@ -39,6 +40,26 @@ class Settings(BaseSettings):
 
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
+
+    @model_validator(mode='after')
+    def _validate_production_secrets(self):
+        """Fail-fast: impedir arranque sin secretos reales en prod/staging."""
+        if self.ENVIRONMENT in ("production", "staging"):
+            _default_key = "dev_only_key_MUST_change_in_production_use_64_random_chars"
+            if self.SECRET_KEY == _default_key or len(self.SECRET_KEY) < 64:
+                raise ValueError(
+                    "CRITICAL: SECRET_KEY must be a random string of 64+ characters in production"
+                )
+            if not self.ANTHROPIC_API_KEY:
+                raise ValueError("ANTHROPIC_API_KEY is required in production")
+            if not self.STRIPE_SECRET_KEY:
+                raise ValueError("STRIPE_SECRET_KEY is required in production")
+            if not self.STRIPE_WEBHOOK_SECRET:
+                raise ValueError("STRIPE_WEBHOOK_SECRET is required in production")
+            _default_internal = "dev_internal_key_change_in_prod"
+            if self.INTERNAL_API_KEY == _default_internal:
+                raise ValueError("INTERNAL_API_KEY must be changed in production")
+        return self
 
 settings = Settings()
 
