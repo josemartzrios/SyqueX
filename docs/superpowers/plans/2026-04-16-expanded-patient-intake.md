@@ -65,7 +65,7 @@
 
 **Note:** Este cambio NO requiere tests nuevos — los índices de esta tabla ya están testeados indirectamente por los otros tests. Lo que sí valida el cambio es que el `init_db()` corra sin fallar (CI o `uvicorn main:app --reload` local).
 
-- [ ] **Step 1: Agregar 7 columnas al modelo `Patient`**
+- [x] **Step 1: Agregar 7 columnas al modelo `Patient`**
 
 Después de la línea con `diagnosis_tags` (línea 171) y antes de `risk_level`, agregar:
 
@@ -81,7 +81,7 @@ medical_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 psychological_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 ```
 
-- [ ] **Step 2: Agregar 7 migraciones idempotentes en `init_db()`**
+- [x] **Step 2: Agregar 7 migraciones idempotentes en `init_db()`**
 
 En `init_db()`, buscar el bloque `# Patients — soft delete` (línea 319) y agregar debajo:
 
@@ -96,7 +96,7 @@ await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS medical_h
 await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS psychological_history TEXT;"))
 ```
 
-- [ ] **Step 3: Validar que init_db corre sin errores**
+- [x] **Step 3: Validar que init_db corre sin errores**
 
 Run (desde `backend/`):
 ```bash
@@ -104,7 +104,7 @@ python -c "import asyncio; from database import init_db; asyncio.run(init_db())"
 ```
 Expected: sin excepciones. Si no hay PostgreSQL corriendo → arrancar antes: `docker-compose up -d postgres`.
 
-- [ ] **Step 4: Verificar columnas en BD**
+- [x] **Step 4: Verificar columnas en BD**
 
 Run:
 ```bash
@@ -112,7 +112,7 @@ docker exec -it syquex-postgres-1 psql -U psicoagente -d psicoagente -c "\d pati
 ```
 Expected: las 7 columnas aparecen en el output (`marital_status`, `occupation`, `address`, `emergency_contact`, `reason_for_consultation`, `medical_history`, `psychological_history`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/database.py
@@ -135,7 +135,7 @@ psychological_history."
 
 Solo cambios de schema, sin lógica todavía. Los tests vienen en Task 6.
 
-- [ ] **Step 1: Agregar import de `field_validator` y `Literal`**
+- [x] **Step 1: Agregar import de `field_validator` y `Literal`**
 
 En la cabecera de `routes.py`, localizar el import de `pydantic` y ampliar:
 
@@ -144,7 +144,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any, Literal
 ```
 
-- [ ] **Step 2: Agregar `MaritalStatus` + `EmergencyContact`**
+- [x] **Step 2: Agregar `MaritalStatus` + `EmergencyContact`**
 
 Antes de `class PatientCreate`, insertar:
 
@@ -160,7 +160,7 @@ class EmergencyContact(BaseModel):
     phone: str = Field(..., min_length=7, max_length=20)
 ```
 
-- [ ] **Step 3: Reemplazar `PatientCreate`**
+- [x] **Step 3: Reemplazar `PatientCreate`**
 
 Substituir la clase `PatientCreate` (líneas 41-45) por:
 
@@ -194,7 +194,7 @@ class PatientCreate(BaseModel):
         return v
 ```
 
-- [ ] **Step 4: Agregar `PatientUpdate`**
+- [x] **Step 4: Agregar `PatientUpdate`**
 
 Justo debajo de `PatientCreate`:
 
@@ -227,7 +227,7 @@ class PatientUpdate(BaseModel):
         return v
 ```
 
-- [ ] **Step 5: Ampliar `PatientOut` con los 7 campos nuevos**
+- [x] **Step 5: Ampliar `PatientOut` con los 7 campos nuevos**
 
 Reemplazar `PatientOut` (líneas 58-66) por:
 
@@ -252,7 +252,7 @@ class PatientOut(BaseModel):
         from_attributes = True
 ```
 
-- [ ] **Step 6: Verificar que import compila**
+- [x] **Step 6: Verificar que import compila**
 
 Run (desde `backend/`):
 ```bash
@@ -260,7 +260,7 @@ python -c "from api.routes import PatientCreate, PatientUpdate, PatientOut, Emer
 ```
 Expected: `OK`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/api/routes.py
@@ -282,7 +282,7 @@ and MaritalStatus literal."
 
 **Important:** el endpoint actual usa `select(Psychologist).limit(1)` — hay que migrarlo a `get_current_psychologist`. Esto requiere actualizar los tests existentes para override la dependencia.
 
-- [ ] **Step 1: Agregar imports**
+- [x] **Step 1: Agregar imports**
 
 En `routes.py`, agregar:
 
@@ -291,7 +291,7 @@ from api.auth import get_current_psychologist
 from api.audit import log_audit
 ```
 
-- [ ] **Step 2: Reescribir `create_patient`**
+- [x] **Step 2: Reescribir `create_patient`**
 
 Reemplazar la función completa `create_patient` (líneas 162-193) por:
 
@@ -340,7 +340,7 @@ async def create_patient(
     return PatientOut.model_validate(patient)
 ```
 
-- [ ] **Step 3: Actualizar fixtures en test_api_routes.py — override auth**
+- [x] **Step 3: Actualizar fixtures en test_api_routes.py — override auth**
 
 Localizar el fixture `app` (línea 32-44) y agregar el override de `get_current_psychologist`. Reemplazar por:
 
@@ -369,7 +369,7 @@ def app(mock_db):
         _app.dependency_overrides.clear()
 ```
 
-- [ ] **Step 4: Actualizar `TestCreatePatient` — ajustar mocks y payload**
+- [x] **Step 4: Actualizar `TestCreatePatient` — ajustar mocks y payload**
 
 En `test_api_routes.py`, buscar `class TestCreatePatient` (línea ~125) y reemplazar la prueba `test_returns_patient_name` (o la primera prueba de create) por una versión que mande el payload mínimo. Ejemplo:
 
@@ -417,7 +417,7 @@ class TestCreatePatient:
 
 Eliminar o actualizar cualquier otra prueba de `TestCreatePatient` que falle porque ahora `name` solo no es suficiente.
 
-- [ ] **Step 5: Correr tests de api_routes**
+- [x] **Step 5: Correr tests de api_routes**
 
 Run:
 ```bash
@@ -425,7 +425,7 @@ cd backend && pytest tests/test_api_routes.py -v -k "CreatePatient or ListPatien
 ```
 Expected: PASS. Si fallan `ListPatients`, es por el mismo fixture override — revisar que no se rompan esas pruebas (no deberían: el override solo afecta endpoints que usan `get_current_psychologist`).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/api/routes.py backend/tests/test_api_routes.py
@@ -444,7 +444,7 @@ rule in database.py:73. Test fixture now overrides auth dependency."
 **Files:**
 - Modify: `backend/api/routes.py` (insertar endpoint nuevo antes de `get_patient_profile` línea 196)
 
-- [ ] **Step 1: Agregar endpoint**
+- [x] **Step 1: Agregar endpoint**
 
 Antes de `@router.get("/patients/{patient_id}/profile", ...)` (línea 196), insertar:
 
@@ -471,7 +471,7 @@ async def get_patient(
     return PatientOut.model_validate(patient)
 ```
 
-- [ ] **Step 2: Verificar compila**
+- [x] **Step 2: Verificar compila**
 
 Run:
 ```bash
@@ -479,7 +479,7 @@ cd backend && python -c "from api.routes import router; print([r.path for r in r
 ```
 Expected: la lista incluye `/patients/{patient_id}`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/api/routes.py
@@ -497,7 +497,7 @@ No audit log for READ in MVP (single-tenant practitioner; spec decision)."
 **Files:**
 - Modify: `backend/api/routes.py` (insertar después del `GET /patients/{id}` de Task 4)
 
-- [ ] **Step 1: Agregar endpoint**
+- [x] **Step 1: Agregar endpoint**
 
 ```python
 @router.patch("/patients/{patient_id}", response_model=PatientOut, tags=["patients"])
@@ -550,7 +550,7 @@ async def update_patient(
     return PatientOut.model_validate(patient)
 ```
 
-- [ ] **Step 2: Verificar compila**
+- [x] **Step 2: Verificar compila**
 
 Run:
 ```bash
@@ -558,7 +558,7 @@ cd backend && python -c "from api.routes import router; paths = {r.path for r in
 ```
 Expected: no falla, `/patients/{patient_id}` está registrado como `GET` y `PATCH`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/api/routes.py
@@ -582,7 +582,7 @@ via min_length=1. Ownership: 404 on not-owned. Audits fields_changed
 
 Estos tests dependen de poder mockear `log_audit` y `get_current_psychologist`. Usan los mismos fixtures que `test_api_routes.py` — lo más simple es copiar el pattern del fixture `app` allí.
 
-- [ ] **Step 1: Crear shared helpers en conftest**
+- [x] **Step 1: Crear shared helpers en conftest**
 
 Leer `backend/tests/conftest.py`. Al final del archivo, agregar:
 
@@ -619,7 +619,7 @@ def authed_app(mock_db, fake_psychologist):
         _app.dependency_overrides.clear()
 ```
 
-- [ ] **Step 2: Crear `test_patient_create.py` — test del happy path**
+- [x] **Step 2: Crear `test_patient_create.py` — test del happy path**
 
 ```python
 """Tests for POST /patients — intake creation."""
@@ -823,7 +823,7 @@ async def test_audit_log_written_without_clinical_values(authed_app, mock_db):
     assert "medical_history" in a.extra["fields_set"]
 ```
 
-- [ ] **Step 3: Correr test_patient_create.py**
+- [x] **Step 3: Correr test_patient_create.py**
 
 Run:
 ```bash
@@ -831,7 +831,7 @@ cd backend && pytest tests/test_patient_create.py -v
 ```
 Expected: 9 tests PASS.
 
-- [ ] **Step 4: Crear `test_patient_get.py`**
+- [x] **Step 4: Crear `test_patient_get.py`**
 
 ```python
 """Tests for GET /patients/{id}."""
@@ -915,7 +915,7 @@ async def test_returns_400_for_invalid_uuid(authed_app):
     assert res.status_code == 400
 ```
 
-- [ ] **Step 5: Correr test_patient_get.py**
+- [x] **Step 5: Correr test_patient_get.py**
 
 Run:
 ```bash
@@ -923,7 +923,7 @@ cd backend && pytest tests/test_patient_get.py -v
 ```
 Expected: 4 tests PASS.
 
-- [ ] **Step 6: Crear `test_patient_update.py`**
+- [x] **Step 6: Crear `test_patient_update.py`**
 
 ```python
 """Tests for PATCH /patients/{id}."""
@@ -1064,7 +1064,7 @@ async def test_audit_log_has_fields_changed_only(authed_app, mock_db, fake_psych
     assert set(a.extra["fields_changed"]) == {"occupation", "address"}
 ```
 
-- [ ] **Step 7: Correr test_patient_update.py**
+- [x] **Step 7: Correr test_patient_update.py**
 
 Run:
 ```bash
@@ -1072,7 +1072,7 @@ cd backend && pytest tests/test_patient_update.py -v
 ```
 Expected: 5 tests PASS.
 
-- [ ] **Step 8: Correr toda la suite backend**
+- [x] **Step 8: Correr toda la suite backend**
 
 Run:
 ```bash
@@ -1080,7 +1080,7 @@ cd backend && pytest -q
 ```
 Expected: toda la suite PASS (incluyendo los tests pre-existentes — el fixture override de auth no debe romperlos).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add backend/tests/conftest.py backend/tests/test_patient_create.py backend/tests/test_patient_get.py backend/tests/test_patient_update.py
@@ -1102,7 +1102,7 @@ ownership 404, audit fields_changed-only."
 - Create: `frontend/src/utils/age.js`
 - Create: `frontend/src/utils/age.test.js`
 
-- [ ] **Step 1: Crear helper**
+- [x] **Step 1: Crear helper**
 
 ```js
 // frontend/src/utils/age.js
@@ -1129,7 +1129,7 @@ export function calculateAge(dateOfBirth) {
 }
 ```
 
-- [ ] **Step 2: Crear tests**
+- [x] **Step 2: Crear tests**
 
 ```js
 // frontend/src/utils/age.test.js
@@ -1183,7 +1183,7 @@ describe('calculateAge', () => {
 })
 ```
 
-- [ ] **Step 3: Correr los tests**
+- [x] **Step 3: Correr los tests**
 
 Run (desde `frontend/`):
 ```bash
@@ -1191,7 +1191,7 @@ npm test -- utils/age.test.js --run
 ```
 Expected: 9 tests PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/utils/age.js frontend/src/utils/age.test.js
@@ -1208,7 +1208,7 @@ Pure function, handles null/empty/invalid/future/too-old as null.
 **Files:**
 - Modify: `frontend/src/api.js` (líneas 95-100)
 
-- [ ] **Step 1: Reescribir `createPatient` y agregar helpers**
+- [x] **Step 1: Reescribir `createPatient` y agregar helpers**
 
 Reemplazar la función `createPatient` (líneas 95-100) por:
 
