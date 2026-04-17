@@ -42,8 +42,8 @@ class Psychologist(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # bcrypt hash
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     # Campos de onboarding (LFPDPPP)
     cedula_profesional: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
@@ -66,7 +66,7 @@ class AuditLog(Base):
     __tablename__ = 'audit_logs'
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    timestamp: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     psychologist_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     # CREATE | READ | UPDATE | DELETE | LOGIN | ACCESS_DENIED
     action: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -184,10 +184,10 @@ class Patient(Base):
     medical_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     psychological_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     risk_level: Mapped[str] = mapped_column(String(20), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
     # Soft delete — LFPDPPP: permite anonimización en lugar de borrado físico
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint("risk_level IN ('low', 'medium', 'high')", name='chk_patients_risk_level'),
@@ -216,8 +216,8 @@ class Session(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     messages: Mapped[list] = mapped_column(JSONB, default=list)  # Full conversation turns [{role, content}]
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     __table_args__ = (
         CheckConstraint("status IN ('draft', 'confirmed')", name='chk_sessions_status'),
@@ -258,8 +258,8 @@ class ClinicalNote(Base):
 
     embedding = mapped_column(Vector(1024))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     __table_args__ = (
         CheckConstraint("format IN ('SOAP', 'DAP', 'BIRP')", name='chk_clinical_notes_format'),
@@ -281,7 +281,7 @@ class PatientProfile(Base):
     risk_factors: Mapped[List[str]] = mapped_column(ARRAY(Text), default=list)
     progress_indicators: Mapped[dict] = mapped_column(JSONB, default=dict)
     patient_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     __table_args__ = (
         Index('idx_patient_profiles_patient_id', 'patient_id'),
@@ -330,8 +330,24 @@ async def init_db():
         await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE;"))
         await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(50);"))
 
+        # Patients — migrate timestamps to TIMESTAMPTZ (asyncpg rejects aware datetimes into TIMESTAMP)
+        for col in ("created_at", "updated_at", "deleted_at"):
+            await conn.execute(text(f"""
+                DO $$ BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='patients' AND column_name='{col}'
+                          AND data_type='timestamp without time zone'
+                    ) THEN
+                        ALTER TABLE patients ALTER COLUMN {col}
+                            TYPE TIMESTAMP WITH TIME ZONE
+                            USING {col} AT TIME ZONE 'UTC';
+                    END IF;
+                END$$;
+            """))
+
         # Patients — soft delete
-        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;"))
 
         # Patients — intake clínico (nullable para pacientes legacy)
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS marital_status VARCHAR(30);"))
@@ -342,9 +358,33 @@ async def init_db():
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS medical_history TEXT;"))
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS psychological_history TEXT;"))
 
-        # ClinicalNote — timestamps
+        # ClinicalNote — timestamps (add if missing, then migrate to TIMESTAMPTZ)
         await conn.execute(text("ALTER TABLE clinical_notes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();"))
         await conn.execute(text("ALTER TABLE clinical_notes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();"))
+
+        # Migrate all remaining TIMESTAMP → TIMESTAMPTZ columns
+        _tz_migrations = {
+            "psychologists": ["created_at", "updated_at"],
+            "audit_logs": ["timestamp"],
+            "sessions": ["created_at", "updated_at"],
+            "clinical_notes": ["created_at", "updated_at"],
+            "patient_profiles": ["updated_at"],
+        }
+        for table, cols in _tz_migrations.items():
+            for col in cols:
+                await conn.execute(text(f"""
+                    DO $$ BEGIN
+                        IF EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name='{table}' AND column_name='{col}'
+                              AND data_type='timestamp without time zone'
+                        ) THEN
+                            ALTER TABLE {table} ALTER COLUMN {col}
+                                TYPE TIMESTAMP WITH TIME ZONE
+                                USING {col} AT TIME ZONE 'UTC';
+                        END IF;
+                    END$$;
+                """))
 
         # ── CHECK constraints (idempotente) ──────────────────────────────────
         await conn.execute(text("""
