@@ -4,7 +4,7 @@ import PatientSidebar from './components/PatientSidebar'
 import PatientHeader from './components/PatientHeader'
 import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
-import NewPatientModal from './components/NewPatientModal'
+import PatientIntakeModal from './components/PatientIntakeModal'
 import EvolucionPanel from './components/EvolucionPanel'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout } from './api'
 import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
@@ -138,6 +138,7 @@ function App() {
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [selectedPatientName, setSelectedPatientName] = useState(null);
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState(null);
   const [newPatientName, setNewPatientName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
@@ -368,28 +369,14 @@ function App() {
   };
 
   const handleSavePatient = async () => {
+    // Legacy chat-style inline patient creation — deprecated.
+    // PatientIntakeModal is the primary creation path (see handleModalPatientCreated).
     if (!newPatientName.trim()) return;
-    try {
-      const resp = await createPatient(newPatientName);
-      setIsCreatingPatient(false);
-      setNewPatientName("");
-      loadPatientChat(resp.id, newPatientName);
-      setConversations(prev => [{
-        id: null,
-        patient_id: String(resp.id),
-        patient_name: newPatientName,
-        session_number: null,
-        session_date: null,
-        dictation_preview: null,
-        status: null,
-        message_count: 0,
-      }, ...prev]);
-    } catch (err) {
-      alert("Error al crear paciente: " + err.message);
-    }
+    alert("Por favor usa el botón Nuevo Paciente — ahora pide datos clínicos adicionales.");
+    setIsCreatingPatient(true);
   };
 
-  // Callback for NewPatientModal
+  // Callback for PatientIntakeModal
   const handleModalPatientCreated = (patient) => {
     setIsCreatingPatient(false);
     loadPatientChat(patient.id, patient.name);
@@ -925,11 +912,27 @@ function App() {
         )}
       </div>
 
-      {/* NewPatientModal — shared between desktop + mobile */}
-      <NewPatientModal
-        open={isCreatingPatient}
-        onClose={() => setIsCreatingPatient(false)}
-        onCreated={handleModalPatientCreated}
+      {/* PatientIntakeModal — crear o editar expediente */}
+      <PatientIntakeModal
+        open={isCreatingPatient || editingPatientId != null}
+        mode={editingPatientId != null ? 'edit' : 'create'}
+        initialPatient={editingPatientId != null ? { id: editingPatientId } : null}
+        onClose={() => {
+          setIsCreatingPatient(false);
+          setEditingPatientId(null);
+        }}
+        onSaved={(patient) => {
+          if (editingPatientId != null) {
+            // EDIT — update conversation entry with fresh name
+            setConversations((prev) => prev.map((c) =>
+              c.patient_id === String(patient.id) ? { ...c, patient_name: patient.name } : c
+            ));
+            setEditingPatientId(null);
+          } else {
+            // CREATE
+            handleModalPatientCreated(patient);
+          }
+        }}
       />
 
     </div>
