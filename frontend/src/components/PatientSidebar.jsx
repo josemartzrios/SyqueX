@@ -48,9 +48,13 @@ function PatientConversationItem({ conv, active, onClick, onDelete }) {
         >
           {conv.patient_name}
         </p>
-        <p className="text-[11px] text-gray-400 mt-0.5">
-          Sesión #{conv.session_number} · {formatDate(conv.session_date)}
-        </p>
+        {conv.session_number != null ? (
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            Sesión #{conv.session_number} · {formatDate(conv.session_date)}
+          </p>
+        ) : (
+          <p className="text-[11px] text-gray-400 mt-0.5">Sin sesiones</p>
+        )}
         {conv.dictation_preview && (
           <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">
             {conv.dictation_preview}
