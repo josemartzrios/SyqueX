@@ -1,0 +1,698 @@
+# 🔒 SyqueX — Pre-Production Security Audit
+
+> **Auditor:** Cybersecurity Audit (automated) · **Date:** 2026-04-16  
+> **Scope:** Backend (FastAPI + PostgreSQL + Anthropic) + Frontend (React SPA)  
+> **Standard:** OWASP Top 10 2021 + LFPDPPP (México)  
+> **Classification:** Internal Engineering — CONFIDENTIAL
+
+---
+
+## Executive Summary
+
+| Severity | Count | Status |
+|---|---|---|
+| 🔴 **CRITICAL** | 5 | Must fix before ANY deploy |
+| 🟠 **HIGH** | 7 | Must fix before production |
+| 🟡 **MEDIUM** | 6 | Fix scheduled within sprint 1 |
+| 🔵 **LOW** | 5 | Recommended hardening |
+| **Total** | **23** | |
+
+> [!CAUTION]
+> **5 CRITICAL vulnerabilities were found.** Do NOT deploy to production until all CRITICAL and HIGH items are resolved. Two findings (CRIT-01 and CRIT-02) represent immediate data breach risks under LFPDPPP.
+
+---
+
+## 🔴 CRITICAL Findings
+
+### CRIT-01 — Broken Access Control: Clinical Endpoints Have ZERO Authentication
+
+**OWASP:** A01 — Broken Access Control  
+**Files:** [routes.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/routes.py)  
+**Lines:** Every endpoint in the file (132–475)
+
+**The Problem:**  
+Every clinical endpoint in `routes.py` is **completely unauthenticated**. There is no `Depends(get_current_psychologist)` on ANY route. Any anonymous HTTP request can:
+
+- List all patients across all psychologists
+- Create patients under any psychologist
+- Read ANY patient's clinical sessions, SOAP notes, and dictations
+- Generate SOAP notes via Claude for any patient
+- Confirm, archive, and modify any clinical note
+- Access patient profiles with risk factors and recurring themes
+- Run semantic search across ALL clinical data
+
+This means **any person on the internet** who knows the API URL can access every patient's mental health records.
+
+**Affected Endpoints (all lack auth):**
+
+| Endpoint | Risk |
+|---|---|
+| `GET /patients` | Leaks all patient names |
+| `POST /patients` | Creates patients under first psychologist |
+| `GET /patients/{id}/profile` | Leaks clinical profile, risk/protective factors |
+| `GET /patients/{id}/sessions` | Leaks all SOAP notes, dictations, AI responses |
+| `GET /patients/{id}/report` | Leaks evolution reports |
+| `GET /patients/{id}/search` | Semantic search across clinical history |
+| `POST /sessions/{id}/process` | Anyone can generate SOAP notes |
+| `POST /sessions/{id}/confirm` | Anyone can confirm clinical notes |
+| `PATCH /sessions/{id}/archive` | Anyone can archive data |
+| `PATCH /patients/{id}/sessions/archive` | Anyone can archive all patient data |
+| `GET /conversations` | Leaks all conversations across all psychologists |
+
+**Fix — Add auth + ownership to EVERY endpoint:**
+
+```python
+# routes.py — EVERY endpoint must receive this dependency
+from api.auth import get_current_psychologist
+
+@router.get("/patients", response_model=List[PatientOut], tags=["patients"])
+async def list_patients(
+    psychologist: Psychologist = Depends(get_current_psychologist),  # ← ADD
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(Patient).where(
+        Patient.psychologist_id == psychologist.id,  # ← FILTER by owner
+        Patient.deleted_at.is_(None),
+    ).order_by(Patient.name)
+    ...
+```
+
+> [!IMPORTANT]
+> **This is the single most critical vulnerability.** It completely bypasses your authentication system. Every endpoint in `routes.py` needs `Depends(get_current_psychologist)` AND ownership filtering by `psychologist.id`.
+
+---
+
+### CRIT-02 — Broken Access Control: No Ownership Verification (IDOR)
+
+**OWASP:** A01 — Broken Access Control  
+**Files:** [routes.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/routes.py)  
+
+**The Problem:**  
+Even after adding auth (CRIT-01), the endpoints have **no ownership verification**. A logged-in psychologist A can access psychologist B's patients by guessing/enumerating UUIDs. The code never checks `patient.psychologist_id == current_psychologist.id`.
+
+**Fix — Add ownership dependency:**
+
+```python
+# Create a reusable ownership verifier
+async def verify_patient_ownership(
+    patient_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+) -> Patient:
+    puuid = _parse_uuid(patient_id, "patient_id")
+    patient = await db.get(Patient, puuid)
+    if not patient or patient.deleted_at is not None:
+        raise PatientNotFoundError("Paciente no encontrado.")
+    if patient.psychologist_id != psychologist.id:
+        raise UnauthorizedAccessError("Acceso no autorizado a este paciente.")
+    return patient
+
+# Similarly for sessions:
+async def verify_session_ownership(
+    session_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+) -> Session:
+    suuid = _parse_uuid(session_id, "session_id")
+    result = await db.execute(
+        select(Session).join(Patient).where(
+            Session.id == suuid,
+            Patient.psychologist_id == psychologist.id,
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise SessionNotFoundError("Sesión no encontrada.")
+    return session
+```
+
+---
+
+### CRIT-03 — API Keys Committed to Repository
+
+**OWASP:** A02 — Cryptographic Failures  
+**File:** [backend/.env](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/.env)
+
+**The Problem:**  
+The `backend/.env` file contains **real API keys** on disk:
+
+```
+ANTHROPIC_API_KEY=REPLACEME_REVOKED_FOR_SECURITY
+OPENAI_API_KEY=REPLACEME_REVOKED_FOR_SECURITY
+```
+
+While the `.gitignore` has `*.env` and `.env`, the file exists locally with production-grade secrets. The `.gitignore` pattern `*.env` matches `backend/.env` correctly, but **any misconfiguration or force-push could leak these to GitHub**.
+
+**Immediate Actions:**
+1. **Rotate BOTH API keys immediately** — Anthropic + OpenAI dashboards
+2. Verify keys were never committed: `git log --all -p -- "backend/.env"` (confirmed clean ✅)
+3. Add explicit entry to `.gitignore`: `backend/.env`
+4. Use `git-secrets` or a pre-commit hook to prevent future leaks
+
+---
+
+### CRIT-04 — Hardcoded Default Secret Key Allows JWT Forgery
+
+**OWASP:** A02 — Cryptographic Failures  
+**File:** [config.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/config.py#L8)  
+**Line:** 8
+
+**The Problem:**  
+```python
+SECRET_KEY: str = "dev_only_key_MUST_change_in_production_use_64_random_chars"
+```
+
+If the `SECRET_KEY` environment variable is not set in Railway, the app falls back to this **public, known string**. Any attacker can forge valid JWT tokens and impersonate any psychologist.
+
+**Fix — Fail hard if no SECRET_KEY in production:**
+
+```python
+class Settings(BaseSettings):
+    SECRET_KEY: str = "dev_only_key_MUST_change_in_production_use_64_random_chars"
+    
+    @model_validator(mode='after')
+    def validate_production_secrets(self):
+        if self.ENVIRONMENT in ("production", "staging"):
+            if self.SECRET_KEY == "dev_only_key_MUST_change_in_production_use_64_random_chars":
+                raise ValueError(
+                    "CRITICAL: SECRET_KEY must be set to a random 64+ char value in production"
+                )
+            if len(self.SECRET_KEY) < 64:
+                raise ValueError("SECRET_KEY must be at least 64 characters")
+            if not self.STRIPE_SECRET_KEY:
+                raise ValueError("STRIPE_SECRET_KEY is required in production")
+            if not self.STRIPE_WEBHOOK_SECRET:
+                raise ValueError("STRIPE_WEBHOOK_SECRET is required in production")
+        return self
+```
+
+---
+
+### CRIT-05 — Clinical Notes Stored in Plaintext (No Encryption at Rest)
+
+**OWASP:** A02 — Cryptographic Failures  
+**Files:** [database.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/database.py#L222-L256), [routes.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/routes.py#L361-L373)
+
+**The Problem:**  
+Per your own security skill (SKILL.md line 143), clinical notes (subjective, objective, assessment, plan, raw_dictation, ai_response) must be encrypted with AES-256 at rest. Currently, all fields are stored as **plaintext `Text` columns**. A database breach exposes all clinical data directly.
+
+Under LFPDPPP, "datos personales sensibles" (health data) require the **highest level of protection**. Plaintext storage does not meet this standard.
+
+**Fix — Implement Fernet encryption for clinical fields:**
+
+```python
+# Add to config.py
+ENCRYPTION_KEY: str = ""  # Fernet key (32 bytes, base64-encoded)
+
+# Add encryption helpers
+from cryptography.fernet import Fernet
+
+def get_fernet():
+    key = settings.ENCRYPTION_KEY
+    if not key:
+        if settings.ENVIRONMENT == "production":
+            raise ValueError("ENCRYPTION_KEY required in production")
+        return None  # dev mode — skip encryption
+    return Fernet(key.encode())
+
+def encrypt_clinical(text: str) -> str:
+    f = get_fernet()
+    if not f or not text:
+        return text
+    return f.encrypt(text.encode()).decode()
+
+def decrypt_clinical(data: str) -> str:
+    f = get_fernet()
+    if not f or not data:
+        return data
+    return f.decrypt(data.encode()).decode()
+```
+
+---
+
+## 🟠 HIGH Findings
+
+### HIGH-01 — `list_patients` Creates Default Records Without Auth
+
+**OWASP:** A01 — Broken Access Control  
+**File:** [routes.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/routes.py#L133-L159)
+
+**The Problem:**  
+The `list_patients` endpoint auto-creates a `"Dr. Default"` psychologist and `"Paciente de Prueba"` patient if the database is empty. This is demo behavior that MUST NOT exist in production — it creates unowned records with no authentication.
+
+**Fix:** Remove the auto-creation block entirely. If no patients exist, return an empty list.
+
+---
+
+### HIGH-02 — `create_patient` Uses First Psychologist Instead of Authenticated User
+
+**OWASP:** A01 — Broken Access Control  
+**File:** [routes.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/routes.py#L162-L193)
+
+**The Problem:**
+```python
+async def create_patient(payload: PatientCreate, db: AsyncSession = Depends(get_db)):
+    query = select(Psychologist).limit(1)  # ← WRONG: uses any psychologist
+    res = await db.execute(query)
+    psy = res.scalar_one_or_none()
+```
+
+Patients are created under **whatever psychologist is `LIMIT 1`** in the database, not the authenticated user.
+
+**Fix:**
+```python
+async def create_patient(
+    payload: PatientCreate,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
+    patient = Patient(
+        psychologist_id=psychologist.id,  # ← Correct: use authenticated user
+        name=payload.name,
+        ...
+    )
+```
+
+---
+
+### HIGH-03 — `conversations` Endpoint Leaks ALL Patients Across ALL Psychologists
+
+**OWASP:** A01 — Broken Access Control  
+**File:** [routes.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/routes.py#L428-L474)
+
+**The Problem:**  
+The raw SQL query in `list_conversations` has no `psychologist_id` filter:
+```sql
+FROM patients p
+INNER JOIN sessions s ON s.patient_id = p.id
+-- Missing: WHERE p.psychologist_id = :psy_id
+```
+
+**Fix:** Add auth dependency + filter SQL by `psychologist_id`:
+```sql
+WHERE p.deleted_at IS NULL
+  AND p.psychologist_id = :psy_id  -- ← ADD THIS
+```
+
+---
+
+### HIGH-04 — Stripe Webhook Endpoint Lacks Robust Signature Verification
+
+**OWASP:** A08 — Software and Data Integrity  
+**File:** [billing.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/billing.py#L69-L79)
+
+**The Problem:**
+```python
+event = stripe.Webhook.construct_event(
+    payload, sig_header, os.getenv('STRIPE_WEBHOOK_SECRET', '')  # ← empty default!
+)
+```
+
+If `STRIPE_WEBHOOK_SECRET` is not set, the empty string `''` will still pass to Stripe's verification, which may not catch all forgery cases. Additionally, the error handler catches `Exception` broadly.
+
+**Fix:**
+```python
+webhook_secret = settings.STRIPE_WEBHOOK_SECRET
+if not webhook_secret:
+    raise HTTPException(status_code=500, detail="Webhook secret not configured")
+
+try:
+    event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+except stripe.error.SignatureVerificationError:
+    raise HTTPException(status_code=400, detail="Firma inválida")
+except ValueError:
+    raise HTTPException(status_code=400, detail="Payload inválido")
+```
+
+---
+
+### HIGH-05 — `billing.py` create_checkout Leaks Exception Details
+
+**OWASP:** A05 — Security Misconfiguration  
+**File:** [billing.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/billing.py#L66-L67)
+
+**The Problem:**
+```python
+except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))  # ← Leaks Stripe internals
+```
+
+This exposes the full Stripe error message to the client, potentially including API key fragments, internal IDs, or stack information.
+
+**Fix:**
+```python
+except Exception as e:
+    logger.error("Stripe checkout error: %s", e, exc_info=True)
+    raise HTTPException(status_code=500, detail="Error al crear sesión de pago")
+```
+
+---
+
+### HIGH-06 — No Subscription Enforcement on Clinical Endpoints
+
+**OWASP:** A04 — Insecure Design  
+**File:** [routes.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/routes.py)
+
+**The Problem:**  
+Even after the trial expires, there is no middleware or dependency that blocks access to clinical endpoints. A user with an expired subscription (or `status='canceled'`) can continue using the platform indefinitely.
+
+**Fix — Add subscription check dependency:**
+
+```python
+async def require_active_subscription(
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+) -> Psychologist:
+    result = await db.execute(
+        select(Subscription).where(Subscription.psychologist_id == psychologist.id)
+    )
+    sub = result.scalar_one_or_none()
+    
+    if not sub:
+        raise SubscriptionExpired()
+    
+    if sub.status == 'trialing':
+        if psychologist.trial_ends_at and psychologist.trial_ends_at < datetime.now(UTC):
+            raise SubscriptionExpired("Tu período de prueba ha terminado.")
+    elif sub.status not in ('active',):
+        raise SubscriptionExpired()
+    
+    return psychologist
+```
+
+---
+
+### HIGH-07 — Missing `Content-Security-Policy` Header
+
+**OWASP:** A05 — Security Misconfiguration  
+**File:** [main.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/main.py#L32-L44)
+
+**The Problem:**  
+The security headers middleware does NOT include `Content-Security-Policy`. Your security skill (SKILL.md line 307) specifies `Content-Security-Policy: default-src 'self'`, but it's not implemented.
+
+Also, `Strict-Transport-Security` is only set in production, but staging should also enforce HTTPS.
+
+**Fix — Add CSP and extend HSTS to staging:**
+```python
+if settings.ENVIRONMENT in ("production", "staging"):
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://js.stripe.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "connect-src 'self' https://*.supabase.co https://api.stripe.com; "
+        "frame-src https://js.stripe.com; "
+        "img-src 'self' data:; "
+        "object-src 'none'; "
+        "base-uri 'self'"
+    )
+```
+
+---
+
+## 🟡 MEDIUM Findings
+
+### MED-01 — In-Memory Brute-Force Tracking Resets on Deploy
+
+**OWASP:** A07 — Authentication Failures  
+**File:** [auth.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/auth.py#L146)
+
+**The Problem:**  
+`_failed_attempts = defaultdict(list)` is in-memory. Every Railway deploy resets the counter, allowing an attacker to brute-force continuously by timing their attacks to deployments.
+
+**Fix:** Migrate to Redis (available via Railway Marketplace). Short-term, add the comment as acknowledged tech debt per your architecture doc.
+
+---
+
+### MED-02 — No SSL Certificate Verification on Database Connection
+
+**OWASP:** A02 — Cryptographic Failures  
+**File:** [database.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/database.py#L19-L26)
+
+**The Problem:**  
+The database connection string has no `sslmode=require` or `sslmode=verify-full`. In production, connections from Railway → Supabase should enforce TLS.
+
+**Fix:**
+```python
+# Ensure production DATABASE_URL includes SSL
+# In Railway env: DATABASE_URL=postgresql+asyncpg://...?ssl=require
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    poolclass=NullPool,
+    connect_args={
+        "statement_cache_size": 0,
+        "ssl": True if "supabase" in DATABASE_URL else False,
+    },
+)
+```
+
+---
+
+### MED-03 — CORS Origin Regex Is Overly Permissive
+
+**OWASP:** A05 — Security Misconfiguration  
+**File:** [main.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/main.py#L54)
+
+**The Problem:**
+```python
+allow_origin_regex=r"https://syquex(-[a-z0-9]+)*\.vercel\.app"
+```
+
+This matches `https://syquex.vercel.app` but also `https://syquex-malicious-attacker-site-abc123.vercel.app` — anyone can create a Vercel project with a matching subdomain. Additionally, it doesn't anchor the match, so partial matches could work.
+
+**Fix:**
+```python
+allow_origin_regex=r"^https://syquex(-[a-z0-9]+)*\.vercel\.app$"  # ← Anchor with ^ and $
+```
+
+---
+
+### MED-04 — Dependency Version Ranges Allow Unvetted Updates
+
+**OWASP:** A06 — Vulnerable Components  
+**File:** [requirements.txt](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/requirements.txt#L7-L19)
+
+**The Problem:**
+```
+fastembed>=0.5,<0.9     # Range — could pull vulnerable patch
+stripe>=8.0.0           # Open-ended — could pull major breaking change
+resend>=2.0.0           # Open-ended
+```
+
+Per your security skill (SKILL.md line 341-349), all dependencies must be pinned to exact versions.
+
+**Fix:** Pin all dependencies:
+```
+fastembed==0.5.1
+stripe==8.4.0
+resend==2.7.0
+```
+
+Similarly, in `package.json`:
+```json
+"react": "18.2.0",    // not "^18.2.0"
+"react-dom": "18.2.0"
+```
+
+---
+
+### MED-05 — Email Service Exposes Reset Token in URL Query Parameter
+
+**OWASP:** A02 — Cryptographic Failures  
+**File:** [email.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/services/email.py#L30)
+
+**The Problem:**
+```python
+reset_url = f"{frontend_url}/?reset-token={token}"
+```
+
+The reset token appears in the URL query string, which gets:
+- Logged in web server access logs
+- Saved in browser history
+- Potentially leaked via `Referer` headers if the user clicks external links
+
+Also note: the `send_reset_email` function has wrong email content — it sends "trial ending" text instead of password reset content.
+
+**Fix:**
+```python
+# Use fragment instead of query param (not logged by servers)
+reset_url = f"{frontend_url}/?token={token}"  # Already using 'token' key
+
+# Also: the send_reset_email function body sends WRONG email content!
+# It currently sends trial-ending template instead of reset template
+```
+
+---
+
+### MED-06 — Debug Logging in Production Startup
+
+**OWASP:** A09 — Logging Failures  
+**File:** [main.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/main.py#L87-L94)
+
+**The Problem:**
+```python
+@app.on_event("startup")
+async def startup_event():
+    raw = os.environ.get("ALLOWED_ORIGINS", "NOT_SET")
+    parsed = settings.get_allowed_origins()
+    print(f"[CORS_DEBUG] raw env: {repr(raw)}", flush=True)     # ← Debug in prod
+    print(f"[CORS_DEBUG] parsed origins: {parsed}", flush=True)  # ← Debug in prod
+```
+
+Debug logs expose configuration details in production Railway logs, visible to anyone with Railway dashboard access.
+
+**Fix:** Gate behind environment check or remove:
+```python
+if settings.ENVIRONMENT == "development":
+    print(f"[CORS_DEBUG] raw env: {repr(raw)}", flush=True)
+```
+
+---
+
+## 🔵 LOW Findings
+
+### LOW-01 — `datetime.utcnow()` Deprecation (Timezone-Aware Consistency)
+
+**Files:** [auth.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/auth.py#L103,L107,L149,L162,L407), [database.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/database.py#L40-L41)
+
+**The Problem:**  
+Mixed usage of `datetime.utcnow()` (deprecated) and `datetime.now(UTC)`. This can cause subtle timezone comparison bugs in token expiration checks.
+
+**Fix:** Replace all `datetime.utcnow()` with `datetime.now(UTC)`.
+
+---
+
+### LOW-02 — Dockerfile Runs as Root
+
+**File:** [Dockerfile](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/Dockerfile)
+
+**The Problem:**  
+No `USER` directive — the container runs as root. If an attacker achieves RCE, they have full container privileges.
+
+**Fix:**
+```dockerfile
+RUN adduser --disabled-password --no-create-home appuser
+USER appuser
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+---
+
+### LOW-03 — `ProcessedStripeEvent` Model Has Wrong Column
+
+**File:** [billing.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/billing.py#L89)
+
+**The Problem:**
+```python
+db.add(ProcessedStripeEvent(id=event.id, type=event.type))
+```
+
+But the `ProcessedStripeEvent` model in `database.py` only has `id` and `created_at` — no `type` column. This will crash on webhook processing.
+
+---
+
+### LOW-04 — Cron Endpoint Uses Deprecated `CRON_SECRET` Naming
+
+**File:** [cron.py](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/backend/api/cron.py#L15)
+
+**The Problem:**  
+Uses `os.getenv("CRON_SECRET")` but `config.py` defines `INTERNAL_API_KEY`. This inconsistency means the cron secret may not be loaded from Settings validation.
+
+**Fix:** Use `settings.INTERNAL_API_KEY` consistently.
+
+---
+
+### LOW-05 — Frontend Loads TailwindCSS via CDN (Client-Side)
+
+**File:** [index.html](file:///c:/Users/josma/OneDrive/Escritorio/SyqueX/frontend/index.html#L7)
+
+**The Problem:**
+```html
+<script src="https://cdn.tailwindcss.com"></script>
+```
+
+The CDN version of Tailwind is:
+- Not recommended for production (performance, caching)
+- A supply-chain risk (CDN compromise = XSS on your app)
+- Blocks rendering until the script loads
+
+**Fix:** Use the Tailwind CLI, PostCSS, or Vite plugin to generate a static CSS file at build time.
+
+---
+
+## 📊 Audit Summary Matrix
+
+| # | Category | Finding | Severity | OWASP | File |
+|---|---|---|---|---|---|
+| CRIT-01 | Access Control | No auth on clinical endpoints | 🔴 CRITICAL | A01 | routes.py |
+| CRIT-02 | Access Control | No ownership verification (IDOR) | 🔴 CRITICAL | A01 | routes.py |
+| CRIT-03 | Secrets | API keys in .env on disk | 🔴 CRITICAL | A02 | backend/.env |
+| CRIT-04 | Secrets | Hardcoded default JWT secret | 🔴 CRITICAL | A02 | config.py |
+| CRIT-05 | Encryption | Clinical notes in plaintext | 🔴 CRITICAL | A02 | database.py |
+| HIGH-01 | Access Control | Auto-creates demo records | 🟠 HIGH | A01 | routes.py |
+| HIGH-02 | Access Control | create_patient uses wrong psych | 🟠 HIGH | A01 | routes.py |
+| HIGH-03 | Access Control | Conversations leaks all data | 🟠 HIGH | A01 | routes.py |
+| HIGH-04 | Integrity | Webhook secret empty default | 🟠 HIGH | A08 | billing.py |
+| HIGH-05 | Error Handling | Exception detail leak in billing | 🟠 HIGH | A05 | billing.py |
+| HIGH-06 | Design | No subscription enforcement | 🟠 HIGH | A04 | routes.py |
+| HIGH-07 | Headers | Missing CSP header | 🟠 HIGH | A05 | main.py |
+| MED-01 | Auth | In-memory rate limiting | 🟡 MEDIUM | A07 | auth.py |
+| MED-02 | Crypto | No DB SSL verification | 🟡 MEDIUM | A02 | database.py |
+| MED-03 | Config | CORS regex too permissive | 🟡 MEDIUM | A05 | main.py |
+| MED-04 | Dependencies | Unpinned version ranges | 🟡 MEDIUM | A06 | requirements.txt |
+| MED-05 | Crypto | Reset token in URL query string | 🟡 MEDIUM | A02 | email.py |
+| MED-06 | Logging | Debug logs in production startup | 🟡 MEDIUM | A09 | main.py |
+| LOW-01 | Code Quality | datetime.utcnow() deprecated | 🔵 LOW | — | auth.py, database.py |
+| LOW-02 | Container | Dockerfile runs as root | 🔵 LOW | A05 | Dockerfile |
+| LOW-03 | Bug | Wrong column on Stripe event | 🔵 LOW | — | billing.py |
+| LOW-04 | Config | Cron secret naming mismatch | 🔵 LOW | A05 | cron.py |
+| LOW-05 | Supply Chain | Tailwind CDN in production | 🔵 LOW | A06 | index.html |
+
+---
+
+## ✅ What's Already Done Well
+
+| Area | Implementation | Grade |
+|---|---|---|
+| **Password Hashing** | bcrypt 12 rounds via passlib ✅ | A |
+| **JWT Architecture** | Access (30min) + Refresh (7d, httpOnly, Secure, SameSite=strict) ✅ | A |
+| **Refresh Token Rotation** | SHA-256 hash storage + stolen token detection ✅ | A |
+| **Token Storage (Frontend)** | In-memory only, never localStorage ✅ | A |
+| **Refresh Race Condition** | Queue-based dedup in auth.js ✅ | A |
+| **Brute-Force Protection** | 5 attempts / 15 min window ✅ | B+ (in-memory) |
+| **Prompt Injection Guard** | Regex blocklist + input truncation ✅ | B+ |
+| **Timing Attack Prevention** | Constant-time login + forgot-password delay ✅ | A |
+| **Error Handling** | Global handler, no stack traces to client ✅ | A |
+| **Security Headers** | X-Frame-Options, X-XSS, Referrer-Policy ✅ | B (missing CSP) |
+| **Local Embeddings** | FastEmbed — no PII egress for vectors ✅ | A+ |
+| **Audit Logging** | Immutable INSERT-only table, no PII in logs ✅ | A |
+| **API Docs in Prod** | Disabled via `docs_url=None` ✅ | A |
+| **Domain Error Hierarchy** | Clean error codes, no internal leaks ✅ | A |
+| **UUIDs everywhere** | No sequential IDs on clinical entities ✅ | A |
+
+---
+
+## 🚧 Recommended Fix Priority
+
+### Week 1 — Block production deploy until done:
+1. **CRIT-01** — Add `Depends(get_current_psychologist)` to every route in `routes.py`
+2. **CRIT-02** — Add ownership verification dependencies
+3. **CRIT-04** — Add production validator for SECRET_KEY in Settings
+4. **HIGH-01/02/03** — Clean up demo code, fix create_patient, fix conversations query
+5. **HIGH-04/05** — Fix Stripe webhook + billing error handling
+6. **HIGH-07** — Add Content-Security-Policy header
+
+### Week 2 — Before first real users:
+7. **CRIT-05** — Implement Fernet encryption for clinical notes
+8. **HIGH-06** — Add subscription enforcement middleware
+9. **MED-02** — Enforce SSL on database connections
+10. **MED-03** — Anchor CORS regex
+11. **MED-04** — Pin all dependency versions
+
+### Week 3 — Hardening sprint:
+12. **CRIT-03** — Rotate API keys, set up git-secrets
+13. **MED-01** — Migrate rate limiting to Redis
+14. **MED-05/06** — Fix email templates, remove debug logs
+15. **LOW-01 through LOW-05** — Cleanup and hardening

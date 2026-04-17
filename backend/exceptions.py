@@ -1,4 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
+
+UTC = timezone.utc
 
 
 class DomainError(Exception):
@@ -10,7 +12,7 @@ class DomainError(Exception):
         self.message = message
         self.code = code or self.__class__.__name__
         self.details = details or {}
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(UTC)
 
 
 class DictationTooLongError(DomainError):

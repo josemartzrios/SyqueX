@@ -100,11 +100,11 @@ def verify_password(plain: str, hashed: str) -> bool:
     return _pwd_context.verify(plain, hashed)
 
 def create_access_token(psychologist_id: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": psychologist_id,
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": datetime.now(UTC),
         "type": "access",
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -146,7 +146,7 @@ _LOCKOUT_MINUTES = 30
 _failed_attempts: dict = defaultdict(list)
 
 def _check_brute_force(email: str) -> None:
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     window = now - timedelta(minutes=_WINDOW_MINUTES)
     _failed_attempts[email] = [t for t in _failed_attempts[email] if t > window]
 
@@ -159,7 +159,7 @@ def _check_brute_force(email: str) -> None:
         )
 
 def _record_failed_attempt(email: str) -> None:
-    _failed_attempts[email].append(datetime.utcnow())
+    _failed_attempts[email].append(datetime.now(UTC))
 
 def _reset_attempts(email: str) -> None:
     _failed_attempts[email] = []
@@ -404,7 +404,7 @@ _FORGOT_PW_EMAIL_WINDOW_MINUTES = 10
 _FORGOT_PW_EMAIL_MAX = 1
 
 def _check_forgot_pw_email_rate(email: str) -> None:
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     window = now - timedelta(minutes=_FORGOT_PW_EMAIL_WINDOW_MINUTES)
     _forgot_pw_email_attempts[email] = [t for t in _forgot_pw_email_attempts[email] if t > window]
     if len(_forgot_pw_email_attempts[email]) >= _FORGOT_PW_EMAIL_MAX:
