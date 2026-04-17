@@ -191,6 +191,7 @@ Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueante
 | 5 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
 | 6 | **Crear correo hola@syquex.mx** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
 | 7 | **Vulnerabilidades criticas** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
+| 8 | **Flujo olvide mi contraseña** | Configurar flujo de recuperación de contraseña |
 
 ---
 

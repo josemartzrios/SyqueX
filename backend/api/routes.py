@@ -622,8 +622,8 @@ async def list_conversations(
     psychologist: Psychologist = Depends(get_current_psychologist),
     db: AsyncSession = Depends(get_db),
 ):
-    # One entry per patient: most recent Session with real content via DISTINCT ON (PostgreSQL)
-    # INNER JOIN ensures only patients with at least one non-empty, non-archived session appear
+    # One entry per patient: most recent non-archived session via DISTINCT ON (PostgreSQL).
+    # LEFT JOIN so patients without any session still appear in the list.
     sql = text("""
         SELECT DISTINCT ON (p.id)
             p.id            AS patient_id,
@@ -635,7 +635,7 @@ async def list_conversations(
             s.status,
             s.messages
         FROM patients p
-        INNER JOIN sessions s
+        LEFT JOIN sessions s
             ON s.patient_id = p.id
             AND s.is_archived = FALSE
             AND s.raw_dictation IS NOT NULL

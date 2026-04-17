@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { createPatient, getPatient, updatePatient } from '../api';
 import { calculateAge } from '../utils/age';
 
@@ -92,7 +92,6 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
   const [error, setError] = useState(null);
 
   const isEdit = mode === 'edit';
-  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   useEffect(() => {
     if (!open) return;
@@ -111,6 +110,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
   if (!open) return null;
 
   const age = calculateAge(form.date_of_birth);
+  const ageInvalid = form.date_of_birth && (age === null || age > 120 || age < 0);
 
   // Contacto emergencia: si uno está, los tres son obligatorios
   const ecAny = form.ec_name || form.ec_relationship || form.ec_phone;
@@ -120,6 +120,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
   const canSubmit =
     form.name.trim() &&
     form.date_of_birth &&
+    !ageInvalid &&
     form.reason_for_consultation.trim() &&
     !ecInvalid &&
     !saving &&
@@ -187,8 +188,8 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
         </div>
 
         {/* Aviso LFPDPPP */}
-        <div className="mx-4 sm:mx-6 mb-4 bg-[#f4f4f2] rounded-lg px-3 py-2 flex items-start gap-2">
-          <svg className="w-4 h-4 text-[#5a9e8a] mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="mx-4 sm:mx-6 mb-4 bg-[#f4f4f2] rounded-lg px-3 py-2 flex items-center gap-2">
+          <svg className="w-4 h-4 text-[#5a9e8a] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
           <p className="text-[12px] text-ink-secondary leading-snug">
@@ -197,7 +198,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 sm:px-6 flex flex-col gap-6">
           {loading && (
             <p className="text-ink-tertiary text-[13px]">Cargando expediente…</p>
           )}
@@ -212,6 +213,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
                 value={form.name}
                 onChange={setField('name')}
                 autoFocus
+                maxLength={255}
                 disabled={saving || loading}
                 placeholder="Ej. María García López"
                 className={inputClass}
@@ -219,14 +221,17 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
             </Field>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Fecha de nacimiento" required hint={age != null ? `Edad: ${age}` : null}>
-                <input
-                  type="date"
+              <Field
+                label="Fecha de nacimiento"
+                required
+                hint={age != null && !ageInvalid ? `Edad: ${age}` : null}
+                error={ageInvalid ? 'Fecha de nacimiento no válida (máx. 120 años)' : null}
+              >
+                <DobInput
+                  key={`dob-${isEdit ? initialPatient?.id : 'new'}`}
                   value={form.date_of_birth}
-                  onChange={setField('date_of_birth')}
+                  onChange={(v) => setForm((f) => ({ ...f, date_of_birth: v }))}
                   disabled={saving || loading}
-                  max={todayIso}
-                  className={inputClass}
                 />
               </Field>
               <Field label="Estado civil">
@@ -248,6 +253,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
                 type="text"
                 value={form.occupation}
                 onChange={setField('occupation')}
+                maxLength={120}
                 disabled={saving || loading}
                 placeholder="Ej. Docente, ingeniera, estudiante"
                 className={inputClass}
@@ -263,6 +269,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
               <textarea
                 value={form.address}
                 onChange={setField('address')}
+                maxLength={500}
                 disabled={saving || loading}
                 rows={2}
                 placeholder="Calle, número, colonia, ciudad"
@@ -277,6 +284,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
                   type="text"
                   value={form.ec_name}
                   onChange={setField('ec_name')}
+                  maxLength={120}
                   disabled={saving || loading}
                   placeholder="Nombre"
                   className={inputClass}
@@ -286,6 +294,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
                   type="text"
                   value={form.ec_relationship}
                   onChange={setField('ec_relationship')}
+                  maxLength={60}
                   disabled={saving || loading}
                   placeholder="Parentesco"
                   className={inputClass}
@@ -295,6 +304,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
                   type="tel"
                   value={form.ec_phone}
                   onChange={setField('ec_phone')}
+                  maxLength={20}
                   disabled={saving || loading}
                   placeholder="Teléfono"
                   className={inputClass}
@@ -317,6 +327,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
               <textarea
                 value={form.reason_for_consultation}
                 onChange={setField('reason_for_consultation')}
+                maxLength={2000}
                 disabled={saving || loading}
                 rows={3}
                 placeholder="¿Qué trae al paciente a consulta?"
@@ -328,6 +339,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
               <textarea
                 value={form.medical_history}
                 onChange={setField('medical_history')}
+                maxLength={5000}
                 disabled={saving || loading}
                 rows={3}
                 placeholder="Enfermedades crónicas, medicación actual, cirugías"
@@ -339,6 +351,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
               <textarea
                 value={form.psychological_history}
                 onChange={setField('psychological_history')}
+                maxLength={5000}
                 disabled={saving || loading}
                 rows={3}
                 placeholder="Tratamientos previos, diagnósticos, hospitalizaciones"
@@ -354,7 +367,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 sticky bottom-0 bg-white pt-4 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-ink/[0.06]">
+          <div className="flex gap-3 sticky bottom-0 bg-white pt-4 pb-6 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-ink/[0.06]">
             <button
               type="button"
               onClick={handleClose}
@@ -382,7 +395,78 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
 const inputClass =
   'w-full bg-[#f4f4f2] border border-black/[0.08] rounded-xl px-4 py-2.5 text-[14px] text-[#18181b] placeholder-[#9ca3af] focus:outline-none focus:border-[#5a9e8a]/60 focus:ring-1 focus:ring-[#5a9e8a]/20 transition-all disabled:opacity-60';
 
-function Field({ label, required, hint, children }) {
+const MONTHS_ES = [
+  'Ene','Feb','Mar','Abr','May','Jun',
+  'Jul','Ago','Sep','Oct','Nov','Dic',
+];
+
+function parseDob(iso) {
+  if (!iso) return { day: '', month: '', year: '' };
+  const [y, m, d] = iso.split('-');
+  return { day: d || '', month: m || '', year: y || '' };
+}
+
+function DobInput({ value, onChange, disabled }) {
+  const [parts, setParts] = useState(() => parseDob(value));
+
+  // Sync when edit-mode loads patient data asynchronously
+  useEffect(() => {
+    if (!value) return;
+    const assembled = parts.year && parts.month && parts.day
+      ? `${parts.year}-${parts.month}-${parts.day}` : '';
+    if (value !== assembled) setParts(parseDob(value));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const update = (next) => {
+    setParts(next);
+    const { day, month, year } = next;
+    if (day && month && year && String(year).length === 4) {
+      onChange(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+    } else {
+      onChange('');
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength={2}
+        placeholder="DD"
+        value={parts.day}
+        disabled={disabled}
+        onChange={(e) => update({ ...parts, day: e.target.value })}
+        className={`${inputClass} min-w-0 !text-xs sm:!text-[14px]`}
+      />
+      <select
+        value={parts.month}
+        disabled={disabled}
+        onChange={(e) => update({ ...parts, month: e.target.value })}
+        className={`${inputClass} min-w-0 !text-xs sm:!text-[14px]`}
+        style={{ paddingRight: '8px' }}
+      >
+        <option value="">Mes</option>
+        {MONTHS_ES.map((name, i) => {
+          const v = String(i + 1).padStart(2, '0');
+          return <option key={v} value={v}>{name}</option>;
+        })}
+      </select>
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength={4}
+        placeholder="AAAA"
+        value={parts.year}
+        disabled={disabled}
+        onChange={(e) => update({ ...parts, year: e.target.value })}
+        className={`${inputClass} min-w-0 !text-xs sm:!text-[14px]`}
+      />
+    </div>
+  );
+}
+
+function Field({ label, required, hint, error, children }) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium text-[#18181b] flex items-center gap-2">
@@ -392,6 +476,7 @@ function Field({ label, required, hint, children }) {
         {hint && <span className="text-[11px] text-ink-tertiary font-normal">({hint})</span>}
       </span>
       {children}
+      {error && <span className="text-red-600 text-[12px]">{error}</span>}
     </label>
   );
 }
