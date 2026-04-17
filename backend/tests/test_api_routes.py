@@ -945,3 +945,45 @@ class TestSessionOutFormat:
         item = response.json()["items"][0]
         assert item["format"] == "chat"
         assert item["structured_note"] is None
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/sessions/{patient_id}/process — patient_name wire-up
+# ---------------------------------------------------------------------------
+
+class TestProcessSessionEndpointPatientName:
+    @pytest.mark.asyncio
+    async def test_passes_patient_name_to_process_session(self, app, mock_db, patient_uuid):
+        """Route must forward patient.name to process_session as patient_name kwarg."""
+        fake_patient = MagicMock()
+        fake_patient.id = patient_uuid
+        fake_patient.psychologist_id = uuid.UUID("99999999-9999-9999-9999-999999999999")
+        fake_patient.name = "Carlos Mendoza"
+        fake_patient.deleted_at = None
+
+        async def fake_get(model, obj_id):
+            return fake_patient
+        mock_db.get = AsyncMock(side_effect=fake_get)
+
+        mock_db.execute.return_value = _result(scalar_one=0)
+
+        with patch("api.routes.process_session", new_callable=AsyncMock) as mock_ps:
+            mock_ps.return_value = {
+                "text_fallback": "Nota generada.",
+                "session_messages": [
+                    {"role": "user", "content": "Paciente puntual."},
+                    {"role": "assistant", "content": "Nota generada."},
+                ],
+            }
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    f"/api/v1/sessions/{patient_uuid}/process",
+                    json={"raw_dictation": "Paciente puntual.", "format": "SOAP"},
+                )
+
+        assert response.status_code == 200
+        _, kwargs = mock_ps.call_args
+        assert kwargs.get("patient_name") == "Carlos Mendoza"
