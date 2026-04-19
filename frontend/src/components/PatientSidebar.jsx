@@ -15,7 +15,7 @@ import { useState, useRef, useEffect } from 'react';
  * - Ink (text): #18181b
  */
 
-function PatientConversationItem({ conv, active, onClick, onDelete }) {
+function PatientConversationItem({ conv, active, onClick, onDelete, hasDraft }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const timeoutRef = useRef(null);
 
@@ -49,9 +49,18 @@ function PatientConversationItem({ conv, active, onClick, onDelete }) {
           {conv.patient_name}
         </p>
         {conv.session_number != null ? (
-          <p className="text-[11px] text-gray-400 mt-0.5">
-            Sesión #{conv.session_number} · {formatDate(conv.session_date)}
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-gray-400">Sesión #{conv.session_number}</p>
+            {hasDraft ? (
+              <span className="text-[10px] font-semibold text-[#c4935a] bg-[#fef3e2] rounded px-1 leading-4">
+                Borrador
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold text-[#5a9e8a] bg-[#f0faf7] rounded px-1 leading-4">
+                Confirmada
+              </span>
+            )}
+          </div>
         ) : (
           <p className="text-[11px] text-gray-400 mt-0.5">Sin sesiones</p>
         )}
@@ -122,6 +131,7 @@ export default function PatientSidebar({
   onSavePatient,
   onCancelNewPatient,
   onLogout,
+  draftPatientIds = new Set(),
 }) {
   return (
     <aside className="w-60 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
@@ -199,6 +209,7 @@ export default function PatientSidebar({
               active={conv.patient_id === selectedPatientId}
               onClick={() => onSelectConversation(conv)}
               onDelete={() => onDeleteConversation(conv.id, conv.patient_id)}
+              hasDraft={draftPatientIds.has(String(conv.patient_id))}
             />
           ))
         )}
