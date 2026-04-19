@@ -31,6 +31,7 @@ Evitar pérdida de dictado cuando el psicólogo recarga la página, cambia de pa
 - **Cuándo limpiar:** solo al éxito del API call, nunca en error
 - **Indicador sidebar:** dot ámbar `#c4935a` alineado a la derecha del item (sin desplazar el texto del nombre)
 - **Indicador panel:** label ámbar "Borrador guardado" con dot, aparece bajo el textarea mientras `value.trim()` sea truthy
+- **Borrador al eliminar paciente:** `onDeleteConversation` debe llamar `clearDraft(patientId)` para no dejar keys huérfanas en localStorage
 
 ---
 
@@ -38,23 +39,55 @@ Evitar pérdida de dictado cuando el psicólogo recarga la página, cambia de pa
 
 ### Nuevo archivo: `frontend/src/hooks/useDraft.js`
 
-Hook que encapsula toda la lógica de localStorage:
+El hook usa **React state** internamente (no solo localStorage) para que `App` re-renderice reactivamente cuando el draft cambia — esto hace que el dot en el sidebar aparezca/desaparezca sin delay.
 
 ```js
-// useDraft(patientId)
-// retorna: { draft, setDraft, clearDraft }
+import { useState, useEffect } from 'react';
 
-// helpers estáticos:
-// useDraft.hasDraft(patientId) → boolean — para que App pueda consultar
-//   cualquier paciente sin montar el hook
+const STORAGE_KEY = (patientId) => `syquex_draft_${patientId}`;
+
+export default function useDraft(patientId) {
+  const [draft, setDraftState] = useState(
+    // Lazy initializer — lee localStorage una sola vez al montar,
+    // evita el flash de textarea vacío al cambiar de paciente
+    () => (patientId ? localStorage.getItem(STORAGE_KEY(patientId)) ?? '' : '')
+  );
+
+  // Re-sincronizar cuando cambia el paciente seleccionado
+  useEffect(() => {
+    setDraftState(patientId ? localStorage.getItem(STORAGE_KEY(patientId)) ?? '' : '');
+  }, [patientId]);
+
+  const setDraft = (text) => {
+    setDraftState(text);
+    if (!patientId) return;
+    try {
+      if (text) {
+        localStorage.setItem(STORAGE_KEY(patientId), text);
+      } else {
+        localStorage.removeItem(STORAGE_KEY(patientId));
+      }
+    } catch {
+      // localStorage lleno — no rompe el flujo, solo no persiste
+    }
+  };
+
+  const clearDraft = () => {
+    setDraftState('');
+    if (patientId) localStorage.removeItem(STORAGE_KEY(patientId));
+  };
+
+  return { draft, setDraft, clearDraft };
+}
+
+// Función estática — lee localStorage directamente sin necesidad de montar el hook.
+// Uso: useDraft.hasDraft(patientId) → boolean
+// Útil para computar draftPatientIds en App sin efectos secundarios.
+useDraft.hasDraft = (patientId) =>
+  !!patientId && !!localStorage.getItem(STORAGE_KEY(patientId));
 ```
 
-- `draft` — string con el texto actual (vacío si no existe la key)
-- `setDraft(text)` — escribe en localStorage inmediatamente
-- `clearDraft()` — elimina la key del localStorage
-- `useDraft.hasDraft(patientId)` — función estática que lee localStorage directamente
-
-El hook hace `useEffect` sobre `patientId` para re-sincronizar cuando cambia el paciente seleccionado.
+Dado que `setDraft` actualiza React state, cada llamada desde `onChange` del textarea causa un re-render de `App`, lo que recomputa `draftPatientIds` y mantiene el dot del sidebar sincronizado en tiempo real.
 
 ---
 
@@ -73,12 +106,12 @@ function DictationPanel({ value, onChange, onGenerate, loading })
 Cambios internos:
 - Eliminar `const [value, setValue] = useState('')`
 - Textarea: `value={value}`, `onChange={(e) => onChange(e.target.value)}`
-- Eliminar `setValue('')` de `handleGenerate` — App limpia el draft al éxito
-- Agregar label condicional bajo el textarea:
+- `handleGenerate` mantiene `onGenerate(value.trim())` — el trim sigue viviendo aquí. Solo se elimina `setValue('')` (App limpia el draft al éxito via `clearDraft`)
+- Agregar label condicional bajo el textarea (entre el textarea y el toolbar):
 
 ```jsx
 {value.trim() && (
-  <div className="flex items-center gap-1.5 mt-1.5">
+  <div className="flex items-center gap-1.5 px-5 pb-1">
     <div className="w-1.5 h-1.5 rounded-full bg-[#c4935a]" />
     <span className="text-[10px] text-[#c4935a] font-medium">Borrador guardado</span>
   </div>
@@ -99,27 +132,30 @@ function PatientConversationItem({ conv, active, onClick, onDelete })
 function PatientConversationItem({ conv, active, onClick, onDelete, hasDraft })
 ```
 
-Cambio en el JSX del item — dot ámbar a la derecha del contenido, encima del botón de eliminar:
+Cambio en el JSX del item — dot ámbar a la derecha del contenido, dentro del `div` que ya tiene `pr-6` (donde vive el botón de eliminar):
 
 ```jsx
 {hasDraft && (
-  <div className="w-1.5 h-1.5 rounded-full bg-[#c4935a] flex-shrink-0" />
+  <div className="absolute right-8 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#c4935a]" />
 )}
 ```
 
-El componente padre (`PatientSidebar`) recibe una prop `draftPatientIds: Set<string>` y la pasa hacia abajo como `hasDraft={draftPatientIds.has(conv.patient_id)}`.
+El componente padre (`PatientSidebar`) recibe una prop `draftPatientIds: Set<string>` y la pasa hacia abajo:
+```jsx
+hasDraft={draftPatientIds.has(String(conv.patient_id))}
+```
 
 ---
 
 ### `App.jsx` — orquestación
 
-1. **Importar y usar el hook:**
+**1. Importar y usar el hook:**
 ```js
 import useDraft from './hooks/useDraft';
 const { draft, setDraft, clearDraft } = useDraft(selectedPatientId);
 ```
 
-2. **Pasar props a DictationPanel** (dos lugares: desktop y mobile):
+**2. Pasar props a `DictationPanel`** — actualizar **ambos** lugares (desktop ~línea 610 y mobile ~línea 797):
 ```jsx
 <DictationPanel
   value={draft}
@@ -129,22 +165,29 @@ const { draft, setDraft, clearDraft } = useDraft(selectedPatientId);
 />
 ```
 
-3. **Limpiar draft al éxito** en `handleSendDictation`:
+**3. Limpiar draft al éxito** en `handleSendDictation`:
 ```js
 const noteData = await processSession(selectedPatientId, dictation, format);
-clearDraft(); // después del await exitoso
+clearDraft(); // después del await exitoso, antes del setMessages
 ```
 
-4. **Pasar `draftPatientIds` al sidebar:**
+**4. Limpiar draft al eliminar paciente** en el handler de `onDelete`:
 ```js
-// Computar el set de pacientes con borrador para el sidebar
+// Dentro del handler que llama archivePatientSessions o equivalente:
+useDraft.hasDraft(patientId) && localStorage.removeItem(`syquex_draft_${patientId}`);
+// O mejor: exponer clearDraft como helper estático también:
+useDraft.clearDraftFor = (patientId) =>
+  localStorage.removeItem(`syquex_draft_${patientId}`);
+```
+
+**5. Computar `draftPatientIds` para el sidebar** — se recalcula en cada render de App (barato, `localStorage` es síncrono):
+```js
 const draftPatientIds = new Set(
-  conversations
-    .map(c => c.patient_id)
-    .filter(id => useDraft.hasDraft(id))
+  conversations.map(c => String(c.patient_id)).filter(useDraft.hasDraft)
 );
 ```
 
+**6. Pasar al sidebar:**
 ```jsx
 <PatientSidebar
   ...
@@ -159,23 +202,26 @@ const draftPatientIds = new Set(
 | Archivo | Tipo de cambio |
 |---------|---------------|
 | `frontend/src/hooks/useDraft.js` | **Nuevo** |
-| `frontend/src/components/DictationPanel.jsx` | Modificado — controlled component + label |
-| `frontend/src/components/PatientSidebar.jsx` | Modificado — prop `hasDraft` + dot |
-| `frontend/src/App.jsx` | Modificado — usar hook, pasar props, limpiar draft |
+| `frontend/src/components/DictationPanel.jsx` | Modificado — controlled component + label ámbar |
+| `frontend/src/components/PatientSidebar.jsx` | Modificado — prop `hasDraft` + dot a la derecha |
+| `frontend/src/App.jsx` | Modificado — usar hook, pasar props (×2 lugares), limpiar draft al éxito y al eliminar |
 
 ---
 
 ## Casos borde
 
-- **Cambio de paciente con borrador:** el textarea se limpia visualmente (nuevo paciente no tiene draft), el borrador del paciente anterior persiste en localStorage
-- **Borrador de paciente sin sesiones:** funciona igual, el patientId existe desde que se crea el paciente
-- **localStorage lleno:** `setDraft` debe envolver el `localStorage.setItem` en try/catch — si falla, simplemente no persiste (no rompe el flujo)
-- **Draft vacío tras trim:** no se guarda ni se muestra indicador (evita guardar solo espacios)
+- **Cambio de paciente con borrador:** `useEffect` en el hook carga el draft del nuevo paciente desde localStorage; el borrador del anterior queda intacto
+- **Refresh de página:** lazy `useState` initializer carga el draft del paciente activo desde localStorage sin flash
+- **localStorage lleno:** `setDraft` envuelve `setItem` en try/catch — si falla, el draft no persiste pero el textarea sigue funcionando
+- **Draft vacío tras trim:** `setDraft('')` llama `removeItem` — no queda key vacía en localStorage
+- **Error de API:** draft se conserva; el usuario está en tab "nota" (mobile) viendo el error, pero al volver a "Dictar" el textarea restaura el texto correctamente
+- **Paciente eliminado:** `onDeleteConversation` llama `useDraft.clearDraftFor(patientId)` para evitar keys huérfanas
+- **`patientId` como string vs number:** todos los usos hacen `String(patientId)` para consistencia en las keys de localStorage
 
 ---
 
 ## Lo que NO hace esta feature
 
-- No sincroniza entre dispositivos (eso requeriría backend)
-- No guarda la nota generada como borrador (eso es feature #3b — "Borrador de nota SOAP", fuera de scope)
+- No sincroniza entre dispositivos (requeriría backend)
+- No guarda la nota SOAP generada como borrador (fuera de scope)
 - No agrega endpoint nuevo al backend
