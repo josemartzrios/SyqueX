@@ -57,3 +57,52 @@ describe('PatientSidebar — nuevo paciente button', () => {
     expect(screen.getByPlaceholderText(/nombre del paciente/i)).toBeInTheDocument()
   })
 })
+
+describe('PatientSidebar — draft badge', () => {
+  const conv = {
+    patient_id: '42',
+    patient_name: 'Juan García',
+    session_number: 3,
+    session_date: '2026-04-18',
+    dictation_preview: null,
+    status: 'confirmed',
+  }
+
+  it('shows Borrador badge when patient has draft', () => {
+    render(
+      <PatientSidebar
+        {...defaultProps}
+        conversations={[conv]}
+        draftPatientIds={new Set(['42'])}
+      />
+    )
+    expect(screen.getByText('Borrador')).toBeInTheDocument()
+    expect(screen.queryByText('Confirmada')).not.toBeInTheDocument()
+  })
+
+  it('shows Confirmada badge when patient has no draft', () => {
+    render(
+      <PatientSidebar
+        {...defaultProps}
+        conversations={[conv]}
+        draftPatientIds={new Set()}
+      />
+    )
+    expect(screen.getByText('Confirmada')).toBeInTheDocument()
+    expect(screen.queryByText('Borrador')).not.toBeInTheDocument()
+  })
+
+  it('shows no badge when patient has no sessions', () => {
+    const noSessions = { ...conv, session_number: null }
+    render(
+      <PatientSidebar
+        {...defaultProps}
+        conversations={[noSessions]}
+        draftPatientIds={new Set()}
+      />
+    )
+    expect(screen.queryByText('Borrador')).not.toBeInTheDocument()
+    expect(screen.queryByText('Confirmada')).not.toBeInTheDocument()
+    expect(screen.getByText('Sin sesiones')).toBeInTheDocument()
+  })
+})
