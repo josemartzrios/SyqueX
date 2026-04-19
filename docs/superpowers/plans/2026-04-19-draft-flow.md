@@ -19,7 +19,8 @@
 | `frontend/src/components/DictationPanel.test.jsx` | **Modify** — update for new props |
 | `frontend/src/components/PatientSidebar.jsx` | **Modify** — Borrador/Confirmada badge |
 | `frontend/src/components/PatientSidebar.test.jsx` | **Modify** — add badge tests |
-| `frontend/src/App.jsx` | **Modify** — wire hook, both DictationPanel sites, delete handler |
+| `frontend/src/components/Sidebar.jsx` | **Modify** — Borrador/Confirmada badge (mobile drawer) — **already patched** |
+| `frontend/src/App.jsx` | **Modify** — wire hook, both DictationPanel sites, delete handler, pass draftPatientIds to both sidebars |
 
 ---
 
@@ -606,6 +607,37 @@ Replace with:
     }
   };
 ```
+
+- [ ] **Step 8b: Pass `draftPatientIds` to the mobile `<Sidebar>` (~line 566)**
+
+Find:
+
+```jsx
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        conversations={conversations}
+        onSelectConversation={handleSelectConversation}
+        onDeleteConversation={handleDeleteConversation}
+        onLogout={handleLogout}
+      />
+```
+
+Replace with:
+
+```jsx
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        conversations={conversations}
+        onSelectConversation={handleSelectConversation}
+        onDeleteConversation={handleDeleteConversation}
+        onLogout={handleLogout}
+        draftPatientIds={draftPatientIds}
+      />
+```
+
+> Note: `Sidebar.jsx` was already patched to accept `draftPatientIds` and render "Borrador"/"Confirmada" badges matching the desktop design.
 
 - [ ] **Step 9: Run the full test suite**
 
