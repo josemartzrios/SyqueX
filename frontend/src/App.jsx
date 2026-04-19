@@ -570,6 +570,7 @@ function App() {
         onSelectConversation={handleSelectConversation}
         onDeleteConversation={handleDeleteConversation}
         onLogout={handleLogout}
+        draftPatientIds={draftPatientIds}
       />
 
       {/* ── DESKTOP LAYOUT (md+) ── */}
