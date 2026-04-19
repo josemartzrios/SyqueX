@@ -29,7 +29,7 @@ Evitar pérdida de dictado cuando el psicólogo recarga la página, cambia de pa
 - **Scope:** por paciente — cambiar de paciente y volver restaura el borrador del paciente anterior
 - **Sobrevive refresh:** sí — `localStorage` persiste entre sesiones del navegador
 - **Cuándo limpiar:** solo al éxito del API call, nunca en error
-- **Indicador sidebar:** dot ámbar `#c4935a` alineado a la derecha del item (sin desplazar el texto del nombre)
+- **Indicador sidebar:** badge de texto junto al número de sesión — `Borrador` en ámbar `#c4935a` con fondo `#fef3e2` cuando hay draft; `Confirmada` en sage `#5a9e8a` con fondo `#f0faf7` cuando la última sesión está confirmada. No usa posicionamiento absoluto — sin conflicto con el botón de archivar
 - **Indicador panel:** label ámbar "Borrador guardado" con dot, aparece bajo el textarea mientras `value.trim()` sea truthy
 - **Borrador al eliminar paciente:** `onDeleteConversation` debe llamar `clearDraft(patientId)` para no dejar keys huérfanas en localStorage
 
@@ -120,7 +120,7 @@ Cambios internos:
 
 ---
 
-### `PatientSidebar.jsx` — prop `hasDraft` en `PatientConversationItem`
+### `PatientSidebar.jsx` — badge de estado en `PatientConversationItem`
 
 **Props actuales de `PatientConversationItem`:**
 ```jsx
@@ -132,13 +132,28 @@ function PatientConversationItem({ conv, active, onClick, onDelete })
 function PatientConversationItem({ conv, active, onClick, onDelete, hasDraft })
 ```
 
-Cambio en el JSX del item — dot ámbar a la derecha del contenido, dentro del `div` que ya tiene `pr-6` (donde vive el botón de eliminar):
+Cambio en el JSX del item — reemplazar la línea de subtítulo (número de sesión + fecha) por una fila que incluye el número de sesión **y** un badge de estado:
 
 ```jsx
-{hasDraft && (
-  <div className="absolute right-8 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#c4935a]" />
+{conv.session_number != null ? (
+  <div className="flex items-center gap-1.5 mt-0.5">
+    <p className="text-[11px] text-gray-400">Sesión #{conv.session_number}</p>
+    {hasDraft ? (
+      <span className="text-[10px] font-semibold text-[#c4935a] bg-[#fef3e2] rounded px-1 leading-4">
+        Borrador
+      </span>
+    ) : (
+      <span className="text-[10px] font-semibold text-[#5a9e8a] bg-[#f0faf7] rounded px-1 leading-4">
+        Confirmada
+      </span>
+    )}
+  </div>
+) : (
+  <p className="text-[11px] text-gray-400 mt-0.5">Sin sesiones</p>
 )}
 ```
+
+El botón de archivar (`absolute right-2`) no se toca — este cambio es solo en el flujo normal del contenido, no en posicionamiento absoluto. En mobile no hay `PatientSidebar`, así que no hay impacto.
 
 El componente padre (`PatientSidebar`) recibe una prop `draftPatientIds: Set<string>` y la pasa hacia abajo:
 ```jsx
