@@ -470,7 +470,7 @@ async def process_session_endpoint(
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
     patient_uuid = patient.id
 
-    response = await process_session(db, patient_id, rec.raw_dictation, None, rec.format)
+    response = await process_session(db, patient_id, rec.raw_dictation, None, rec.format, patient_name=patient.name)
 
     session_id = str(uuid.uuid4())
 

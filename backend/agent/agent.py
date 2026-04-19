@@ -79,7 +79,7 @@ Reglas:
 {_SHARED_RULES}"""
 
 
-async def _get_patient_context(db, patient_id: str) -> list:
+async def _get_patient_context(db, patient_id: str, patient_name: str = "") -> list:
     """
     Builds the full context message list for a patient:
     1. A clinical profile block (patient_summary + risk/protective factors + recurring themes)
@@ -93,7 +93,7 @@ async def _get_patient_context(db, patient_id: str) -> list:
     )
     profile = profile_result.scalar_one_or_none()
 
-    profile_block_parts = []
+    profile_block_parts = [f"Nombre del paciente: {patient_name}."] if patient_name else []
     if profile:
         if profile.patient_summary:
             profile_block_parts.append(f"Resumen clínico del paciente:\n{profile.patient_summary}")
@@ -198,7 +198,7 @@ async def update_patient_profile_summary(db, patient_id: str, session_note: dict
     await db.commit()
 
 
-async def process_session(db, patient_id: str, raw_dictation: str, session_id: str, format_: str = "SOAP") -> dict:
+async def process_session(db, patient_id: str, raw_dictation: str, session_id: str, format_: str = "SOAP", patient_name: str = "") -> dict:
     if len(raw_dictation) > ClinicalNoteConfig.MAX_DICTATION_LENGTH:
         raise DictationTooLongError(
             f"El dictado excede el límite de {ClinicalNoteConfig.MAX_DICTATION_LENGTH} caracteres.",
@@ -210,7 +210,7 @@ async def process_session(db, patient_id: str, raw_dictation: str, session_id: s
     dictado_seguro = _sanitizar_dictado(raw_dictation)
 
     # Load persistent context from previous sessions
-    context_messages = await _get_patient_context(db, patient_id)
+    context_messages = await _get_patient_context(db, patient_id, patient_name)
 
     # Append the current user message to the full conversation history
     messages = context_messages + [{"role": "user", "content": dictado_seguro}]
