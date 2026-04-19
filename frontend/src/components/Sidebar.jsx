@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function Sidebar({ open, onClose, conversations, onSelectConversation, onDeleteConversation, onLogout }) {
+export default function Sidebar({ open, onClose, conversations, onSelectConversation, onDeleteConversation, onLogout, draftPatientIds = new Set() }) {
   return (
     <>
       {open && (
@@ -52,6 +52,7 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
                 conv={conv}
                 onClick={() => { onSelectConversation(conv); onClose(); }}
                 onDelete={() => onDeleteConversation(conv.id, conv.patient_id)}
+                hasDraft={draftPatientIds.has(String(conv.patient_id))}
               />
             ))
           )}
@@ -71,7 +72,7 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
   );
 }
 
-function ConversationItem({ conv, onClick, onDelete }) {
+function ConversationItem({ conv, onClick, onDelete, hasDraft }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleDelete = (e) => {
@@ -102,11 +103,15 @@ function ConversationItem({ conv, onClick, onDelete }) {
 
       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
         <span className="text-[10px] text-ink-tertiary">Sesión #{conv.session_number}</span>
-        {conv.status === 'confirmed' && (
-          <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
-            <span className="w-1 h-1 bg-emerald-500 rounded-full inline-block"></span>Confirmada
+        {hasDraft ? (
+          <span className="text-[10px] font-semibold text-[#c4935a] bg-[#fef3e2] rounded px-1 leading-4">
+            Borrador
           </span>
-        )}
+        ) : conv.status === 'confirmed' ? (
+          <span className="text-[10px] font-semibold text-[#5a9e8a] bg-[#f0faf7] rounded px-1 leading-4">
+            Confirmada
+          </span>
+        ) : null}
       </div>
 
       <button
