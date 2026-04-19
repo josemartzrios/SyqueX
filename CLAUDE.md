@@ -201,6 +201,7 @@ Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueante
 
 | # | Feature | Descripción |
 |---|---------|-------------|
+| 1 | **Editar datos clinicos de paciente** | editar datos clinicos del paciente una vez que existe en el sistema. 
 | 1 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
 | 2 | **Dictado de voz con streaming** | Transcripción en tiempo real + SOAP construyéndose progresivamente (Whisper API) |
 | 3 | **Crear nota personalizada para usuario** | Export con membrete profesional |
