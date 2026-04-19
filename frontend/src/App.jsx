@@ -7,6 +7,7 @@ import DictationPanel from './components/DictationPanel'
 import PatientIntakeModal from './components/PatientIntakeModal'
 import EvolucionPanel from './components/EvolucionPanel'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout } from './api'
+import useDraft from './hooks/useDraft';
 import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
 import LoginScreen from './components/LoginScreen.jsx';
 import RegisterScreen from './components/RegisterScreen.jsx';
@@ -141,6 +142,7 @@ function App() {
   const [editingPatientId, setEditingPatientId] = useState(null);
   const [newPatientName, setNewPatientName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { draft, setDraft, clearDraft } = useDraft(selectedPatientId);
   const [conversations, setConversations] = useState([]);
   const [mobileTab, setMobileTab] = useState('dictar');
   const [currentSessionNote, setCurrentSessionNote] = useState(null);
@@ -362,6 +364,7 @@ function App() {
   const handleDeleteConversation = async (sessionId, patientId) => {
     try {
       if (patientId) await archivePatientSessions(patientId);
+      useDraft.clearDraftFor(patientId);
       setConversations(prev => prev.filter(c => c.patient_id !== patientId));
     } catch (err) {
       console.error("Error archiving conversation:", err);
@@ -441,6 +444,7 @@ function App() {
     if (format === 'SOAP') setCurrentSessionNote({ type: 'loading' });
     try {
       const noteData = await processSession(selectedPatientId, dictation, format);
+      clearDraft();
       const botMessage = format === 'SOAP'
         ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
         : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
@@ -471,6 +475,9 @@ function App() {
 
   const isLoading = messages[messages.length - 1]?.type === 'loading';
   const hasActivePatient = !!selectedPatientId;
+  const draftPatientIds = new Set(
+    conversations.map(c => String(c.patient_id)).filter(useDraft.hasDraft)
+  );
   const soapSessions = sessionHistory.filter(s => s.format !== 'chat');
 
   // Derive the latest note message for the note panel
@@ -581,6 +588,7 @@ function App() {
           onSavePatient={handleSavePatient}
           onCancelNewPatient={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
           onLogout={handleLogout}
+          draftPatientIds={draftPatientIds}
         />
 
         {/* Right work area */}
@@ -607,6 +615,8 @@ function App() {
                   {/* Left: Dictation panel */}
                   <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
                     <DictationPanel
+                      value={draft}
+                      onChange={setDraft}
                       onGenerate={(d) => handleSendDictation(d, 'SOAP')}
                       loading={isLoading}
                     />
@@ -794,6 +804,8 @@ function App() {
             {mobileTab === 'dictar' && (
               <div className="flex flex-col flex-1 min-h-0 bg-[#f4f4f2]">
                 <DictationPanel
+                  value={draft}
+                  onChange={setDraft}
                   onGenerate={(d) => handleSendDictation(d, 'SOAP')}
                   loading={isLoading}
                 />
