@@ -178,32 +178,38 @@ Spec de referencia: `docs/superpowers/specs/2026-03-30-auth-billing-launch-desig
 
 ---
 
-### Pre-deploy backlog
+### Pre-deploy backlog 499
 
 Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueantes.
 
 | # | Feature | Descripción |
 |---|---------|-------------|
-| 1 | **Más preguntas clínicas en intake** | Ampliar modal de nuevo paciente con campos clínicos relevantes (motivo, antecedentes, medicación, etc.) |
-| 2 | **Agente conoce nombre del paciente** | El agente de conversación debe referirse al paciente por nombre en todo momento |
-| 3 | **Borrador / guardado automático** | Guardar dictado y nota en progreso antes de confirmar — previene pérdida de datos |
-| 4 | **Tipografía nota clínica** | Selector de fuente en el panel SOAP (serif / sans) |
-| 5 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
-| 6 | **Crear correo hola@syquex.mx** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
+| 1 | **Vulnerabilidades criticas** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
+| 3 | **Actualizar landing apuntando a app dns** | Apuntar el dns de la landing a la app |
+| 4 | **Terminar de configurar stripe para pagos** | 
 
 ---
 
-### Post-MVP
+### Post-MVP 
 
 | # | Feature | Descripción |
 |---|---------|-------------|
-| 1 | **Dictado de voz con streaming** | Transcripción en tiempo real + SOAP construyéndose progresivamente (Whisper API) |
-| 2 | **Descargar nota clínica como PDF** | Export con membrete profesional |
-| 3 | **Vincular Google Drive** | Guardar notas automáticamente en carpetas del psicólogo |
-| 4 | **Vincular Google Calendar** | Vincular sesiones con eventos del calendario |
-| 5 | **Cargar texto desde archivo** | Subir texto para procesarlo como dictado |
-| 6 | **Pegar texto largo (referencia parcial)** | Referenciar fragmentos sin pegar el contenido completo |
-| 7 | **Visualizar contraseña** | Toggle show/hide en login y registro |
+| 1 | **Flujo olvide mi contraseña** | Crear cuenta en resend, verificar dominio, configurar flujo de recuperación de contraseña.
+| 2 | **Interfaz de perfil de psicologo** | interfaz para que psicólogo edite datos clinicos del paciente una vez que existe en el sistema. 
+| 3 | **Editar datos clinicos de paciente** | interfaz para que psicólogo edite datos clinicos del paciente una vez que existe en el sistema. 
+| 4 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
+| 12 | **Visualizar contraseña** | Toggle show/hide en login y registro |
+
+### SyqueX pro
+
+| 5 | **Dictado de voz con streaming** | Transcripción en tiempo real + SOAP construyéndose progresivamente (Whisper API) |
+| 6 | **Crear nota personalizada para usuario** | Export con membrete profesional |
+| 7 | **Descargar nota clínica como PDF** | Export con membrete profesional |
+| 8 | **Vincular Google Drive** | Guardar notas automáticamente en carpetas del psicólogo |
+| 9 | **Vincular Google Calendar** | Vincular sesiones con eventos del calendario |
+| 10 | **Cargar texto desde archivo** | Subir texto para procesarlo como dictado |
+| 11 | **Pegar texto largo (referencia parcial)** | Referenciar fragmentos sin pegar el contenido completo |
+
 
 ---
 
@@ -262,9 +268,6 @@ La variable de entorno `ALLOWED_ORIGINS=https://syquex.vercel.app` está configu
 ---
 
 ## Pendientes landing page (retomar 2026-04-16)
-
-### Datos legales
-- RFC en el footer aparece como `[RFC]` y "Ciudad de México" — corregirlo con el RFC real de Culiacán, Sinaloa. La congruencia entre datos legales importa para la credibilidad.
 
 ### Conversión / prueba social
 - No hay testimonios — ninguna prueba social real.

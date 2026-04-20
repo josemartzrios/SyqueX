@@ -1,12 +1,7 @@
-import { useState } from 'react';
-
-export default function DictationPanel({ onGenerate, loading }) {
-  const [value, setValue] = useState('');
-
+export default function DictationPanel({ value, onChange, onGenerate, loading }) {
   const handleGenerate = () => {
     if (!value.trim() || loading) return;
     onGenerate(value.trim());
-    setValue('');
   };
 
   const handleKeyDown = (e) => {
@@ -18,24 +13,28 @@ export default function DictationPanel({ onGenerate, loading }) {
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header with label and date */}
       <div className="px-5 pt-5 pb-3 flex-shrink-0">
         <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-3">
           Dictado · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
         </p>
 
-        {/* Textarea */}
         <textarea
           className="w-full h-52 resize-none bg-white border border-black/[0.07] rounded-xl px-4 py-3 text-[14px] leading-relaxed text-[#18181b] outline-none focus:border-[#5a9e8a] focus:ring-0 transition-colors placeholder-ink-muted disabled:bg-slate-50"
           placeholder="Dicta los puntos clave de la sesión…"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={loading}
         />
+
+        {value.trim() && (
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#c4935a]" />
+            <span className="text-[10px] text-[#c4935a] font-medium">Borrador guardado</span>
+          </div>
+        )}
       </div>
 
-      {/* Toolbar */}
       <div className="px-5 pb-5 flex-shrink-0">
         <button
           onClick={handleGenerate}

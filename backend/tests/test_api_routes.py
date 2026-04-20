@@ -26,20 +26,44 @@ def mock_db():
     result.scalar_one.return_value = 0
     result.all.return_value = []
     db.execute.return_value = result
+
+    async def fake_get(model, obj_id):
+        if hasattr(model, "__name__") and model.__name__ == "Patient":
+            p = MagicMock()
+            p.id = obj_id
+            p.psychologist_id = uuid.UUID("99999999-9999-9999-9999-999999999999")
+            p.deleted_at = None
+            return p
+        return None
+    db.get = AsyncMock(side_effect=fake_get)
+
     return db
 
 
 @pytest.fixture
-def app(mock_db):
-    """FastAPI app with get_db overridden and init_db patched."""
+def app(mock_db, monkeypatch):
+    """FastAPI app with get_db overridden, auth mocked, init_db patched."""
+    from cryptography.fernet import Fernet
+    import config as _config
+    monkeypatch.setattr(_config.settings, "ENCRYPTION_KEY", Fernet.generate_key().decode())
+
     with patch("database.init_db", new=AsyncMock()):
         from main import app as _app
-        from database import get_db
+        from database import get_db, Psychologist
+        from api.auth import get_current_psychologist
 
         async def override_get_db():
             yield mock_db
 
+        fake_psy = MagicMock(spec=Psychologist)
+        fake_psy.id = uuid.UUID("99999999-9999-9999-9999-999999999999")
+        fake_psy.is_active = True
+
+        async def override_current_user():
+            return fake_psy
+
         _app.dependency_overrides[get_db] = override_get_db
+        _app.dependency_overrides[get_current_psychologist] = override_current_user
         yield _app
         _app.dependency_overrides.clear()
 
@@ -124,64 +148,43 @@ class TestListPatients:
 
 class TestCreatePatient:
     @pytest.mark.asyncio
-    async def test_returns_201(self, app, mock_db):
-        psy = MagicMock()
-        psy.id = uuid.uuid4()
+    async def test_create_with_minimum_payload(self, app, mock_db):
+        from datetime import date
 
-        patient = MagicMock()
-        patient.id = uuid.uuid4()
-        patient.name = "Carlos Ruiz"
-        patient.risk_level = "medium"
-        patient.date_of_birth = None
-        patient.diagnosis_tags = []
+        created = MagicMock()
+        created.id = uuid.uuid4()
+        created.name = "Carlos Ruiz"
+        created.risk_level = "low"
+        created.date_of_birth = date(1990, 5, 20)
+        created.diagnosis_tags = []
+        created.marital_status = None
+        created.occupation = None
+        created.address = None
+        created.emergency_contact = None
+        created.reason_for_consultation = "Ansiedad laboral"
+        created.medical_history = None
+        created.psychological_history = None
 
-        # execute() called twice: select Psychologist, then PatientProfile add
-        mock_db.execute.side_effect = [
-            _result(scalar_one_or_none=psy),  # select Psychologist
-        ]
-
-        async def fake_refresh(obj):
-            obj.id = patient.id
-            obj.name = patient.name
-            obj.risk_level = patient.risk_level
-            obj.date_of_birth = None
-            obj.diagnosis_tags = []
-
-        mock_db.refresh.side_effect = fake_refresh
+        async def refresh(obj):
+            for k, v in created.__dict__.items():
+                if not k.startswith("_"):
+                    setattr(obj, k, v)
+        mock_db.refresh.side_effect = refresh
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/v1/patients",
-                json={"name": "Carlos Ruiz", "risk_level": "medium"},
+                json={
+                    "name": "Carlos Ruiz",
+                    "date_of_birth": "1990-05-20",
+                    "reason_for_consultation": "Ansiedad laboral",
+                },
             )
 
         assert response.status_code == 201
-
-    @pytest.mark.asyncio
-    async def test_returns_patient_name(self, app, mock_db):
-        psy = MagicMock()
-        psy.id = uuid.uuid4()
-        mock_db.execute.side_effect = [_result(scalar_one_or_none=psy)]
-
-        new_id = uuid.uuid4()
-
-        async def fake_refresh(obj):
-            obj.id = new_id
-            obj.name = "Laura Méndez"
-            obj.risk_level = "low"
-            obj.date_of_birth = None
-            obj.diagnosis_tags = []
-
-        mock_db.refresh.side_effect = fake_refresh
-
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.post(
-                "/api/v1/patients",
-                json={"name": "Laura Méndez", "risk_level": "low"},
-            )
-
-        assert response.status_code == 201
-        assert response.json()["name"] == "Laura Méndez"
+        body = response.json()
+        assert body["name"] == "Carlos Ruiz"
+        assert body["reason_for_consultation"] == "Ansiedad laboral"
 
 
 # ---------------------------------------------------------------------------
@@ -322,8 +325,6 @@ class TestProcessSession:
     async def test_returns_200_with_text_fallback(self, app, mock_db, patient_uuid):
         # process_session finds no previous session → session_number = 1
         mock_db.execute.side_effect = [
-            # NEW: patient_check
-            _result(scalar_one_or_none=MagicMock()),
             # _get_patient_context: profile
             _result(scalar_one_or_none=None),
             # _get_patient_context: sessions history
@@ -365,7 +366,7 @@ class TestProcessSession:
 
     @pytest.mark.asyncio
     async def test_prompt_injection_returns_400(self, app, mock_db, patient_uuid):
-        mock_db.execute.return_value = _result(scalar_one_or_none=MagicMock())
+        # db.execute.return_value is unused for patient check now
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 f"/api/v1/sessions/{patient_uuid}/process",
@@ -379,7 +380,7 @@ class TestProcessSession:
     async def test_dictation_too_long_returns_400(self, app, mock_db, patient_uuid):
         from config import settings
         long_text = "x" * (settings.MAX_DICTATION_LENGTH + 1)
-        mock_db.execute.return_value = _result(scalar_one_or_none=MagicMock())
+        # db.execute.return_value is unused for patient check now
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
@@ -654,7 +655,6 @@ class TestProcessSessionFormat:
     async def test_chat_format_returns_session_id(self, app, mock_db, patient_uuid):
         """format='chat' → response includes session_id (session is now persisted)."""
         mock_db.execute.side_effect = [
-            _result(scalar_one_or_none=MagicMock()),  # patient_check
             _result(scalar_one_or_none=None),  # _get_patient_context: profile
             _result(scalars_all=[]),            # _get_patient_context: sessions
             _result(scalar_one_or_none=None),  # last session (session_number)
@@ -679,7 +679,6 @@ class TestProcessSessionFormat:
     async def test_chat_format_persists_session(self, app, mock_db, patient_uuid):
         """format='chat' → db.add() is called once to persist the session."""
         mock_db.execute.side_effect = [
-            _result(scalar_one_or_none=MagicMock()),  # patient_check
             _result(scalar_one_or_none=None),  # profile
             _result(scalars_all=[]),            # sessions history
             _result(scalar_one_or_none=None),  # last session
@@ -701,7 +700,6 @@ class TestProcessSessionFormat:
     async def test_soap_format_returns_session_id(self, app, mock_db, patient_uuid):
         """format='SOAP' → response includes session_id (existing behavior preserved)."""
         mock_db.execute.side_effect = [
-            _result(scalar_one_or_none=MagicMock()),  # patient_check
             _result(scalar_one_or_none=None),  # profile
             _result(scalars_all=[]),            # sessions history
             _result(scalar_one_or_none=None),  # last session (session_number)
@@ -863,7 +861,6 @@ class TestChatSessionPersistence:
     async def test_chat_session_created_with_confirmed_status(self, app, mock_db, patient_uuid):
         """format='chat' debe crear Session con status='confirmed' (sin paso de confirmación)."""
         mock_db.execute.side_effect = [
-            _result(scalar_one_or_none=MagicMock()),
             _result(scalar_one_or_none=None),
             _result(scalars_all=[]),
             _result(scalar_one_or_none=None),
@@ -952,3 +949,45 @@ class TestSessionOutFormat:
         item = response.json()["items"][0]
         assert item["format"] == "chat"
         assert item["structured_note"] is None
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/sessions/{patient_id}/process — patient_name wire-up
+# ---------------------------------------------------------------------------
+
+class TestProcessSessionEndpointPatientName:
+    @pytest.mark.asyncio
+    async def test_passes_patient_name_to_process_session(self, app, mock_db, patient_uuid):
+        """Route must forward patient.name to process_session as patient_name kwarg."""
+        fake_patient = MagicMock()
+        fake_patient.id = patient_uuid
+        fake_patient.psychologist_id = uuid.UUID("99999999-9999-9999-9999-999999999999")
+        fake_patient.name = "Carlos Mendoza"
+        fake_patient.deleted_at = None
+
+        async def fake_get(model, obj_id):
+            return fake_patient
+        mock_db.get = AsyncMock(side_effect=fake_get)
+
+        mock_db.execute.return_value = _result(scalar_one=0)
+
+        with patch("api.routes.process_session", new_callable=AsyncMock) as mock_ps:
+            mock_ps.return_value = {
+                "text_fallback": "Nota generada.",
+                "session_messages": [
+                    {"role": "user", "content": "Paciente puntual."},
+                    {"role": "assistant", "content": "Nota generada."},
+                ],
+            }
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    f"/api/v1/sessions/{patient_uuid}/process",
+                    json={"raw_dictation": "Paciente puntual.", "format": "SOAP"},
+                )
+
+        assert response.status_code == 200
+        _, kwargs = mock_ps.call_args
+        assert kwargs.get("patient_name") == "Carlos Mendoza"

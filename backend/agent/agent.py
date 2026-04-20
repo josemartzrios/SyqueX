@@ -1,31 +1,42 @@
 import re
+import unicodedata
 import logging
 from anthropic import AsyncAnthropic, APIStatusError, APIConnectionError, APITimeoutError
 from sqlalchemy import select
 from config import settings, ClinicalNoteConfig
 from exceptions import DictationTooLongError, PromptInjectionError, LLMServiceError
+from crypto import encrypt_if_set, decrypt_if_set
+import json as _json
 
 logger = logging.getLogger(__name__)
 
-# Patrones de prompt injection conocidos
+# Patrones de prompt injection conocidos (actualizados)
 _INJECTION_PATTERNS = [
-    r"ignore\s+(previous|all|prior)\s+instructions",
+    r"ignore\s+(previous|all|prior|system|the)\s+(instructions?|rules?|context|prompt)",
+    r"(system|assistant|user)\s*:",
     r"system\s+prompt",
     r"jailbreak",
-    r"you\s+are\s+now",
-    r"forget\s+your",
+    r"(you\s+)?are\s+(now|acting\s+as)",
+    r"forget\s+(your|all|the)",
     r"new\s+instructions",
     r"\[INST\]",
     r"<\|im_start\|>",
     r"<\|im_end\|>",
-    r"disregard\s+(all|previous)",
-    r"override\s+(your|the)\s+(instructions|rules)",
+    r"<\|system\|>",
+    r"disregard\s+(all|previous|your)",
+    r"override\s+(your|the)\s+(instructions?|rules?|behavior)",
+    r"(forget|disregard|ignore|override).{0,30}(instructions?|rules?|system|prompt)",
+    r"(pretend|act|behave)\s+(you\s+are|as\s+if|like\s+you)",
+    r"do\s+anything\s+now",
+    r"DAN\b",
 ]
 _INJECTION_RE = re.compile("|".join(_INJECTION_PATTERNS), re.IGNORECASE)
 
 def _sanitizar_dictado(texto: str) -> str:
     """Valida que el dictado no contenga intentos de prompt injection."""
-    if _INJECTION_RE.search(texto):
+    # Normalizar Unicode para detectar variantes con homoglifos
+    texto_normalizado = unicodedata.normalize("NFKD", texto)
+    if _INJECTION_RE.search(texto_normalizado):
         logger.warning("Prompt injection attempt detected in dictation input")
         raise PromptInjectionError(
             "El dictado contiene contenido no válido para procesamiento clínico.",
@@ -79,7 +90,7 @@ Reglas:
 {_SHARED_RULES}"""
 
 
-async def _get_patient_context(db, patient_id: str) -> list:
+async def _get_patient_context(db, patient_id: str, patient_name: str = "") -> list:
     """
     Builds the full context message list for a patient:
     1. A clinical profile block (patient_summary + risk/protective factors + recurring themes)
@@ -93,10 +104,11 @@ async def _get_patient_context(db, patient_id: str) -> list:
     )
     profile = profile_result.scalar_one_or_none()
 
-    profile_block_parts = []
+    profile_block_parts = [f"Nombre del paciente: {patient_name}."] if patient_name else []
     if profile:
-        if profile.patient_summary:
-            profile_block_parts.append(f"Resumen clínico del paciente:\n{profile.patient_summary}")
+        summary = decrypt_if_set(profile.patient_summary)
+        if summary:
+            profile_block_parts.append(f"Resumen clínico del paciente:\n{summary}")
         if profile.recurring_themes:
             profile_block_parts.append(f"Temas recurrentes: {', '.join(profile.recurring_themes)}")
         if profile.risk_factors:
@@ -130,8 +142,13 @@ async def _get_patient_context(db, patient_id: str) -> list:
     sessions = result.scalars().all()
 
     for session in reversed(sessions):  # Oldest first for correct temporal order
-        if session.messages:
-            context.extend(session.messages)
+        decrypted_msg = decrypt_if_set(session.messages)
+        if decrypted_msg:
+            try:
+                msgs = _json.loads(decrypted_msg) if isinstance(decrypted_msg, str) else decrypted_msg
+                context.extend(msgs)
+            except (_json.JSONDecodeError, TypeError):
+                pass
 
     return context
 
@@ -152,7 +169,7 @@ async def update_patient_profile_summary(db, patient_id: str, session_note: dict
         return
 
     # Build context for Claude: existing summary + new session data
-    existing_summary = profile.patient_summary or "Sin resumen previo."
+    existing_summary = decrypt_if_set(profile.patient_summary) or "Sin resumen previo."
     new_note_text = session_note.get("text_fallback", "")
     detected_patterns = session_note.get("detected_patterns", [])
     alerts = session_note.get("alerts", [])
@@ -179,7 +196,7 @@ async def update_patient_profile_summary(db, patient_id: str, session_note: dict
             messages=[{"role": "user", "content": summary_prompt}],
         )
         new_summary = "\n".join([b.text for b in response.content if b.type == "text"]).strip()
-        profile.patient_summary = new_summary
+        profile.patient_summary = encrypt_if_set(new_summary)
     except Exception as e:
         logger.error(f"Error generating patient summary: {e}")
 
@@ -198,7 +215,7 @@ async def update_patient_profile_summary(db, patient_id: str, session_note: dict
     await db.commit()
 
 
-async def process_session(db, patient_id: str, raw_dictation: str, session_id: str, format_: str = "SOAP") -> dict:
+async def process_session(db, patient_id: str, raw_dictation: str, session_id: str, format_: str = "SOAP", patient_name: str = "") -> dict:
     if len(raw_dictation) > ClinicalNoteConfig.MAX_DICTATION_LENGTH:
         raise DictationTooLongError(
             f"El dictado excede el límite de {ClinicalNoteConfig.MAX_DICTATION_LENGTH} caracteres.",
@@ -210,7 +227,7 @@ async def process_session(db, patient_id: str, raw_dictation: str, session_id: s
     dictado_seguro = _sanitizar_dictado(raw_dictation)
 
     # Load persistent context from previous sessions
-    context_messages = await _get_patient_context(db, patient_id)
+    context_messages = await _get_patient_context(db, patient_id, patient_name)
 
     # Append the current user message to the full conversation history
     messages = context_messages + [{"role": "user", "content": dictado_seguro}]

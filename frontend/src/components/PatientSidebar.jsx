@@ -15,7 +15,7 @@ import { useState, useRef, useEffect } from 'react';
  * - Ink (text): #18181b
  */
 
-function PatientConversationItem({ conv, active, onClick, onDelete }) {
+function PatientConversationItem({ conv, active, onClick, onDelete, hasDraft }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const timeoutRef = useRef(null);
 
@@ -43,15 +43,27 @@ function PatientConversationItem({ conv, active, onClick, onDelete }) {
     >
       <div className="pr-6">
         <p
-          className={`text-[14px] font-medium truncate leading-snug ${
-            active ? 'text-[#18181b]' : 'text-gray-600'
-          }`}
+          className={`text-[14px] font-medium truncate leading-snug ${active ? 'text-[#18181b]' : 'text-gray-600'
+            }`}
         >
           {conv.patient_name}
         </p>
-        <p className="text-[11px] text-gray-400 mt-0.5">
-          Sesión #{conv.session_number} · {formatDate(conv.session_date)}
-        </p>
+        {conv.session_number != null ? (
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-gray-400">Sesión #{conv.session_number}</p>
+            {hasDraft ? (
+              <span className="text-[10px] font-semibold text-[#c4935a] bg-[#fef3e2] rounded px-1 leading-4">
+                Borrador
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold text-[#5a9e8a] bg-[#f0faf7] rounded px-1 leading-4">
+                Confirmada
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="text-[11px] text-gray-400 mt-0.5">Sin sesiones</p>
+        )}
         {conv.dictation_preview && (
           <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">
             {conv.dictation_preview}
@@ -62,10 +74,9 @@ function PatientConversationItem({ conv, active, onClick, onDelete }) {
         onClick={handleDelete}
         title={confirmDelete ? 'Confirmar' : 'Archivar'}
         className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md transition-all opacity-0 group-hover:opacity-100
-          ${
-            confirmDelete
-              ? 'bg-red-50 text-red-400 !opacity-100'
-              : 'text-gray-400 hover:text-red-400 hover:bg-red-50'
+          ${confirmDelete
+            ? 'bg-red-50 text-red-400 !opacity-100'
+            : 'text-gray-400 hover:text-red-400 hover:bg-red-50'
           }`}
       >
         {confirmDelete ? (
@@ -120,6 +131,7 @@ export default function PatientSidebar({
   onSavePatient,
   onCancelNewPatient,
   onLogout,
+  draftPatientIds = new Set(),
 }) {
   return (
     <aside className="w-60 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
@@ -128,7 +140,6 @@ export default function PatientSidebar({
         <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">
           SyqueX
         </span>
-        <span className="text-[10px] text-gray-400 font-mono">v2.0</span>
       </div>
 
       {/* Section Label: Pacientes + New button */}
@@ -198,6 +209,7 @@ export default function PatientSidebar({
               active={conv.patient_id === selectedPatientId}
               onClick={() => onSelectConversation(conv)}
               onDelete={() => onDeleteConversation(conv.id, conv.patient_id)}
+              hasDraft={draftPatientIds.has(String(conv.patient_id))}
             />
           ))
         )}
