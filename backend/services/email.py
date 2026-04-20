@@ -28,7 +28,7 @@ async def send_welcome_email(to_email: str, name: str, trial_ends_at):
 
 async def send_reset_email(to_email: str, name: str, token: str):
     frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
-    reset_url = f"{frontend_url}/?reset-token={token}"
+    reset_url = f"{frontend_url}/?token={token}"
     if not resend.api_key:
         print(f"Mock email: Reset for {to_email} -> {reset_url}")
         return None
