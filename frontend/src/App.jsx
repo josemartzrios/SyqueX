@@ -134,7 +134,6 @@ function App() {
   const [authScreen, setAuthScreen] = useState(() => getScreenFromUrl());
   const [billingStatus, setBillingStatus] = useState(null);
 
-  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [messages, setMessages] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [selectedPatientName, setSelectedPatientName] = useState(null);
@@ -540,28 +539,6 @@ function App() {
         />
       )}
 
-      {/* Disclaimer modal */}
-      {showDisclaimer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm px-4">
-          <div className="bg-white border border-ink/[0.08] rounded-2xl shadow-xl max-w-sm w-full p-8 flex flex-col gap-5">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-[0.15em] text-sage font-bold">Versión demo</span>
-              <h2 className="text-ink text-lg font-semibold leading-snug">Esta es una versión demo de SyqueX</h2>
-            </div>
-            <div className="text-ink-secondary text-sm leading-relaxed flex flex-col gap-3">
-              <p>Todos los pacientes y datos mostrados son ficticios y generados para fines de demostración únicamente.</p>
-              <p className="font-medium text-ink">No introduzcas datos reales de pacientes en esta versión.</p>
-            </div>
-            <button
-              onClick={() => setShowDisclaimer(false)}
-              className="mt-1 w-full bg-sage hover:bg-sage-dark active:scale-[0.98] transition-all text-white font-medium rounded-xl py-3 text-sm"
-            >
-              Entendido, continuar al demo
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Mobile slide-over sidebar */}
       <Sidebar
         open={sidebarOpen}
@@ -598,7 +575,7 @@ function App() {
           {/* Patient header */}
           <PatientHeader
             patientName={hasActivePatient ? selectedPatientName : null}
-            sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+            sessionCount={soapSessions.filter(s => s.status === 'confirmed').length}
             mode={desktopMode}
             onModeChange={hasActivePatient ? setDesktopMode : undefined}
             patientId={selectedPatientId}
@@ -777,7 +754,7 @@ function App() {
             {/* Patient strip */}
             <PatientHeader
               patientName={selectedPatientName}
-              sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+              sessionCount={soapSessions.filter(s => s.status === 'confirmed').length}
               compact
             />
 

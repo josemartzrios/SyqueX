@@ -17,3 +17,4 @@ slowapi==0.1.9
 python-multipart==0.0.12
 stripe==8.4.0
 resend==2.7.0
+cryptography>=42.0.0

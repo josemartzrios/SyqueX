@@ -84,8 +84,11 @@ def fake_psychologist():
 
 
 @pytest.fixture
-def authed_app(mock_db, fake_psychologist):
+def authed_app(mock_db, fake_psychologist, monkeypatch):
     """FastAPI app with DB + auth mocked for integration tests."""
+    from cryptography.fernet import Fernet
+    import config as _config
+    monkeypatch.setattr(_config.settings, "ENCRYPTION_KEY", Fernet.generate_key().decode())
     with _patch("database.init_db", new=AsyncMock()):
         from main import app as _app
         from database import get_db

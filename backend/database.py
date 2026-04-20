@@ -178,8 +178,8 @@ class Patient(Base):
     marital_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     occupation: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    emergency_contact: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    # { "name": str, "relationship": str, "phone": str }
+    emergency_contact: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # { "name": str, "relationship": str, "phone": str } (stored as encrypted JSON string)
     reason_for_consultation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     medical_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     psychological_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -208,14 +208,14 @@ class Session(Base):
     patient_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey('patients.id', ondelete='RESTRICT'), nullable=False
     )
-    session_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     session_date: Mapped[date] = mapped_column(Date, nullable=False)
     raw_dictation: Mapped[str] = mapped_column(Text, nullable=False)
     format: Mapped[str] = mapped_column(String(20), nullable=False, default="SOAP")
     ai_response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    messages: Mapped[list] = mapped_column(JSONB, default=list)  # Full conversation turns [{role, content}]
+    messages: Mapped[str] = mapped_column(Text, default="[]")  # Full conversation turns [{role, content}] (stored as encrypted JSON string)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
@@ -298,7 +298,19 @@ async def init_db():
         # ── Migraciones seguras (IF NOT EXISTS / IF NOT EXISTS) ──────────────
         # Sessions
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;"))
-        await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS messages JSONB NOT NULL DEFAULT '[]';"))
+        # session_number is NULL for chat sessions — drop NOT NULL constraint if still present
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='sessions' AND column_name='session_number'
+                      AND is_nullable='NO'
+                ) THEN
+                    ALTER TABLE sessions ALTER COLUMN session_number DROP NOT NULL;
+                END IF;
+            END$$;
+        """))
+        await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS messages TEXT NOT NULL DEFAULT '[]';"))
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();"))
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS format VARCHAR(20) NOT NULL DEFAULT 'SOAP';"))
 
@@ -357,6 +369,32 @@ async def init_db():
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS reason_for_consultation TEXT;"))
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS medical_history TEXT;"))
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS psychological_history TEXT;"))
+
+        # Encryption: JSONB → Text (idempotente)
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='patients' AND column_name='emergency_contact'
+                      AND data_type='jsonb'
+                ) THEN
+                    ALTER TABLE patients ALTER COLUMN emergency_contact TYPE TEXT
+                        USING emergency_contact::text;
+                END IF;
+            END$$;
+        """))
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='sessions' AND column_name='messages'
+                      AND data_type='jsonb'
+                ) THEN
+                    ALTER TABLE sessions ALTER COLUMN messages TYPE TEXT
+                        USING messages::text;
+                END IF;
+            END$$;
+        """))
 
         # ClinicalNote — timestamps (add if missing, then migrate to TIMESTAMPTZ)
         await conn.execute(text("ALTER TABLE clinical_notes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();"))

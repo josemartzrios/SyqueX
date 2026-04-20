@@ -184,33 +184,32 @@ Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueante
 
 | # | Feature | Descripción |
 |---|---------|-------------|
-| 1 | **Más preguntas clínicas en intake** | Ampliar modal de nuevo paciente con campos clínicos relevantes (motivo, antecedentes, medicación, etc.) | DONE 
-| 2 | **Agente conoce nombre del paciente** | El agente de conversación debe referirse al paciente por nombre en todo momento | DONE
-| 3 | **Borrador / guardado automático** | Guardar dictado y nota en progreso antes de confirmar — previene pérdida de datos | 
-| 4 | **Tipografía nota clínica** | Selector de fuente en el panel SOAP (serif / sans) | DONE
-| 5 | **Cifrar notas SOAP** | Cifrar notas SOAP con clave del usuario | 
-| 7 | **Crear correo hola@syquex.mx** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento | DONE
-| 8 | **Vulnerabilidades criticas** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
-| 9 | **Flujo olvide mi contraseña** | Configurar flujo de recuperación de contraseña |
-| 10 | **Actualizar landing apuntando a app dns** | Apuntar el dns de la landing a la app |
-| 10 | **Terminar de configurar stripe para pagos** | |
+| 1 | **Vulnerabilidades criticas** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
+| 3 | **Actualizar landing apuntando a app dns** | Apuntar el dns de la landing a la app |
+| 4 | **Terminar de configurar stripe para pagos** | 
 
 ---
 
-### Post-MVP 799
+### Post-MVP 
 
 | # | Feature | Descripción |
 |---|---------|-------------|
-| 1 | **Editar datos clinicos de paciente** | editar datos clinicos del paciente una vez que existe en el sistema. 
-| 1 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
-| 2 | **Dictado de voz con streaming** | Transcripción en tiempo real + SOAP construyéndose progresivamente (Whisper API) |
-| 3 | **Crear nota personalizada para usuario** | Export con membrete profesional |
-| 4 | **Descargar nota clínica como PDF** | Export con membrete profesional |
-| 5 | **Vincular Google Drive** | Guardar notas automáticamente en carpetas del psicólogo |
-| 6 | **Vincular Google Calendar** | Vincular sesiones con eventos del calendario |
-| 6 | **Cargar texto desde archivo** | Subir texto para procesarlo como dictado |
-| 7 | **Pegar texto largo (referencia parcial)** | Referenciar fragmentos sin pegar el contenido completo |
-| 8 | **Visualizar contraseña** | Toggle show/hide en login y registro |
+| 1 | **Flujo olvide mi contraseña** | Crear cuenta en resend, verificar dominio, configurar flujo de recuperación de contraseña.
+| 2 | **Interfaz de perfil de psicologo** | interfaz para que psicólogo edite datos clinicos del paciente una vez que existe en el sistema. 
+| 3 | **Editar datos clinicos de paciente** | interfaz para que psicólogo edite datos clinicos del paciente una vez que existe en el sistema. 
+| 4 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
+| 12 | **Visualizar contraseña** | Toggle show/hide en login y registro |
+
+### SyqueX pro
+
+| 5 | **Dictado de voz con streaming** | Transcripción en tiempo real + SOAP construyéndose progresivamente (Whisper API) |
+| 6 | **Crear nota personalizada para usuario** | Export con membrete profesional |
+| 7 | **Descargar nota clínica como PDF** | Export con membrete profesional |
+| 8 | **Vincular Google Drive** | Guardar notas automáticamente en carpetas del psicólogo |
+| 9 | **Vincular Google Calendar** | Vincular sesiones con eventos del calendario |
+| 10 | **Cargar texto desde archivo** | Subir texto para procesarlo como dictado |
+| 11 | **Pegar texto largo (referencia parcial)** | Referenciar fragmentos sin pegar el contenido completo |
+
 
 ---
 

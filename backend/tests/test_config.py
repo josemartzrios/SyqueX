@@ -35,6 +35,7 @@ class TestSettings:
             ANTHROPIC_API_KEY="sk-...",
             STRIPE_SECRET_KEY="sk_...",
             STRIPE_WEBHOOK_SECRET="whsec_...",
+            ENCRYPTION_KEY="k"*44,
             DATABASE_URL="postgresql+asyncpg://user:pass@localhost/db"
         )
         assert s.is_production() is False
@@ -47,6 +48,7 @@ class TestSettings:
             ANTHROPIC_API_KEY="sk-...",
             STRIPE_SECRET_KEY="sk_...",
             STRIPE_WEBHOOK_SECRET="whsec_...",
+            ENCRYPTION_KEY="l"*44,
             DATABASE_URL="postgresql+asyncpg://user:pass@localhost/db"
         )
         assert s.is_production() is True

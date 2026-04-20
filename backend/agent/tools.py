@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from database import ClinicalNote, Session, PatientProfile
-from .embeddings import get_embedding
+from crypto import decrypt_if_set
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ async def search_patient_history(db: AsyncSession, patient_id: str, query: str, 
             docs.append({
                 "session_number": row[0],
                 "date": str(row[1]),
-                "summary_fragment": row[2] if row[2] else "",
+                "summary_fragment": decrypt_if_set(row[2]) if row[2] else "",
                 "relevance_score": row[3]
             })
         return docs
@@ -137,7 +137,7 @@ async def detect_patterns_between_sessions(db: AsyncSession, patient_id: str, ne
         result = await db.execute(stmt, {"patient_id": patient_id, "limit": last_n_sessions})
         rows = result.fetchall()
         history = "\n".join([
-            f"Session {row[0]} ({row[1]}): {(row[2] or '')[:100]}..."
+            f"Session {row[0]} ({row[1]}): {(decrypt_if_set(row[2]) or '')[:100]}..."
             for row in rows
         ])
     except Exception as e:

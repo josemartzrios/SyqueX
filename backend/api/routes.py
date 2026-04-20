@@ -8,6 +8,8 @@ from typing import Optional, List, Dict, Any, Literal
 from datetime import date, datetime
 
 from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal
+import json as _json
+from crypto import encrypt_if_set, decrypt_if_set
 from agent import process_session, update_patient_profile_summary
 from agent.tools import generate_evolution_report, search_patient_history
 from agent.embeddings import get_embedding
@@ -31,6 +33,38 @@ def _parse_uuid(value: str, label: str = "ID") -> uuid.UUID:
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["clinical"])
+
+
+def _encrypt_patient_fields(patient_orm, payload_sensitive: dict) -> None:
+    """Cifra in-place los campos sensibles en el ORM patient antes de commit."""
+    for field in ["medical_history", "psychological_history", "reason_for_consultation", "address"]:
+        if field in payload_sensitive:
+            setattr(patient_orm, field, encrypt_if_set(payload_sensitive[field]))
+    if "emergency_contact" in payload_sensitive:
+        ec = payload_sensitive["emergency_contact"]
+        if ec is not None:
+            if isinstance(ec, dict):
+                ec = _json.dumps(ec)
+            elif hasattr(ec, "model_dump"):
+                ec = _json.dumps(ec.model_dump())
+            setattr(patient_orm, "emergency_contact", encrypt_if_set(ec))
+        else:
+            setattr(patient_orm, "emergency_contact", None)
+
+
+def _decrypt_patient_orm(patient) -> None:
+    """Descifra in-place los campos sensibles de un ORM Patient antes de serializar."""
+    for field in ["medical_history", "psychological_history", "reason_for_consultation", "address"]:
+        setattr(patient, field, decrypt_if_set(getattr(patient, field, None)))
+    ec = getattr(patient, "emergency_contact", None)
+    if ec is not None:
+        decrypted = decrypt_if_set(ec)
+        if decrypted and isinstance(decrypted, str):
+            try:
+                decrypted = _json.loads(decrypted)
+            except (_json.JSONDecodeError, TypeError):
+                pass
+        setattr(patient, "emergency_contact", decrypted)
 
 
 # ---------------------------------------------------------------------------
@@ -249,11 +283,13 @@ async def create_patient(
         risk_level=payload.risk_level,
         marital_status=payload.marital_status,
         occupation=payload.occupation,
-        address=payload.address,
-        emergency_contact=payload.emergency_contact.model_dump() if payload.emergency_contact else None,
-        reason_for_consultation=payload.reason_for_consultation,
-        medical_history=payload.medical_history,
-        psychological_history=payload.psychological_history,
+        address=encrypt_if_set(payload.address),
+        emergency_contact=encrypt_if_set(
+            _json.dumps(payload.emergency_contact.model_dump()) if payload.emergency_contact else None
+        ),
+        reason_for_consultation=encrypt_if_set(payload.reason_for_consultation),
+        medical_history=encrypt_if_set(payload.medical_history),
+        psychological_history=encrypt_if_set(payload.psychological_history),
     )
     db.add(patient)
     await db.flush()  # populate patient.id
@@ -274,7 +310,7 @@ async def create_patient(
 
     await db.commit()
     await db.refresh(patient)
-
+    _decrypt_patient_orm(patient)
     return PatientOut.model_validate(patient)
 
 
@@ -297,6 +333,7 @@ async def get_patient(
     if not patient or patient.psychologist_id != current_user.id:
         raise HTTPException(status_code=404, detail="Paciente no encontrado")
 
+    _decrypt_patient_orm(patient)
     return PatientOut.model_validate(patient)
 
 
@@ -323,14 +360,13 @@ async def update_patient(
     # Solo los campos explícitamente enviados — permite setear null en opcionales
     updates = payload.model_dump(exclude_unset=True)
 
+    _PATIENT_SENSITIVE = {"medical_history", "psychological_history", "reason_for_consultation", "address"}
     for field, value in updates.items():
         if field == "emergency_contact":
-            # Pydantic ya validó la sub-estructura; persistir como dict (o None)
-            setattr(
-                patient,
-                field,
-                value.model_dump() if hasattr(value, "model_dump") else value,
-            )
+            ec = value.model_dump() if hasattr(value, "model_dump") else value
+            setattr(patient, field, encrypt_if_set(_json.dumps(ec)) if ec is not None else None)
+        elif field in _PATIENT_SENSITIVE:
+            setattr(patient, field, encrypt_if_set(value))
         else:
             setattr(patient, field, value)
 
@@ -347,6 +383,7 @@ async def update_patient(
 
     await db.commit()
     await db.refresh(patient)
+    _decrypt_patient_orm(patient)
     return PatientOut.model_validate(patient)
 
 
@@ -367,7 +404,10 @@ async def get_patient_profile(
         .order_by(Session.session_date.desc())
         .limit(3)
     )
-    recent_sessions = [{"session_date": s.session_date, "assessment": c.assessment} for s, c in res_s]
+    recent_sessions = [
+        {"session_date": s.session_date, "assessment": decrypt_if_set(c.assessment)}
+        for s, c in res_s
+    ]
 
     return ProfileOut(
         profile={
@@ -413,15 +453,15 @@ async def get_patient_sessions(
             id=s.id,
             session_number=s.session_number,
             session_date=s.session_date,
-            raw_dictation=s.raw_dictation,
-            ai_response=s.ai_response,
+            raw_dictation=decrypt_if_set(s.raw_dictation),
+            ai_response=decrypt_if_set(s.ai_response),
             status=s.status,
             format=s.format,
             structured_note={
-                "subjective": cn.subjective,
-                "objective": cn.objective,
-                "assessment": cn.assessment,
-                "plan": cn.plan,
+                "subjective": decrypt_if_set(cn.subjective),
+                "objective": decrypt_if_set(cn.objective),
+                "assessment": decrypt_if_set(cn.assessment),
+                "plan": decrypt_if_set(cn.plan),
             } if cn else None,
             detected_patterns=list(cn.detected_patterns) if cn and cn.detected_patterns is not None else None,
             alerts=list(cn.alerts) if cn and cn.alerts is not None else None,
@@ -474,28 +514,33 @@ async def process_session_endpoint(
 
     session_id = str(uuid.uuid4())
 
-    res_last = await db.execute(
-        select(Session)
-        .where(Session.patient_id == patient_uuid)
-        .order_by(Session.session_number.desc())
-        .limit(1)
-    )
-    last_session = res_last.scalar_one_or_none()
-    current_session_number = (last_session.session_number + 1) if last_session else 1
-
     # Chat sessions are confirmed immediately (no confirmation step needed)
     session_format = rec.format or "SOAP"
     session_status = "confirmed" if session_format.lower() == "chat" else "draft"
 
+    # Only SOAP sessions get a session_number; chat sessions are not clinical sessions
+    if session_format.lower() != "chat":
+        res_last = await db.execute(
+            select(Session)
+            .where(Session.patient_id == patient_uuid, Session.format != "chat")
+            .order_by(Session.session_number.desc())
+            .limit(1)
+        )
+        last_session = res_last.scalar_one_or_none()
+        current_session_number = (last_session.session_number + 1) if last_session else 1
+    else:
+        current_session_number = None
+
+    session_messages = response.get("session_messages", [])
     new_session = Session(
         id=uuid.UUID(session_id),
         patient_id=patient_uuid,
         session_number=current_session_number,
         session_date=date.today(),
-        raw_dictation=rec.raw_dictation,
+        raw_dictation=encrypt_if_set(rec.raw_dictation),
         format=session_format,
-        ai_response=response.get("text_fallback"),
-        messages=response.get("session_messages", []),
+        ai_response=encrypt_if_set(response.get("text_fallback")),
+        messages=encrypt_if_set(_json.dumps(session_messages)),
         status=session_status,
     )
     db.add(new_session)
@@ -539,16 +584,21 @@ async def confirm_session(
     sess.status = "confirmed"
     note_data = req.edited_note or {}
 
-    text_to_embed = " ".join([str(v) for k, v in note_data.get("structured_note", {}).items() if v])
+    structured = note_data.get("structured_note", {})
+
+    # 1. Embedding del texto plano ANTES de cifrar
+    text_to_embed = " ".join([str(v) for v in structured.values() if v])
     embedding = await get_embedding(text_to_embed)
 
+    # 2. Cifrar campos SOAP
     cn = ClinicalNote(
         session_id=sess.id,
         format=note_data.get("format", "SOAP"),
-        subjective=note_data.get("structured_note", {}).get("subjective"),
-        objective=note_data.get("structured_note", {}).get("objective"),
-        assessment=note_data.get("structured_note", {}).get("assessment"),
-        plan=note_data.get("structured_note", {}).get("plan"),
+        subjective=encrypt_if_set(structured.get("subjective")),
+        objective=encrypt_if_set(structured.get("objective")),
+        assessment=encrypt_if_set(structured.get("assessment")),
+        plan=encrypt_if_set(structured.get("plan")),
+        data_field=encrypt_if_set(structured.get("data_field")),
         detected_patterns=note_data.get("detected_patterns", []),
         alerts=note_data.get("alerts", []),
         suggested_next_steps=note_data.get("suggested_next_steps", []),
@@ -558,8 +608,9 @@ async def confirm_session(
     db.add(cn)
     await db.commit()
 
+    # 3. Descifrar ai_response antes de pasarlo al background job
     summary_data = {
-        "text_fallback": sess.ai_response or "",
+        "text_fallback": decrypt_if_set(sess.ai_response) or "",
         "detected_patterns": note_data.get("detected_patterns", []),
         "alerts": note_data.get("alerts", []),
         "suggested_next_steps": note_data.get("suggested_next_steps", []),
@@ -639,6 +690,7 @@ async def list_conversations(
             ON s.patient_id = p.id
             AND s.is_archived = FALSE
             AND s.raw_dictation IS NOT NULL
+            AND (s.format IS NULL OR s.format != 'chat')
         WHERE p.deleted_at IS NULL
           AND p.psychologist_id = :psy_id
         ORDER BY p.id, s.created_at DESC NULLS LAST
@@ -649,9 +701,13 @@ async def list_conversations(
 
     items = []
     for row in rows:
-        raw = row.get("dictation_preview")
+        raw = decrypt_if_set(row.get("dictation_preview"))
         preview = (raw[:120] + "...") if raw and len(raw) > 120 else raw
-        messages = row.get("messages") or []
+        messages_raw = decrypt_if_set(row.get("messages"))
+        try:
+            messages = _json.loads(messages_raw) if messages_raw else []
+        except (_json.JSONDecodeError, TypeError):
+            messages = []
 
         items.append(ConversationOut(
             id=str(row["session_id"]) if row["session_id"] else None,
