@@ -32,6 +32,20 @@ def _parse_uuid(value: str, label: str = "ID") -> uuid.UUID:
 
 logger = logging.getLogger(__name__)
 
+
+async def get_db_with_user(
+    psychologist: Psychologist = Depends(get_current_psychologist),
+):
+    """DB session con RLS: inyecta psychologist_id como session variable de PostgreSQL."""
+    from sqlalchemy import text as _text
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            _text("SELECT set_config('app.psychologist_id', :pid, true)"),
+            {"pid": str(psychologist.id)},
+        )
+        yield session
+
+
 router = APIRouter(tags=["clinical"])
 
 
