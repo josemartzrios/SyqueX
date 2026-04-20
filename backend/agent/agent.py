@@ -4,6 +4,8 @@ from anthropic import AsyncAnthropic, APIStatusError, APIConnectionError, APITim
 from sqlalchemy import select
 from config import settings, ClinicalNoteConfig
 from exceptions import DictationTooLongError, PromptInjectionError, LLMServiceError
+from crypto import encrypt_if_set, decrypt_if_set
+import json as _json
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +97,9 @@ async def _get_patient_context(db, patient_id: str, patient_name: str = "") -> l
 
     profile_block_parts = [f"Nombre del paciente: {patient_name}."] if patient_name else []
     if profile:
-        if profile.patient_summary:
-            profile_block_parts.append(f"Resumen clínico del paciente:\n{profile.patient_summary}")
+        summary = decrypt_if_set(profile.patient_summary)
+        if summary:
+            profile_block_parts.append(f"Resumen clínico del paciente:\n{summary}")
         if profile.recurring_themes:
             profile_block_parts.append(f"Temas recurrentes: {', '.join(profile.recurring_themes)}")
         if profile.risk_factors:
@@ -130,8 +133,13 @@ async def _get_patient_context(db, patient_id: str, patient_name: str = "") -> l
     sessions = result.scalars().all()
 
     for session in reversed(sessions):  # Oldest first for correct temporal order
-        if session.messages:
-            context.extend(session.messages)
+        decrypted_msg = decrypt_if_set(session.messages)
+        if decrypted_msg:
+            try:
+                msgs = _json.loads(decrypted_msg) if isinstance(decrypted_msg, str) else decrypted_msg
+                context.extend(msgs)
+            except (_json.JSONDecodeError, TypeError):
+                pass
 
     return context
 
@@ -152,7 +160,7 @@ async def update_patient_profile_summary(db, patient_id: str, session_note: dict
         return
 
     # Build context for Claude: existing summary + new session data
-    existing_summary = profile.patient_summary or "Sin resumen previo."
+    existing_summary = decrypt_if_set(profile.patient_summary) or "Sin resumen previo."
     new_note_text = session_note.get("text_fallback", "")
     detected_patterns = session_note.get("detected_patterns", [])
     alerts = session_note.get("alerts", [])
@@ -179,7 +187,7 @@ async def update_patient_profile_summary(db, patient_id: str, session_note: dict
             messages=[{"role": "user", "content": summary_prompt}],
         )
         new_summary = "\n".join([b.text for b in response.content if b.type == "text"]).strip()
-        profile.patient_summary = new_summary
+        profile.patient_summary = encrypt_if_set(new_summary)
     except Exception as e:
         logger.error(f"Error generating patient summary: {e}")
 

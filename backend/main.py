@@ -97,6 +97,8 @@ async def global_error_handler(request: Request, exc: Exception):
 
 @app.on_event("startup")
 async def startup_event():
+    from crypto import validate_key
+    validate_key()
     import os
     raw = os.environ.get("ALLOWED_ORIGINS", "NOT_SET")
     parsed = settings.get_allowed_origins()

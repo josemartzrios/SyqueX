@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     # Internal cron key
     INTERNAL_API_KEY: str = "dev_internal_key_change_in_prod"
 
+    # Encryption (LFPDPPP compliance)
+    ENCRYPTION_KEY: str = ""          # Fernet key base64url — llave activa
+    ENCRYPTION_KEY_V1: str = ""       # Solo durante rotación de llaves
+
     class Config:
         env_file = ".env"
         extra = "ignore"
@@ -59,6 +63,8 @@ class Settings(BaseSettings):
             _default_internal = "dev_internal_key_change_in_prod"
             if self.INTERNAL_API_KEY == _default_internal:
                 raise ValueError("INTERNAL_API_KEY must be changed in production")
+            if not self.ENCRYPTION_KEY:
+                raise ValueError("ENCRYPTION_KEY is required in production/staging")
         return self
 
 settings = Settings()

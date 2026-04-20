@@ -41,8 +41,12 @@ def mock_db():
 
 
 @pytest.fixture
-def app(mock_db):
+def app(mock_db, monkeypatch):
     """FastAPI app with get_db overridden, auth mocked, init_db patched."""
+    from cryptography.fernet import Fernet
+    import config as _config
+    monkeypatch.setattr(_config.settings, "ENCRYPTION_KEY", Fernet.generate_key().decode())
+
     with patch("database.init_db", new=AsyncMock()):
         from main import app as _app
         from database import get_db, Psychologist
