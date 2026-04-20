@@ -4,9 +4,10 @@ import PatientSidebar from './components/PatientSidebar'
 import PatientHeader from './components/PatientHeader'
 import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
-import NewPatientModal from './components/NewPatientModal'
+import PatientIntakeModal from './components/PatientIntakeModal'
 import EvolucionPanel from './components/EvolucionPanel'
 import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout } from './api'
+import useDraft from './hooks/useDraft';
 import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
 import LoginScreen from './components/LoginScreen.jsx';
 import RegisterScreen from './components/RegisterScreen.jsx';
@@ -41,6 +42,20 @@ const LOADING_DOTS = (
     <span className="w-1.5 h-1.5 bg-sage rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
     <span className="w-1.5 h-1.5 bg-sage/70 rounded-full animate-bounce" style={{ animationDelay: '120ms' }}></span>
     <span className="w-1.5 h-1.5 bg-sage/40 rounded-full animate-bounce" style={{ animationDelay: '240ms' }}></span>
+  </div>
+);
+
+const NOTE_EMPTY_STATE = (
+  <div className="flex flex-col items-center justify-center gap-4 text-center px-8 h-full">
+    <div className="w-14 h-14 rounded-2xl bg-parchment-dark border border-ink/[0.07] flex items-center justify-center">
+      <svg className="w-7 h-7 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    </div>
+    <div>
+      <p className="text-ink-secondary text-sm font-medium">Aún no hay nota generada</p>
+      <p className="text-ink-tertiary text-xs mt-1">Dicta los puntos de la sesión y presiona «Generar nota →»</p>
+    </div>
   </div>
 );
 
@@ -119,15 +134,17 @@ function App() {
   const [authScreen, setAuthScreen] = useState(() => getScreenFromUrl());
   const [billingStatus, setBillingStatus] = useState(null);
 
-  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [messages, setMessages] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [selectedPatientName, setSelectedPatientName] = useState(null);
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState(null);
   const [newPatientName, setNewPatientName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { draft, setDraft, clearDraft } = useDraft(selectedPatientId);
   const [conversations, setConversations] = useState([]);
   const [mobileTab, setMobileTab] = useState('dictar');
+  const [currentSessionNote, setCurrentSessionNote] = useState(null);
   const [sessionHistory, setSessionHistory] = useState([]);
   const [expandedSessionId, setExpandedSessionId] = useState(null);
   
@@ -223,6 +240,7 @@ function App() {
     setPatientProfile(null);
     setEvolutionError(null);
     setEvolutionSending(false);
+    setCurrentSessionNote(null);
 
     if (history.length === 0) {
       setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?` }]);
@@ -345,6 +363,7 @@ function App() {
   const handleDeleteConversation = async (sessionId, patientId) => {
     try {
       if (patientId) await archivePatientSessions(patientId);
+      useDraft.clearDraftFor(patientId);
       setConversations(prev => prev.filter(c => c.patient_id !== patientId));
     } catch (err) {
       console.error("Error archiving conversation:", err);
@@ -352,28 +371,14 @@ function App() {
   };
 
   const handleSavePatient = async () => {
+    // Legacy chat-style inline patient creation — deprecated.
+    // PatientIntakeModal is the primary creation path (see handleModalPatientCreated).
     if (!newPatientName.trim()) return;
-    try {
-      const resp = await createPatient(newPatientName);
-      setIsCreatingPatient(false);
-      setNewPatientName("");
-      loadPatientChat(resp.id, newPatientName);
-      setConversations(prev => [{
-        id: null,
-        patient_id: String(resp.id),
-        patient_name: newPatientName,
-        session_number: null,
-        session_date: null,
-        dictation_preview: null,
-        status: null,
-        message_count: 0,
-      }, ...prev]);
-    } catch (err) {
-      alert("Error al crear paciente: " + err.message);
-    }
+    alert("Por favor usa el botón Nuevo Paciente — ahora pide datos clínicos adicionales.");
+    setIsCreatingPatient(true);
   };
 
-  // Callback for NewPatientModal
+  // Callback for PatientIntakeModal
   const handleModalPatientCreated = (patient) => {
     setIsCreatingPatient(false);
     loadPatientChat(patient.id, patient.name);
@@ -435,24 +440,43 @@ function App() {
       { role: 'assistant', type: 'loading' }
     ]);
     if (format === 'SOAP') setMobileTab('nota');
+    if (format === 'SOAP') setCurrentSessionNote({ type: 'loading' });
     try {
       const noteData = await processSession(selectedPatientId, dictation, format);
+      clearDraft();
       const botMessage = format === 'SOAP'
         ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
         : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
       setMessages(prev => [...prev.slice(0, -1), botMessage]);
+      if (format === 'SOAP') {
+        setCurrentSessionNote({
+          type: 'bot',
+          noteData,
+          sessionId: noteData.session_id,
+          readOnly: false,
+        });
+      }
       fetchConversations();
     } catch (err) {
       setMessages(prev => [
         ...prev.slice(0, -1),
         { role: 'assistant', type: 'error', text: 'Anomalía de conexión: ' + err.message }
       ]);
+      if (format === 'SOAP') {
+        setCurrentSessionNote({
+          type: 'error',
+          text: 'Anomalía de conexión: ' + err.message,
+        });
+      }
     }
   };
 
 
   const isLoading = messages[messages.length - 1]?.type === 'loading';
   const hasActivePatient = !!selectedPatientId;
+  const draftPatientIds = new Set(
+    conversations.map(c => String(c.patient_id)).filter(useDraft.hasDraft)
+  );
   const soapSessions = sessionHistory.filter(s => s.format !== 'chat');
 
   // Derive the latest note message for the note panel
@@ -515,28 +539,6 @@ function App() {
         />
       )}
 
-      {/* Disclaimer modal */}
-      {showDisclaimer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm px-4">
-          <div className="bg-white border border-ink/[0.08] rounded-2xl shadow-xl max-w-sm w-full p-8 flex flex-col gap-5">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-[0.15em] text-sage font-bold">Versión demo</span>
-              <h2 className="text-ink text-lg font-semibold leading-snug">Esta es una versión demo de SyqueX</h2>
-            </div>
-            <div className="text-ink-secondary text-sm leading-relaxed flex flex-col gap-3">
-              <p>Todos los pacientes y datos mostrados son ficticios y generados para fines de demostración únicamente.</p>
-              <p className="font-medium text-ink">No introduzcas datos reales de pacientes en esta versión.</p>
-            </div>
-            <button
-              onClick={() => setShowDisclaimer(false)}
-              className="mt-1 w-full bg-sage hover:bg-sage-dark active:scale-[0.98] transition-all text-white font-medium rounded-xl py-3 text-sm"
-            >
-              Entendido, continuar al demo
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Mobile slide-over sidebar */}
       <Sidebar
         open={sidebarOpen}
@@ -545,6 +547,7 @@ function App() {
         onSelectConversation={handleSelectConversation}
         onDeleteConversation={handleDeleteConversation}
         onLogout={handleLogout}
+        draftPatientIds={draftPatientIds}
       />
 
       {/* ── DESKTOP LAYOUT (md+) ── */}
@@ -563,6 +566,7 @@ function App() {
           onSavePatient={handleSavePatient}
           onCancelNewPatient={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
           onLogout={handleLogout}
+          draftPatientIds={draftPatientIds}
         />
 
         {/* Right work area */}
@@ -571,9 +575,11 @@ function App() {
           {/* Patient header */}
           <PatientHeader
             patientName={hasActivePatient ? selectedPatientName : null}
-            sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+            sessionCount={soapSessions.filter(s => s.status === 'confirmed').length}
             mode={desktopMode}
             onModeChange={hasActivePatient ? setDesktopMode : undefined}
+            patientId={selectedPatientId}
+            onEditPatient={(id) => setEditingPatientId(id)}
           />
 
           {/* Content area */}
@@ -587,6 +593,8 @@ function App() {
                   {/* Left: Dictation panel */}
                   <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
                     <DictationPanel
+                      value={draft}
+                      onChange={setDraft}
                       onGenerate={(d) => handleSendDictation(d, 'SOAP')}
                       loading={isLoading}
                     />
@@ -595,41 +603,22 @@ function App() {
 
                   {/* Right: Note panel */}
                   <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-7 bg-white">
-                    {latestNoteMsg === null ? (
-                      <div className="h-full flex flex-col items-center justify-center gap-4">
-                        <svg
-                          className="w-8 h-8 text-gray-200"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.5"
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                          />
-                        </svg>
-                        <div className="flex flex-col items-center gap-2">
-                          <div className="h-2 w-32 bg-gray-100 rounded-full" />
-                          <div className="h-2 w-24 bg-gray-100 rounded-full" />
-                          <div className="h-2 w-28 bg-gray-100 rounded-full" />
-                        </div>
-                      </div>
-                    ) : latestNoteMsg.type === 'loading' ? (
+                    {currentSessionNote === null ? (
+                      NOTE_EMPTY_STATE
+                    ) : currentSessionNote.type === 'loading' ? (
                       <div className="flex items-center gap-3 py-6">
                         {LOADING_DOTS}
                         <span className="text-ink-tertiary text-[14px]">Generando nota SOAP…</span>
                       </div>
-                    ) : latestNoteMsg.type === 'error' ? (
+                    ) : currentSessionNote.type === 'error' ? (
                       <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                        <strong className="font-medium">Error:</strong> {latestNoteMsg.text}
+                        <strong className="font-medium">Error:</strong> {currentSessionNote.text}
                       </div>
-                    ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                    ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
                       <SoapNoteDocument
-                        noteData={latestNoteMsg.noteData}
+                        noteData={currentSessionNote.noteData}
                         onConfirm={fetchConversations}
-                        readOnly={latestNoteMsg.readOnly}
+                        readOnly={currentSessionNote.readOnly}
                       />
                     ) : null}
                   </div>
@@ -650,15 +639,14 @@ function App() {
                           return (
                             <div
                               key={s.id || i}
-                              className={`rounded-xl overflow-hidden transition-all duration-200 ${
-                                isExpanded ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25' : 'bg-[#f4f4f2]'
-                              }`}
+                              className={`rounded-xl overflow-hidden transition-all duration-200 bg-white border-l-[3px] ${
+                                s.status === 'confirmed' ? 'border-l-[#5a9e8a]' : 'border-l-[#c4935a]'
+                              } ${isExpanded ? 'ring-1 ring-[#5a9e8a]/20' : ''}`}
                             >
                               <div
                                 className="px-3 py-3 flex items-start gap-3 cursor-pointer group"
                                 onClick={() => hasNote && setReviewExpandedSessionId(toggleExpandedSession(reviewExpandedSessionId, String(s.id)))}
                               >
-                                <span className={`mt-1.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between gap-2">
                                     <p className="text-[13px] font-semibold text-ink">Sesión #{s.session_number || (soapSessions.length - i)}</p>
@@ -766,7 +754,7 @@ function App() {
             {/* Patient strip */}
             <PatientHeader
               patientName={selectedPatientName}
-              sessionCount={sessionHistory.filter(s => s.status === 'confirmed').length}
+              sessionCount={soapSessions.filter(s => s.status === 'confirmed').length}
               compact
             />
 
@@ -794,6 +782,8 @@ function App() {
             {mobileTab === 'dictar' && (
               <div className="flex flex-col flex-1 min-h-0 bg-[#f4f4f2]">
                 <DictationPanel
+                  value={draft}
+                  onChange={setDraft}
                   onGenerate={(d) => handleSendDictation(d, 'SOAP')}
                   loading={isLoading}
                 />
@@ -804,32 +794,26 @@ function App() {
             {mobileTab === 'nota' && (
               <div className="flex flex-col flex-1 min-h-0">
                 <div ref={mobileScrollRef} className="flex-1 overflow-y-auto px-4 py-5">
-                  {latestNoteMsg === null ? (
-                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
-                      Dicta una sesión para generar la nota SOAP.
-                    </p>
-                  ) : latestNoteMsg.type === 'loading' ? (
+                  {currentSessionNote === null ? (
+                    NOTE_EMPTY_STATE
+                  ) : currentSessionNote.type === 'loading' ? (
                     <div className="flex gap-2 items-center py-4">
                       {[0, 0.2, 0.4].map((d, i) => (
                         <div key={i} className="w-2 h-2 rounded-full bg-ink-muted animate-pulse" style={{ animationDelay: `${d}s` }} />
                       ))}
                       <span className="text-ink-tertiary text-sm">Generando nota…</span>
                     </div>
-                  ) : latestNoteMsg.type === 'error' ? (
+                  ) : currentSessionNote.type === 'error' ? (
                     <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                      <strong>Error:</strong> {latestNoteMsg.text}
+                      <strong>Error:</strong> {currentSessionNote.text}
                     </div>
-                  ) : latestNoteMsg.type === 'bot' && latestNoteMsg.noteData ? (
+                  ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
                     <SoapNoteDocument
-                      noteData={latestNoteMsg.noteData}
+                      noteData={currentSessionNote.noteData}
                       onConfirm={fetchConversations}
-                      readOnly={latestNoteMsg.readOnly}
+                      readOnly={currentSessionNote.readOnly}
                     />
-                  ) : (
-                    <p className="text-ink-tertiary text-[14px] text-center mt-10">
-                      Dicta una sesión para generar la nota SOAP.
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )}
@@ -920,11 +904,27 @@ function App() {
         )}
       </div>
 
-      {/* NewPatientModal — shared between desktop + mobile */}
-      <NewPatientModal
-        open={isCreatingPatient}
-        onClose={() => setIsCreatingPatient(false)}
-        onCreated={handleModalPatientCreated}
+      {/* PatientIntakeModal — crear o editar expediente */}
+      <PatientIntakeModal
+        open={isCreatingPatient || editingPatientId != null}
+        mode={editingPatientId != null ? 'edit' : 'create'}
+        initialPatient={editingPatientId != null ? { id: editingPatientId } : null}
+        onClose={() => {
+          setIsCreatingPatient(false);
+          setEditingPatientId(null);
+        }}
+        onSaved={(patient) => {
+          if (editingPatientId != null) {
+            // EDIT — update conversation entry with fresh name
+            setConversations((prev) => prev.map((c) =>
+              c.patient_id === String(patient.id) ? { ...c, patient_name: patient.name } : c
+            ));
+            setEditingPatientId(null);
+          } else {
+            // CREATE
+            handleModalPatientCreated(patient);
+          }
+        }}
       />
 
     </div>

@@ -493,3 +493,107 @@ class TestUpdatePatientProfileSummary:
             await agent_module.update_patient_profile_summary(
                 db, "patient-1", {"text_fallback": "x", "detected_patterns": [], "alerts": [], "suggested_next_steps": []}
             )
+
+
+# ---------------------------------------------------------------------------
+# _get_patient_context — patient name injection
+# ---------------------------------------------------------------------------
+
+class TestGetPatientContextNameInjection:
+    @pytest.mark.asyncio
+    async def test_name_appears_in_context_when_no_profile(self):
+        """Patient name is injected even when there is no PatientProfile."""
+        db = AsyncMock()
+
+        profile_result = MagicMock()
+        profile_result.scalar_one_or_none.return_value = None
+
+        session_result = MagicMock()
+        session_result.scalars.return_value.all.return_value = []
+
+        db.execute.side_effect = [profile_result, session_result]
+
+        context = await agent_module._get_patient_context(db, "patient-1", "Ana García")
+
+        assert len(context) == 2
+        user_turn = context[0]
+        assert user_turn["role"] == "user"
+        assert "Ana García" in user_turn["content"]
+
+    @pytest.mark.asyncio
+    async def test_name_appears_as_first_line_of_profile_block(self):
+        """'Nombre del paciente: X.' is the first line of the profile block."""
+        db = AsyncMock()
+
+        profile = MagicMock()
+        profile.patient_summary = "Ansiedad crónica."
+        profile.recurring_themes = ["ansiedad"]
+        profile.risk_factors = []
+        profile.protective_factors = []
+
+        profile_result = MagicMock()
+        profile_result.scalar_one_or_none.return_value = profile
+
+        session_result = MagicMock()
+        session_result.scalars.return_value.all.return_value = []
+
+        db.execute.side_effect = [profile_result, session_result]
+
+        context = await agent_module._get_patient_context(db, "patient-1", "Luis Pérez")
+
+        user_turn_content = context[0]["content"]
+        name_pos = user_turn_content.find("Luis Pérez")
+        summary_pos = user_turn_content.find("Ansiedad crónica.")
+        assert name_pos != -1
+        assert name_pos < summary_pos
+
+    @pytest.mark.asyncio
+    async def test_empty_patient_name_does_not_produce_broken_line(self):
+        """If patient_name is empty, the broken 'Nombre del paciente: .' line is not emitted."""
+        db = AsyncMock()
+
+        profile_result = MagicMock()
+        profile_result.scalar_one_or_none.return_value = None
+
+        session_result = MagicMock()
+        session_result.scalars.return_value.all.return_value = []
+
+        db.execute.side_effect = [profile_result, session_result]
+
+        context = await agent_module._get_patient_context(db, "patient-1", "")
+
+        all_content = " ".join(m.get("content", "") for m in context)
+        assert "Nombre del paciente: ." not in all_content
+
+    @pytest.mark.asyncio
+    async def test_process_session_passes_name_to_context(self):
+        """process_session accepts patient_name and the name ends up in messages sent to Claude."""
+        db = AsyncMock()
+
+        profile_result = MagicMock()
+        profile_result.scalar_one_or_none.return_value = None
+
+        session_result = MagicMock()
+        session_result.scalars.return_value.all.return_value = []
+
+        db.execute.side_effect = [profile_result, session_result]
+
+        mock_response = MagicMock()
+        block = MagicMock()
+        block.type = "text"
+        block.text = "Nota generada."
+        mock_response.content = [block]
+
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            await agent_module.process_session(
+                db, "patient-1", "Sesión normal.", "session-1",
+                patient_name="María Torres"
+            )
+
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+            messages_sent = call_kwargs["messages"]
+            assert "María Torres" in messages_sent[0]["content"]

@@ -5,6 +5,7 @@ from database import get_db, Subscription, Psychologist
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_
+from config import settings
 
 router = APIRouter()
 UTC = timezone.utc
@@ -12,7 +13,7 @@ UTC = timezone.utc
 @router.get("/daily")
 async def daily_cron(request: Request, db: AsyncSession = Depends(get_db)):
     auth_header = request.headers.get("Authorization")
-    cron_secret = os.getenv("CRON_SECRET")
+    cron_secret = settings.INTERNAL_API_KEY
     
     if not cron_secret or auth_header != f"Bearer {cron_secret}":
         raise HTTPException(status_code=401, detail="No autorizado")

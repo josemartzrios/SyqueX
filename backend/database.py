@@ -18,11 +18,16 @@ from sqlalchemy import text
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://psicoagente:psicoagente_dev@localhost/psicoagente")
 
+# MED-02: Enforce SSL for production (Supabase / Railway)
+_connect_args = {"statement_cache_size": 0}
+if "supabase" in DATABASE_URL or "railway" in DATABASE_URL:
+    _connect_args["ssl"] = True
+
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     poolclass=NullPool,
-    connect_args={"statement_cache_size": 0},
+    connect_args=_connect_args,
 )
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -37,8 +42,8 @@ class Psychologist(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # bcrypt hash
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     # Campos de onboarding (LFPDPPP)
     cedula_profesional: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
@@ -61,7 +66,7 @@ class AuditLog(Base):
     __tablename__ = 'audit_logs'
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     psychologist_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     # CREATE | READ | UPDATE | DELETE | LOGIN | ACCESS_DENIED
     action: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -169,11 +174,20 @@ class Patient(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     diagnosis_tags: Mapped[List[str]] = mapped_column(ARRAY(Text), default=list)
+    # Intake clínico — todos nullable (obligatoriedad vive en Pydantic)
+    marital_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    occupation: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    emergency_contact: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # { "name": str, "relationship": str, "phone": str } (stored as encrypted JSON string)
+    reason_for_consultation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    medical_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    psychological_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     risk_level: Mapped[str] = mapped_column(String(20), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
     # Soft delete — LFPDPPP: permite anonimización en lugar de borrado físico
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint("risk_level IN ('low', 'medium', 'high')", name='chk_patients_risk_level'),
@@ -194,16 +208,16 @@ class Session(Base):
     patient_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey('patients.id', ondelete='RESTRICT'), nullable=False
     )
-    session_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     session_date: Mapped[date] = mapped_column(Date, nullable=False)
     raw_dictation: Mapped[str] = mapped_column(Text, nullable=False)
     format: Mapped[str] = mapped_column(String(20), nullable=False, default="SOAP")
     ai_response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    messages: Mapped[list] = mapped_column(JSONB, default=list)  # Full conversation turns [{role, content}]
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    messages: Mapped[str] = mapped_column(Text, default="[]")  # Full conversation turns [{role, content}] (stored as encrypted JSON string)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     __table_args__ = (
         CheckConstraint("status IN ('draft', 'confirmed')", name='chk_sessions_status'),
@@ -244,8 +258,8 @@ class ClinicalNote(Base):
 
     embedding = mapped_column(Vector(1024))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     __table_args__ = (
         CheckConstraint("format IN ('SOAP', 'DAP', 'BIRP')", name='chk_clinical_notes_format'),
@@ -267,7 +281,7 @@ class PatientProfile(Base):
     risk_factors: Mapped[List[str]] = mapped_column(ARRAY(Text), default=list)
     progress_indicators: Mapped[dict] = mapped_column(JSONB, default=dict)
     patient_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     __table_args__ = (
         Index('idx_patient_profiles_patient_id', 'patient_id'),
@@ -284,7 +298,19 @@ async def init_db():
         # ── Migraciones seguras (IF NOT EXISTS / IF NOT EXISTS) ──────────────
         # Sessions
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;"))
-        await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS messages JSONB NOT NULL DEFAULT '[]';"))
+        # session_number is NULL for chat sessions — drop NOT NULL constraint if still present
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='sessions' AND column_name='session_number'
+                      AND is_nullable='NO'
+                ) THEN
+                    ALTER TABLE sessions ALTER COLUMN session_number DROP NOT NULL;
+                END IF;
+            END$$;
+        """))
+        await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS messages TEXT NOT NULL DEFAULT '[]';"))
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();"))
         await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS format VARCHAR(20) NOT NULL DEFAULT 'SOAP';"))
 
@@ -316,12 +342,87 @@ async def init_db():
         await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITH TIME ZONE;"))
         await conn.execute(text("ALTER TABLE psychologists ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(50);"))
 
-        # Patients — soft delete
-        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;"))
+        # Patients — migrate timestamps to TIMESTAMPTZ (asyncpg rejects aware datetimes into TIMESTAMP)
+        for col in ("created_at", "updated_at", "deleted_at"):
+            await conn.execute(text(f"""
+                DO $$ BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='patients' AND column_name='{col}'
+                          AND data_type='timestamp without time zone'
+                    ) THEN
+                        ALTER TABLE patients ALTER COLUMN {col}
+                            TYPE TIMESTAMP WITH TIME ZONE
+                            USING {col} AT TIME ZONE 'UTC';
+                    END IF;
+                END$$;
+            """))
 
-        # ClinicalNote — timestamps
+        # Patients — soft delete
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;"))
+
+        # Patients — intake clínico (nullable para pacientes legacy)
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS marital_status VARCHAR(30);"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS occupation VARCHAR(120);"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS address TEXT;"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS emergency_contact JSONB;"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS reason_for_consultation TEXT;"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS medical_history TEXT;"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS psychological_history TEXT;"))
+
+        # Encryption: JSONB → Text (idempotente)
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='patients' AND column_name='emergency_contact'
+                      AND data_type='jsonb'
+                ) THEN
+                    ALTER TABLE patients ALTER COLUMN emergency_contact TYPE TEXT
+                        USING emergency_contact::text;
+                END IF;
+            END$$;
+        """))
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='sessions' AND column_name='messages'
+                      AND data_type='jsonb'
+                ) THEN
+                    ALTER TABLE sessions ALTER COLUMN messages TYPE TEXT
+                        USING messages::text;
+                END IF;
+            END$$;
+        """))
+
+        # ClinicalNote — timestamps (add if missing, then migrate to TIMESTAMPTZ)
         await conn.execute(text("ALTER TABLE clinical_notes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();"))
         await conn.execute(text("ALTER TABLE clinical_notes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();"))
+
+        # Migrate all remaining TIMESTAMP → TIMESTAMPTZ columns
+        _tz_migrations = {
+            "psychologists": ["created_at", "updated_at"],
+            "audit_logs": ["timestamp"],
+            "sessions": ["created_at", "updated_at"],
+            "clinical_notes": ["created_at", "updated_at"],
+            "patient_profiles": ["updated_at"],
+        }
+        for table, cols in _tz_migrations.items():
+            for col in cols:
+                await conn.execute(text(f"""
+                    DO $$ BEGIN
+                        IF EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name='{table}' AND column_name='{col}'
+                              AND data_type='timestamp without time zone'
+                        ) THEN
+                            ALTER TABLE {table} ALTER COLUMN {col}
+                                TYPE TIMESTAMP WITH TIME ZONE
+                                USING {col} AT TIME ZONE 'UTC';
+                        END IF;
+                    END$$;
+                """))
 
         # ── CHECK constraints (idempotente) ──────────────────────────────────
         await conn.execute(text("""
@@ -392,6 +493,50 @@ async def init_db():
             "CREATE INDEX IF NOT EXISTS clinical_notes_embedding_idx "
             "ON clinical_notes USING hnsw (embedding vector_cosine_ops);"
         ))
+
+        # ── RLS — Row Level Security ─────────────────────────────────────────
+        # NOTA: La tabla `psychologists` NO recibe RLS. Las rutas de auth
+        # (/login, /register) la consultan sin app.psychologist_id seteado;
+        # habilitarla bloquearía el acceso. La seguridad de esa tabla está
+        # garantizada por la lógica de auth (JWT + bcrypt).
+        # NOTA 2: Si DATABASE_URL usa el usuario `postgres` (superuser de
+        # Supabase), ese rol tiene BYPASSRLS implícito. Para enforcement real
+        # crear un rol no-superuser es un paso post-MVP.
+        for _tbl in [
+            "patients", "sessions", "clinical_notes", "patient_profiles",
+            "subscriptions", "refresh_tokens", "audit_logs",
+        ]:
+            await conn.execute(text(f"ALTER TABLE {_tbl} ENABLE ROW LEVEL SECURITY;"))
+
+        # Políticas de aislamiento por psicólogo — idempotentes via DO blocks
+        _rls_policies = [
+            ("patients_isolation", "patients",
+             "psychologist_id = current_setting('app.psychologist_id', true)::uuid"),
+            ("sessions_isolation", "sessions",
+             "patient_id IN (SELECT id FROM patients WHERE psychologist_id = current_setting('app.psychologist_id', true)::uuid)"),
+            ("clinical_notes_isolation", "clinical_notes",
+             "session_id IN (SELECT s.id FROM sessions s JOIN patients p ON s.patient_id = p.id WHERE p.psychologist_id = current_setting('app.psychologist_id', true)::uuid)"),
+            ("patient_profiles_isolation", "patient_profiles",
+             "patient_id IN (SELECT id FROM patients WHERE psychologist_id = current_setting('app.psychologist_id', true)::uuid)"),
+            ("subscriptions_isolation", "subscriptions",
+             "psychologist_id = current_setting('app.psychologist_id', true)::uuid"),
+            ("refresh_tokens_isolation", "refresh_tokens",
+             "psychologist_id = current_setting('app.psychologist_id', true)::uuid"),
+            ("audit_logs_isolation", "audit_logs",
+             "psychologist_id = current_setting('app.psychologist_id', true)::uuid OR psychologist_id IS NULL"),
+        ]
+        for _name, _table, _using in _rls_policies:
+            await conn.execute(text(f"""
+                DO $$ BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policies
+                        WHERE tablename = '{_table}' AND policyname = '{_name}'
+                    ) THEN
+                        CREATE POLICY {_name} ON {_table} USING ({_using});
+                    END IF;
+                END$$;
+            """))
+
 
 
 async def get_db():
