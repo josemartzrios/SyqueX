@@ -494,6 +494,50 @@ async def init_db():
             "ON clinical_notes USING hnsw (embedding vector_cosine_ops);"
         ))
 
+        # ── RLS — Row Level Security ─────────────────────────────────────────
+        # NOTA: La tabla `psychologists` NO recibe RLS. Las rutas de auth
+        # (/login, /register) la consultan sin app.psychologist_id seteado;
+        # habilitarla bloquearía el acceso. La seguridad de esa tabla está
+        # garantizada por la lógica de auth (JWT + bcrypt).
+        # NOTA 2: Si DATABASE_URL usa el usuario `postgres` (superuser de
+        # Supabase), ese rol tiene BYPASSRLS implícito. Para enforcement real
+        # crear un rol no-superuser es un paso post-MVP.
+        for _tbl in [
+            "patients", "sessions", "clinical_notes", "patient_profiles",
+            "subscriptions", "refresh_tokens", "audit_logs",
+        ]:
+            await conn.execute(text(f"ALTER TABLE {_tbl} ENABLE ROW LEVEL SECURITY;"))
+
+        # Políticas de aislamiento por psicólogo — idempotentes via DO blocks
+        _rls_policies = [
+            ("patients_isolation", "patients",
+             "psychologist_id = current_setting('app.psychologist_id', true)::uuid"),
+            ("sessions_isolation", "sessions",
+             "patient_id IN (SELECT id FROM patients WHERE psychologist_id = current_setting('app.psychologist_id', true)::uuid)"),
+            ("clinical_notes_isolation", "clinical_notes",
+             "session_id IN (SELECT s.id FROM sessions s JOIN patients p ON s.patient_id = p.id WHERE p.psychologist_id = current_setting('app.psychologist_id', true)::uuid)"),
+            ("patient_profiles_isolation", "patient_profiles",
+             "patient_id IN (SELECT id FROM patients WHERE psychologist_id = current_setting('app.psychologist_id', true)::uuid)"),
+            ("subscriptions_isolation", "subscriptions",
+             "psychologist_id = current_setting('app.psychologist_id', true)::uuid"),
+            ("refresh_tokens_isolation", "refresh_tokens",
+             "psychologist_id = current_setting('app.psychologist_id', true)::uuid"),
+            ("audit_logs_isolation", "audit_logs",
+             "psychologist_id = current_setting('app.psychologist_id', true)::uuid OR psychologist_id IS NULL"),
+        ]
+        for _name, _table, _using in _rls_policies:
+            await conn.execute(text(f"""
+                DO $$ BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policies
+                        WHERE tablename = '{_table}' AND policyname = '{_name}'
+                    ) THEN
+                        CREATE POLICY {_name} ON {_table} USING ({_using});
+                    END IF;
+                END$$;
+            """))
+
+
 
 async def get_db():
     async with AsyncSessionLocal() as session:
