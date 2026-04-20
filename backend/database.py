@@ -1,5 +1,6 @@
 import uuid
 import os
+import ssl as _ssl
 from datetime import datetime, date, timezone
 from typing import List, Optional
 
@@ -19,9 +20,14 @@ from sqlalchemy import text
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://psicoagente:psicoagente_dev@localhost/psicoagente")
 
 # MED-02: Enforce SSL for production (Supabase / Railway)
+# Supabase's connection pooler uses a self-signed cert in its chain;
+# we require encryption but skip verification (cert is from a known host we configure).
 _connect_args = {"statement_cache_size": 0}
 if "supabase" in DATABASE_URL or "railway" in DATABASE_URL:
-    _connect_args["ssl"] = True
+    _ssl_ctx = _ssl.create_default_context()
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode = _ssl.CERT_NONE
+    _connect_args["ssl"] = _ssl_ctx
 
 engine = create_async_engine(
     DATABASE_URL,
