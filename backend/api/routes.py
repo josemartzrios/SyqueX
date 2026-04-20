@@ -32,6 +32,20 @@ def _parse_uuid(value: str, label: str = "ID") -> uuid.UUID:
 
 logger = logging.getLogger(__name__)
 
+
+async def get_db_with_user(
+    psychologist: Psychologist = Depends(get_current_psychologist),
+):
+    """DB session con RLS: inyecta psychologist_id como session variable de PostgreSQL."""
+    from sqlalchemy import text as _text
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            _text("SELECT set_config('app.psychologist_id', :pid, true)"),
+            {"pid": str(psychologist.id)},
+        )
+        yield session
+
+
 router = APIRouter(tags=["clinical"])
 
 
@@ -254,9 +268,11 @@ class ProfileOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/patients", response_model=List[PatientOut], tags=["patients"])
+@limiter.limit("120/hour")
 async def list_patients(
+    request: Request,
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     query = select(Patient).where(
         Patient.psychologist_id == psychologist.id,
@@ -269,10 +285,11 @@ async def list_patients(
 
 
 @router.post("/patients", response_model=PatientOut, status_code=status.HTTP_201_CREATED, tags=["patients"])
+@limiter.limit("30/hour")
 async def create_patient(
     payload: PatientCreate,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     current_user: Psychologist = Depends(get_current_psychologist),
 ):
     patient = Patient(
@@ -317,7 +334,7 @@ async def create_patient(
 @router.get("/patients/{patient_id}", response_model=PatientOut, tags=["patients"])
 async def get_patient(
     patient_id: str,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     current_user: Psychologist = Depends(get_current_psychologist),
 ):
     puuid = _parse_uuid(patient_id, "patient_id")
@@ -342,7 +359,7 @@ async def update_patient(
     patient_id: str,
     payload: PatientUpdate,
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
     current_user: Psychologist = Depends(get_current_psychologist),
 ):
     puuid = _parse_uuid(patient_id, "patient_id")
@@ -391,7 +408,7 @@ async def update_patient(
 async def get_patient_profile(
     patient_id: str,
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
     res = await db.execute(select(PatientProfile).where(PatientProfile.patient_id == patient.id))
@@ -426,7 +443,7 @@ async def get_patient_sessions(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
     puuid = patient.id
@@ -478,7 +495,7 @@ async def patient_report(
     patient_id: str,
     period: str = "quarterly",
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
     return await generate_evolution_report(db, str(patient.id), period)
@@ -489,7 +506,7 @@ async def patient_search(
     patient_id: str,
     q: str = Query(..., min_length=1),
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
     return await search_patient_history(db, str(patient.id), q)
@@ -505,7 +522,7 @@ async def process_session_endpoint(
     patient_id: str,
     rec: ProcessSessionRequest,
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
     patient_uuid = patient.id
@@ -567,7 +584,7 @@ async def confirm_session(
     req: ConfirmNoteRequest,
     background_tasks: BackgroundTasks,
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     session_uuid = _parse_uuid(session_id, "session_id")
     res = await db.execute(
@@ -580,6 +597,14 @@ async def confirm_session(
 
     if not sess:
         raise SessionNotFoundError("Sesión no encontrada.", code="SESSION_NOT_FOUND", details={"session_id": session_id})
+
+    if sess.status != "draft":
+        from exceptions import DomainError
+        raise DomainError(
+            "Solo sesiones en borrador pueden confirmarse.",
+            code="INVALID_SESSION_STATUS",
+            http_status=409,
+        )
 
     sess.status = "confirmed"
     note_data = req.edited_note or {}
@@ -624,7 +649,7 @@ async def confirm_session(
 async def archive_session(
     session_id: str,
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     session_uuid = _parse_uuid(session_id, "session_id")
     res = await db.execute(
@@ -648,7 +673,7 @@ async def archive_session(
 async def archive_patient_sessions(
     patient_id: str,
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     """Archive all sessions for a patient so they disappear from the conversations list."""
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
@@ -671,7 +696,7 @@ async def list_conversations(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     psychologist: Psychologist = Depends(get_current_psychologist),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_with_user),
 ):
     # One entry per patient: most recent non-archived session via DISTINCT ON (PostgreSQL).
     # LEFT JOIN so patients without any session still appear in the list.
