@@ -254,7 +254,9 @@ class ProfileOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/patients", response_model=List[PatientOut], tags=["patients"])
+@limiter.limit("120/hour")
 async def list_patients(
+    request: Request,
     psychologist: Psychologist = Depends(get_current_psychologist),
     db: AsyncSession = Depends(get_db),
 ):
@@ -269,6 +271,7 @@ async def list_patients(
 
 
 @router.post("/patients", response_model=PatientOut, status_code=status.HTTP_201_CREATED, tags=["patients"])
+@limiter.limit("30/hour")
 async def create_patient(
     payload: PatientCreate,
     request: Request,
@@ -580,6 +583,14 @@ async def confirm_session(
 
     if not sess:
         raise SessionNotFoundError("Sesión no encontrada.", code="SESSION_NOT_FOUND", details={"session_id": session_id})
+
+    if sess.status != "draft":
+        from exceptions import DomainError
+        raise DomainError(
+            "Solo sesiones en borrador pueden confirmarse.",
+            code="INVALID_SESSION_STATUS",
+            http_status=409,
+        )
 
     sess.status = "confirmed"
     note_data = req.edited_note or {}
