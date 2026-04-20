@@ -40,7 +40,7 @@ async def get_billing_status(
         "current_period_end": sub.current_period_end
     }
 
-@router.post("/checkout")
+@router.post("/create-checkout")
 async def create_checkout_session(
     psychologist = Depends(get_current_psychologist),
     db: AsyncSession = Depends(get_db)
@@ -123,6 +123,18 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             if db_sub:
                 db_sub.status = sub.status
                 db_sub.current_period_end = datetime.fromtimestamp(sub.current_period_end, timezone.utc)
+
+    elif event.type == 'invoice.payment_failed':
+        invoice = event.data.object
+        if invoice.subscription:
+            db_sub_res = await db.execute(
+                select(Subscription).where(
+                    Subscription.stripe_subscription_id == invoice.subscription
+                )
+            )
+            db_sub = db_sub_res.scalar_one_or_none()
+            if db_sub:
+                db_sub.status = 'past_due'
 
     elif event.type in ['customer.subscription.deleted', 'customer.subscription.updated']:
         stripe_sub = event.data.object

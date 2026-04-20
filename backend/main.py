@@ -62,7 +62,7 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=_add_security_headers)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.get_allowed_origins(),
-    allow_origin_regex=r"^https://syquex(-[a-z0-9]+)*\.vercel\.app$",
+    allow_origin_regex=r"^https://(syquex(-[a-z0-9]+)*\.vercel\.app|app\.syquex\.mx)$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],

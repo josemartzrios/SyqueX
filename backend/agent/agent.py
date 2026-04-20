@@ -1,4 +1,5 @@
 import re
+import unicodedata
 import logging
 from anthropic import AsyncAnthropic, APIStatusError, APIConnectionError, APITimeoutError
 from sqlalchemy import select
@@ -9,25 +10,33 @@ import json as _json
 
 logger = logging.getLogger(__name__)
 
-# Patrones de prompt injection conocidos
+# Patrones de prompt injection conocidos (actualizados)
 _INJECTION_PATTERNS = [
-    r"ignore\s+(previous|all|prior)\s+instructions",
+    r"ignore\s+(previous|all|prior|system|the)\s+(instructions?|rules?|context|prompt)",
+    r"(system|assistant|user)\s*:",
     r"system\s+prompt",
     r"jailbreak",
-    r"you\s+are\s+now",
-    r"forget\s+your",
+    r"(you\s+)?are\s+(now|acting\s+as)",
+    r"forget\s+(your|all|the)",
     r"new\s+instructions",
     r"\[INST\]",
     r"<\|im_start\|>",
     r"<\|im_end\|>",
-    r"disregard\s+(all|previous)",
-    r"override\s+(your|the)\s+(instructions|rules)",
+    r"<\|system\|>",
+    r"disregard\s+(all|previous|your)",
+    r"override\s+(your|the)\s+(instructions?|rules?|behavior)",
+    r"(forget|disregard|ignore|override).{0,30}(instructions?|rules?|system|prompt)",
+    r"(pretend|act|behave)\s+(you\s+are|as\s+if|like\s+you)",
+    r"do\s+anything\s+now",
+    r"DAN\b",
 ]
 _INJECTION_RE = re.compile("|".join(_INJECTION_PATTERNS), re.IGNORECASE)
 
 def _sanitizar_dictado(texto: str) -> str:
     """Valida que el dictado no contenga intentos de prompt injection."""
-    if _INJECTION_RE.search(texto):
+    # Normalizar Unicode para detectar variantes con homoglifos
+    texto_normalizado = unicodedata.normalize("NFKD", texto)
+    if _INJECTION_RE.search(texto_normalizado):
         logger.warning("Prompt injection attempt detected in dictation input")
         raise PromptInjectionError(
             "El dictado contiene contenido no válido para procesamiento clínico.",
