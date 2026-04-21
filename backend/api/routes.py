@@ -649,6 +649,40 @@ async def confirm_session(
     return ConfirmNoteOut(id=cn.id)
 
 
+@router.delete("/sessions/{session_id}", status_code=204, tags=["sessions"])
+async def delete_draft_session(
+    session_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db_with_user),
+):
+    session_uuid = _parse_uuid(session_id, "session_id")
+    res = await db.execute(
+        select(Session).join(Patient).where(
+            Session.id == session_uuid,
+            Patient.psychologist_id == psychologist.id,
+        )
+    )
+    sess = res.scalar_one_or_none()
+
+    if not sess:
+        raise SessionNotFoundError(
+            "Sesión no encontrada.",
+            code="SESSION_NOT_FOUND",
+            details={"session_id": session_id},
+        )
+
+    if sess.status == "confirmed":
+        from exceptions import DomainError
+        raise DomainError(
+            "Las sesiones confirmadas no pueden eliminarse.",
+            code="INVALID_SESSION_STATUS",
+            http_status=409,
+        )
+
+    await db.delete(sess)
+    await db.commit()
+
+
 @router.patch("/sessions/{session_id}/archive", response_model=ArchiveOut, tags=["sessions"])
 async def archive_session(
     session_id: str,
