@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, B
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
+from sqlalchemy.exc import IntegrityError
 from typing import Optional, List, Dict, Any, Literal
 from datetime import date, datetime
 
@@ -205,7 +206,7 @@ class PatientOut(BaseModel):
 
 class SessionOut(BaseModel):
     id: uuid.UUID
-    session_number: int
+    session_number: Optional[int] = None
     session_date: Optional[date]
     raw_dictation: Optional[str]
     ai_response: Optional[str]
@@ -591,7 +592,7 @@ async def confirm_session(
         select(Session).join(Patient).where(
             Session.id == session_uuid,
             Patient.psychologist_id == psychologist.id,
-        )
+        ).with_for_update()
     )
     sess = res.scalar_one_or_none()
 
@@ -608,8 +609,10 @@ async def confirm_session(
 
     sess.status = "confirmed"
     note_data = req.edited_note or {}
-
     structured = note_data.get("structured_note", {})
+
+    # Read ai_response before commit (attribute expires after commit)
+    ai_response_text = decrypt_if_set(sess.ai_response) or ""
 
     # 1. Embedding del texto plano ANTES de cifrar
     text_to_embed = " ".join([str(v) for v in structured.values() if v])
@@ -635,11 +638,20 @@ async def confirm_session(
         embedding=embedding,
     )
     db.add(cn)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        from exceptions import DomainError
+        raise DomainError(
+            "Esta sesión ya fue confirmada.",
+            code="DUPLICATE_NOTE",
+            http_status=409,
+        )
 
-    # 3. Descifrar ai_response antes de pasarlo al background job
+    # 3. Actualizar perfil del paciente en background
     summary_data = {
-        "text_fallback": decrypt_if_set(sess.ai_response) or "",
+        "text_fallback": ai_response_text,
         "detected_patterns": note_data.get("detected_patterns", []),
         "alerts": note_data.get("alerts", []),
         "suggested_next_steps": note_data.get("suggested_next_steps", []),
@@ -647,6 +659,40 @@ async def confirm_session(
     background_tasks.add_task(_background_update_profile, sess.patient_id, summary_data)
 
     return ConfirmNoteOut(id=cn.id)
+
+
+@router.delete("/sessions/{session_id}", status_code=204, tags=["sessions"])
+async def delete_draft_session(
+    session_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db_with_user),
+):
+    session_uuid = _parse_uuid(session_id, "session_id")
+    res = await db.execute(
+        select(Session).join(Patient).where(
+            Session.id == session_uuid,
+            Patient.psychologist_id == psychologist.id,
+        )
+    )
+    sess = res.scalar_one_or_none()
+
+    if not sess:
+        raise SessionNotFoundError(
+            "Sesión no encontrada.",
+            code="SESSION_NOT_FOUND",
+            details={"session_id": session_id},
+        )
+
+    if sess.status == "confirmed":
+        from exceptions import DomainError
+        raise DomainError(
+            "Las sesiones confirmadas no pueden eliminarse.",
+            code="INVALID_SESSION_STATUS",
+            http_status=409,
+        )
+
+    await db.delete(sess)
+    await db.commit()
 
 
 @router.patch("/sessions/{session_id}/archive", response_model=ArchiveOut, tags=["sessions"])

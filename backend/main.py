@@ -106,6 +106,13 @@ async def startup_event():
         print(f"[CORS_DEBUG] raw env: {repr(raw)}", flush=True)
         print(f"[CORS_DEBUG] parsed origins: {parsed}", flush=True)
     await init_db()
+    # Pre-load embedding model so the first confirm request doesn't block
+    try:
+        from agent.embeddings import get_embedding
+        await get_embedding("warmup")
+        logger.info("Embedding model loaded and ready.")
+    except Exception as e:
+        logger.warning("Embedding warmup failed (non-fatal): %s", e)
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(billing_router, prefix="/api/v1/billing", tags=["billing"])
