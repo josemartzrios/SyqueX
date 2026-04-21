@@ -90,6 +90,16 @@ Reglas:
 {_SHARED_RULES}"""
 
 
+CUSTOM_NOTE_SYSTEM_PROMPT = (
+    "Eres un asistente clínico especializado. El psicólogo ha definido una estructura de nota personalizada. "
+    "Tu tarea es llenar TODOS los campos de la nota usando la información del dictado de sesión. "
+    "Extrae información directamente del dictado. Si un campo no se menciona explícitamente, "
+    "realiza una inferencia clínica razonable basada en el contexto. "
+    "Responde ÚNICAMENTE usando la herramienta fill_custom_note — no generes texto libre.\n\n"
+    + _SHARED_RULES
+)
+
+
 async def _get_patient_context(db, patient_id: str, patient_name: str = "") -> list:
     """
     Builds the full context message list for a patient:
@@ -285,3 +295,52 @@ async def process_session(db, patient_id: str, raw_dictation: str, session_id: s
             "text_fallback": "Error al procesar el dictado. Por favor intenta nuevamente.",
             "session_messages": [{"role": "user", "content": dictado_seguro}],
         }
+
+
+async def process_session_custom(
+    db,
+    patient_id: str,
+    raw_dictation: str,
+    session_id: str,
+    template_fields: list[dict],
+    patient_name: str = "",
+) -> dict:
+    from agent.template_tool import build_fill_tool
+
+    context_messages = await _get_patient_context(db, patient_id, patient_name)
+    messages = context_messages + [{"role": "user", "content": raw_dictation}]
+    tool = build_fill_tool(template_fields)
+
+    anthropic_client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    response = await anthropic_client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        temperature=0,
+        system=CUSTOM_NOTE_SYSTEM_PROMPT,
+        tools=[tool],
+        tool_choice={"type": "tool", "name": "fill_custom_note"},
+        messages=messages,
+    )
+
+    tool_block = next((b for b in response.content if b.type == "tool_use"), None)
+    if tool_block is None:
+        raise LLMServiceError("El agente no completó la nota. Intenta de nuevo.")
+
+    custom_fields = tool_block.input
+
+    label_map = {f["id"]: f["label"] for f in template_fields}
+    lines = []
+    for fid, value in custom_fields.items():
+        label = label_map.get(fid, fid)
+        if isinstance(value, list):
+            lines.append(f"{label}: {', '.join(str(v) for v in value) or 'ninguno'}")
+        else:
+            lines.append(f"{label}: {value}")
+    text_fallback = "\n".join(lines)
+    session_messages = messages + [{"role": "assistant", "content": text_fallback}]
+
+    return {
+        "custom_fields": custom_fields,
+        "text_fallback": text_fallback,
+        "session_messages": session_messages,
+    }
