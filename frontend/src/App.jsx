@@ -6,7 +6,7 @@ import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import PatientIntakeModal from './components/PatientIntakeModal'
 import EvolucionPanel from './components/EvolucionPanel'
-import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout } from './api'
+import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout, deleteSession } from './api'
 import useDraft from './hooks/useDraft';
 import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
 import LoginScreen from './components/LoginScreen.jsx';
@@ -146,6 +146,7 @@ function App() {
   const [mobileTab, setMobileTab] = useState('dictar');
   const [currentSessionNote, setCurrentSessionNote] = useState(null);
   const [sessionHistory, setSessionHistory] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState(null);
   
   // Desktop two-mode layout state
@@ -228,6 +229,19 @@ function App() {
     }
   };
 
+  const fetchPatientSessions = async (patientId, patientName) => {
+    setSessionsLoading(true);
+    try {
+      const history = await getPatientSessions(patientId);
+      setSessionHistory(history);
+      if (patientName) loadPatientChat(patientId, patientName, history);
+    } catch (err) {
+      console.error("Error loading sessions:", err);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
   const loadPatientChat = (patientId, patientName, history = []) => {
     setSelectedPatientId(patientId);
     setSelectedPatientName(patientName);
@@ -248,7 +262,9 @@ function App() {
     }
 
     const historyMessages = [];
-    history.forEach(session => {
+    // Only include confirmed sessions in chat bubbles
+    const historyToShow = history.filter(s => s.status === 'confirmed');
+    historyToShow.forEach(session => {
       if (session.raw_dictation) {
         historyMessages.push({ role: 'user', text: session.raw_dictation });
       }
@@ -352,12 +368,9 @@ function App() {
   };
 
   const handleSelectConversation = async (conv) => {
-    try {
-      const history = await getPatientSessions(conv.patient_id);
-      loadPatientChat(conv.patient_id, conv.patient_name, history);
-    } catch (err) {
-      loadPatientChat(conv.patient_id, conv.patient_name);
-    }
+    setSelectedPatientId(conv.patient_id);
+    setSelectedPatientName(conv.patient_name);
+    fetchPatientSessions(conv.patient_id, conv.patient_name);
   };
 
   const handleDeleteConversation = async (sessionId, patientId) => {
@@ -471,13 +484,31 @@ function App() {
     }
   };
 
+  const handleResumeOrphan = (orphan) => {
+    setDraft(orphan.raw_dictation);
+    // Cleanup the bot message from chat that shows the orphaned state if needed
+    // (In this version, we simple set the draft and the user will see it in the textarea)
+  };
+
+  const handleDiscardOrphan = async (sessionId) => {
+    try {
+      await deleteSession(sessionId);
+      if (selectedPatientId) fetchPatientSessions(selectedPatientId);
+    } catch (err) {
+      console.error("Error discarding orphan:", err);
+    }
+  };
+
 
   const isLoading = messages[messages.length - 1]?.type === 'loading';
   const hasActivePatient = !!selectedPatientId;
   const draftPatientIds = new Set(
     conversations.map(c => String(c.patient_id)).filter(useDraft.hasDraft)
   );
+  
   const soapSessions = sessionHistory.filter(s => s.format !== 'chat');
+  const confirmedSessions = soapSessions.filter(s => s.status === 'confirmed');
+  const orphanedSessions = soapSessions.filter(s => s.status === 'draft');
 
   // Derive the latest note message for the note panel
   const latestNoteMsg = (() => {
@@ -597,6 +628,9 @@ function App() {
                       onChange={setDraft}
                       onGenerate={(d) => handleSendDictation(d, 'SOAP')}
                       loading={isLoading}
+                      orphanedSessions={orphanedSessions}
+                      onResumeOrphan={handleResumeOrphan}
+                      onDiscardOrphan={handleDiscardOrphan}
                     />
 
                   </div>
@@ -630,10 +664,15 @@ function App() {
                   <div className="w-[380px] flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2] overflow-y-auto px-5 py-6">
                     <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-4 px-2">Historial de Notas</p>
                     <div className="space-y-3">
-                      {soapSessions.length === 0 ? (
-                        <p className="text-ink-tertiary text-xs px-2 italic">Sin notas SOAP registradas.</p>
+                      {sessionsLoading ? (
+                        <div className="flex flex-col items-center gap-2 py-8">
+                          {LOADING_DOTS}
+                          <p className="text-ink-tertiary text-[11px] uppercase tracking-wider">Cargando historial...</p>
+                        </div>
+                      ) : confirmedSessions.length === 0 ? (
+                        <p className="text-ink-tertiary text-xs px-2 italic">Sin notas SOAP confirmadas.</p>
                       ) : (
-                        soapSessions.map((s, i) => {
+                        confirmedSessions.map((s, i) => {
                           const isExpanded = reviewExpandedSessionId === String(s.id);
                           const hasNote = s.status === 'confirmed' && s.structured_note;
                           return (
@@ -649,7 +688,7 @@ function App() {
                               >
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between gap-2">
-                                    <p className="text-[13px] font-semibold text-ink">Sesión #{s.session_number || (soapSessions.length - i)}</p>
+                                    <p className="text-[13px] font-semibold text-ink">Sesión #{s.session_number || (confirmedSessions.length - i)}</p>
                                     <span className="text-[11px] text-ink-tertiary font-medium">{formatDate(s.session_date)}</span>
                                   </div>
                                   {!isExpanded && s.raw_dictation && (
@@ -754,7 +793,7 @@ function App() {
             {/* Patient strip */}
             <PatientHeader
               patientName={selectedPatientName}
-              sessionCount={soapSessions.filter(s => s.status === 'confirmed').length}
+              sessionCount={confirmedSessions.length}
               compact
             />
 
@@ -786,6 +825,9 @@ function App() {
                   onChange={setDraft}
                   onGenerate={(d) => handleSendDictation(d, 'SOAP')}
                   loading={isLoading}
+                  orphanedSessions={orphanedSessions}
+                  onResumeOrphan={handleResumeOrphan}
+                  onDiscardOrphan={handleDiscardOrphan}
                 />
               </div>
             )}

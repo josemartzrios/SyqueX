@@ -7,11 +7,13 @@ class DomainError(Exception):
     """Base exception for all application domain errors."""
     http_status: int = 500
 
-    def __init__(self, message: str, code: str = None, details: dict = None):
+    def __init__(self, message: str, code: str = None, details: dict = None, http_status: int = None):
         super().__init__(message)
         self.message = message
         self.code = code or self.__class__.__name__
         self.details = details or {}
+        if http_status:
+            self.http_status = http_status
         self.timestamp = datetime.now(UTC)
 
 

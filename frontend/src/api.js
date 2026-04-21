@@ -21,7 +21,10 @@ export class ApiError extends Error {
 }
 
 async function _handleResponse(res) {
-  if (res.ok) return res.json();
+  if (res.ok) {
+    if (res.status === 204) return null;
+    return res.json();
+  }
 
   let detail = `Error ${res.status}`;
   let code = null;
@@ -129,6 +132,10 @@ export async function archiveSession(sessionId) {
 
 export async function archivePatientSessions(patientId) {
   return await _authFetch(`${API_BASE}/patients/${patientId}/sessions/archive`, { method: 'PATCH' });
+}
+
+export async function deleteSession(sessionId) {
+  return await _authFetch(`${API_BASE}/sessions/${sessionId}`, { method: 'DELETE' });
 }
 
 export async function getPatientProfile(patientId) {
