@@ -100,9 +100,9 @@ describe('SoapNoteDocument', () => {
     expect(screen.queryByRole('button', { name: /Confirmar/i })).not.toBeInTheDocument()
   })
 
-  it('muestra botón "Confirmar y guardar" cuando readOnly=false', () => {
+  it('muestra botón "Confirmar" cuando readOnly=false', () => {
     render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
-    expect(screen.getByRole('button', { name: /Confirmar y guardar/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Confirmar/i })).toBeInTheDocument()
   })
 
   // ── Confirm flow ─────────────────────────
@@ -111,7 +111,7 @@ describe('SoapNoteDocument', () => {
     confirmNote.mockResolvedValueOnce({})
 
     render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} onConfirm={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: /Confirmar y guardar/i }))
+    await user.click(screen.getByRole('button', { name: /Confirmar/i }))
 
     await waitFor(() => {
       expect(confirmNote).toHaveBeenCalledWith('sess-123', expect.objectContaining({
@@ -126,7 +126,7 @@ describe('SoapNoteDocument', () => {
     confirmNote.mockResolvedValueOnce({})
 
     render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} onConfirm={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: /Confirmar y guardar/i }))
+    await user.click(screen.getByRole('button', { name: /Confirmar/i }))
 
     await waitFor(() => {
       expect(screen.getByText('Guardada ✓')).toBeInTheDocument()
@@ -138,7 +138,7 @@ describe('SoapNoteDocument', () => {
     confirmNote.mockRejectedValueOnce(new Error('Error de servidor'))
 
     render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} onConfirm={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: /Confirmar y guardar/i }))
+    await user.click(screen.getByRole('button', { name: /Confirmar/i }))
 
     await waitFor(() => {
       expect(screen.getByText('Error de servidor')).toBeInTheDocument()
@@ -151,7 +151,7 @@ describe('SoapNoteDocument', () => {
 
     const user = userEvent.setup()
     render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} onConfirm={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: /Confirmar y guardar/i }))
+    await user.click(screen.getByRole('button', { name: /Confirmar/i }))
 
     expect(screen.getByText('Guardando…')).toBeInTheDocument()
   })
