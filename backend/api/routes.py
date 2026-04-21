@@ -14,7 +14,7 @@ from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psy
 from config import settings
 import json as _json
 from crypto import encrypt_if_set, decrypt_if_set
-from agent import process_session, update_patient_profile_summary
+from agent import process_session, update_patient_profile_summary, process_session_custom
 from agent.tools import generate_evolution_report, search_patient_history
 from agent.embeddings import get_embedding, ZERO_VECTOR
 from api.limiter import limiter
@@ -367,6 +367,8 @@ class SessionOut(BaseModel):
     alerts: Optional[List[str]] = None
     suggested_next_steps: Optional[List[str]] = None
     clinical_note_id: Optional[uuid.UUID] = None
+    custom_fields: Optional[dict] = None
+    template_fields: Optional[list] = None
 
     class Config:
         from_attributes = True
@@ -682,6 +684,53 @@ async def process_session_endpoint(
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
     patient_uuid = patient.id
 
+    # Load psychologist's note template
+    tmpl_result = await db.execute(
+        select(NoteTemplate).where(NoteTemplate.psychologist_id == psychologist.id)
+    )
+    template = tmpl_result.scalar_one_or_none()
+
+    if template and template.fields:
+        result = await process_session_custom(
+            db=db,
+            patient_id=str(patient_uuid),
+            raw_dictation=rec.raw_dictation,
+            session_id=None,
+            template_fields=template.fields,
+            patient_name=patient.name,
+        )
+
+        # Determine session_number for custom (non-chat) sessions
+        res_last = await db.execute(
+            select(Session)
+            .where(Session.patient_id == patient_uuid, Session.format != "chat")
+            .order_by(Session.session_number.desc())
+            .limit(1)
+        )
+        last_session = res_last.scalar_one_or_none()
+        current_session_number = (last_session.session_number + 1) if last_session else 1
+
+        custom_session = Session(
+            patient_id=patient_uuid,
+            session_number=current_session_number,
+            session_date=date.today(),
+            format="custom",
+            raw_dictation=encrypt_if_set(rec.raw_dictation),
+            ai_response=encrypt_if_set(result["text_fallback"]),
+            status="draft",
+            messages=encrypt_if_set(_json.dumps(result["session_messages"])),
+        )
+        db.add(custom_session)
+        await db.commit()
+        await db.refresh(custom_session)
+        return ProcessSessionOut(
+            text_fallback=result["text_fallback"],
+            session_id=str(custom_session.id),
+            format="custom",
+            custom_fields=result["custom_fields"],
+            template_fields=template.fields,
+        )
+
     response = await process_session(db, patient_id, rec.raw_dictation, None, rec.format, patient_name=patient.name)
 
     session_id = str(uuid.uuid4())
@@ -761,8 +810,53 @@ async def confirm_session(
             http_status=409,
         )
 
-    sess.status = "confirmed"
     note_data = req.edited_note or {}
+    note_format = note_data.get("format", "SOAP")
+    custom_fields_data = note_data.get("custom_fields") if req.edited_note else None
+
+    if note_format == "custom" and custom_fields_data is not None:
+        text_for_embedding = note_data.get("text_fallback", "")
+        try:
+            embedding = await get_embedding(text_for_embedding) if text_for_embedding else ZERO_VECTOR
+        except Exception:
+            embedding = ZERO_VECTOR
+
+        note = ClinicalNote(
+            session_id=sess.id,
+            format="custom",
+            custom_fields=custom_fields_data,
+            detected_patterns=note_data.get("detected_patterns", []),
+            alerts=note_data.get("alerts", []),
+            suggested_next_steps=note_data.get("suggested_next_steps", []),
+            evolution_delta=note_data.get("evolution_delta"),
+            embedding=embedding,
+        )
+        db.add(note)
+        sess.status = "confirmed"
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            from exceptions import DomainError
+            raise DomainError(
+                "Esta sesión ya fue confirmada.",
+                code="DUPLICATE_NOTE",
+                http_status=409,
+            )
+        await db.refresh(note)
+
+        ai_response_text = decrypt_if_set(sess.ai_response) or ""
+        summary_data = {
+            "text_fallback": ai_response_text,
+            "detected_patterns": note_data.get("detected_patterns", []),
+            "alerts": note_data.get("alerts", []),
+            "suggested_next_steps": note_data.get("suggested_next_steps", []),
+        }
+        background_tasks.add_task(_background_update_profile, sess.patient_id, summary_data)
+
+        return ConfirmNoteOut(id=note.id)
+
+    sess.status = "confirmed"
     structured = note_data.get("structured_note", {})
 
     # Read ai_response before commit (attribute expires after commit)
