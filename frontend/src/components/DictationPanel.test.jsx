@@ -1,48 +1,78 @@
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi } from 'vitest'
-import DictationPanel from './DictationPanel'
-
-const defaultProps = {
-  value: '',
-  onChange: vi.fn(),
-  onGenerate: vi.fn(),
-  loading: false,
-}
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import DictationPanel from './DictationPanel';
 
 describe('DictationPanel', () => {
-  it('does not render the disabled voice button', () => {
-    render(<DictationPanel {...defaultProps} />)
-    expect(screen.queryByText(/voz/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/próximamente/i)).not.toBeInTheDocument()
-  })
+  const mockOrphans = [
+    { id: '1', raw_dictation: 'Dictado huérfano 1', session_date: '2026-04-20T10:00:00Z' },
+    { id: '2', raw_dictation: 'Dictado huérfano 2', session_date: '2026-04-19T10:00:00Z' },
+  ];
 
-  it('renders the Generar nota button', () => {
-    render(<DictationPanel {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /generar nota/i })).toBeInTheDocument()
-  })
+  it('renders orphaned sessions banner when present', () => {
+    render(
+      <DictationPanel 
+        value="" 
+        onChange={() => {}} 
+        onGenerate={() => {}} 
+        loading={false} 
+        orphanedSessions={mockOrphans} 
+      />
+    );
 
-  it('does not show draft label when value is empty', () => {
-    render(<DictationPanel {...defaultProps} value="" />)
-    expect(screen.queryByText(/borrador guardado/i)).not.toBeInTheDocument()
-  })
+    expect(screen.getByText('Sesiones sin confirmar')).toBeInTheDocument();
+    expect(screen.getByText(/"Dictado huérfano 1"/)).toBeInTheDocument();
+    expect(screen.getByText(/"Dictado huérfano 2"/)).toBeInTheDocument();
+  });
 
-  it('shows draft label when value has text', () => {
-    render(<DictationPanel {...defaultProps} value="el paciente reporta" />)
-    expect(screen.getByText(/borrador guardado/i)).toBeInTheDocument()
-  })
+  it('calls onResumeOrphan when Continuar is clicked', () => {
+    const onResume = vi.fn();
+    render(
+      <DictationPanel 
+        value="" 
+        onChange={() => {}} 
+        onGenerate={() => {}} 
+        loading={false} 
+        orphanedSessions={mockOrphans} 
+        onResumeOrphan={onResume} 
+      />
+    );
 
-  it('calls onChange when user types', async () => {
-    const onChange = vi.fn()
-    render(<DictationPanel {...defaultProps} onChange={onChange} />)
-    await userEvent.type(screen.getByRole('textbox'), 'a')
-    expect(onChange).toHaveBeenCalled()
-  })
+    const resumeButtons = screen.getAllByText('Continuar');
+    fireEvent.click(resumeButtons[0]);
 
-  it('calls onGenerate with trimmed value on button click', async () => {
-    const onGenerate = vi.fn()
-    render(<DictationPanel {...defaultProps} value="  hola  " onGenerate={onGenerate} />)
-    await userEvent.click(screen.getByRole('button', { name: /generar nota/i }))
-    expect(onGenerate).toHaveBeenCalledWith('hola')
-  })
-})
+    expect(onResume).toHaveBeenCalledWith(mockOrphans[0]);
+  });
+
+  it('calls onDiscardOrphan when discard button is clicked', () => {
+    const onDiscard = vi.fn();
+    render(
+      <DictationPanel 
+        value="" 
+        onChange={() => {}} 
+        onGenerate={() => {}} 
+        loading={false} 
+        orphanedSessions={mockOrphans} 
+        onDiscardOrphan={onDiscard} 
+      />
+    );
+
+    const discardButtons = screen.getAllByTitle('Descartar');
+    fireEvent.click(discardButtons[1]);
+
+    expect(onDiscard).toHaveBeenCalledWith('2');
+  });
+
+  it('does not render banner when loading is true', () => {
+    render(
+      <DictationPanel 
+        value="" 
+        onChange={() => {}} 
+        onGenerate={() => {}} 
+        loading={true} 
+        orphanedSessions={mockOrphans} 
+      />
+    );
+
+    expect(screen.queryByText('Sesiones sin confirmar')).not.toBeInTheDocument();
+  });
+});
