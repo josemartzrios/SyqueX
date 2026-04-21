@@ -205,7 +205,7 @@ class PatientOut(BaseModel):
 
 class SessionOut(BaseModel):
     id: uuid.UUID
-    session_number: int
+    session_number: Optional[int] = None
     session_date: Optional[date]
     raw_dictation: Optional[str]
     ai_response: Optional[str]
