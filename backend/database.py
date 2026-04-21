@@ -65,6 +65,21 @@ class Psychologist(Base):
 
     patients = relationship("Patient", back_populates="psychologist")
     subscription = relationship("Subscription", back_populates="psychologist", uselist=False)
+    note_template: Mapped[Optional["NoteTemplate"]] = relationship("NoteTemplate", back_populates="psychologist", uselist=False)
+
+
+class NoteTemplate(Base):
+    __tablename__ = "note_templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    psychologist_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("psychologists.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    fields: Mapped[dict] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+    psychologist: Mapped["Psychologist"] = relationship("Psychologist", back_populates="note_template")
 
 
 class AuditLog(Base):
@@ -261,6 +276,7 @@ class ClinicalNote(Base):
     alerts: Mapped[List[str]] = mapped_column(ARRAY(Text), default=list)
     suggested_next_steps: Mapped[List[str]] = mapped_column(ARRAY(Text), default=list)
     evolution_delta: Mapped[dict] = mapped_column(JSONB, default=dict)
+    custom_fields: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     embedding = mapped_column(Vector(1024))
 
@@ -268,7 +284,7 @@ class ClinicalNote(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     __table_args__ = (
-        CheckConstraint("format IN ('SOAP', 'DAP', 'BIRP')", name='chk_clinical_notes_format'),
+        CheckConstraint("format IN ('SOAP', 'DAP', 'BIRP', 'custom')", name='chk_clinical_notes_format'),
         # session_id ya tiene UNIQUE → índice automático; agregamos idx explícito solo por claridad ORM
     )
 
@@ -300,6 +316,36 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
+
+        # note_templates table
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS note_templates (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                psychologist_id UUID NOT NULL REFERENCES psychologists(id) ON DELETE CASCADE,
+                fields JSONB NOT NULL DEFAULT '[]',
+                created_at TIMESTAMPTZ DEFAULT now(),
+                updated_at TIMESTAMPTZ DEFAULT now(),
+                UNIQUE (psychologist_id)
+            )
+        """))
+
+        # custom_fields on clinical_notes
+        await conn.execute(text("""
+            ALTER TABLE clinical_notes
+            ADD COLUMN IF NOT EXISTS custom_fields JSONB
+        """))
+
+        # Expand format CHECK constraint on clinical_notes to include 'custom'
+        # Drop existing constraint first (idempotent — IF EXISTS), then re-add
+        await conn.execute(text("""
+            ALTER TABLE clinical_notes
+                DROP CONSTRAINT IF EXISTS chk_clinical_notes_format
+        """))
+        await conn.execute(text("""
+            ALTER TABLE clinical_notes
+                ADD CONSTRAINT chk_clinical_notes_format
+                CHECK (format IN ('SOAP', 'DAP', 'BIRP', 'custom'))
+        """))
 
         # ── Migraciones seguras (IF NOT EXISTS / IF NOT EXISTS) ──────────────
         # Sessions
@@ -510,7 +556,7 @@ async def init_db():
         # crear un rol no-superuser es un paso post-MVP.
         for _tbl in [
             "patients", "sessions", "clinical_notes", "patient_profiles",
-            "subscriptions", "refresh_tokens", "audit_logs",
+            "subscriptions", "refresh_tokens", "audit_logs", "note_templates",
         ]:
             await conn.execute(text(f"ALTER TABLE {_tbl} ENABLE ROW LEVEL SECURITY;"))
 
@@ -530,6 +576,8 @@ async def init_db():
              "psychologist_id = current_setting('app.psychologist_id', true)::uuid"),
             ("audit_logs_isolation", "audit_logs",
              "psychologist_id = current_setting('app.psychologist_id', true)::uuid OR psychologist_id IS NULL"),
+            ("note_templates_isolation", "note_templates",
+             "psychologist_id = current_setting('app.psychologist_id', true)::uuid"),
         ]
         for _name, _table, _using in _rls_policies:
             await conn.execute(text(f"""
