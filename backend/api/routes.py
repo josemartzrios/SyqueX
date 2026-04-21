@@ -12,7 +12,7 @@ import json as _json
 from crypto import encrypt_if_set, decrypt_if_set
 from agent import process_session, update_patient_profile_summary
 from agent.tools import generate_evolution_report, search_patient_history
-from agent.embeddings import get_embedding
+from agent.embeddings import get_embedding, ZERO_VECTOR
 from api.limiter import limiter
 from exceptions import InvalidUUIDError, SessionNotFoundError, PatientNotFoundError, UnauthorizedAccessError
 from api.auth import get_current_psychologist
@@ -613,7 +613,11 @@ async def confirm_session(
 
     # 1. Embedding del texto plano ANTES de cifrar
     text_to_embed = " ".join([str(v) for v in structured.values() if v])
-    embedding = await get_embedding(text_to_embed)
+    try:
+        embedding = await get_embedding(text_to_embed)
+    except Exception as e:
+        logger.warning("Embedding failed for session %s, using zero vector fallback: %s", session_id, e)
+        embedding = ZERO_VECTOR
 
     # 2. Cifrar campos SOAP
     cn = ClinicalNote(
