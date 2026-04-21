@@ -157,7 +157,7 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
               }`}
               style={{ backgroundColor: SAGE }}
             >
-              {saving ? 'Guardando…' : 'Confirmar y guardar'}
+              {saving ? 'Guardando…' : 'Confirmar'}
             </button>
           ) : (
             <span className="font-sans text-[14px] font-medium" style={{ color: SAGE }}>
