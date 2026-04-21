@@ -14,6 +14,18 @@ from api.auth import router as auth_router
 from api.billing import router as billing_router
 from config import settings
 from exceptions import DomainError
+import re
+
+_ALLOWED_ORIGIN_RE = re.compile(
+    r"^https://(syquex(-[a-z0-9]+)*\.vercel\.app|app\.syquex\.mx)$"
+)
+
+def _cors_headers(request: Request) -> dict:
+    origin = request.headers.get("origin", "")
+    if origin == "http://localhost:5173" or _ALLOWED_ORIGIN_RE.match(origin):
+        return {"Access-Control-Allow-Origin": origin}
+    return {}
+
 
 logger = logging.getLogger("syquex")
 
@@ -83,7 +95,9 @@ async def domain_error_handler(request: Request, exc: DomainError):
     return JSONResponse(
         status_code=exc.http_status,
         content={"detail": exc.message, "code": exc.code},
+        headers=_cors_headers(request),
     )
+
 
 
 # Manejador global — nunca exponer stack traces al cliente
@@ -93,7 +107,9 @@ async def global_error_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": "Error interno del servidor"},
+        headers=_cors_headers(request),
     )
+
 
 @app.on_event("startup")
 async def startup_event():
