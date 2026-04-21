@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import Optional, List, Dict, Any, Literal
 from datetime import date, datetime
 
-from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal
+from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal, NoteTemplate
 import json as _json
 from crypto import encrypt_if_set, decrypt_if_set
 from agent import process_session, update_patient_profile_summary
@@ -147,6 +147,73 @@ class PatientCreate(BaseModel):
         return v
 
 
+class TemplateFieldSchema(BaseModel):
+    id: str
+    label: str
+    type: str  # text | scale | checkbox | list | date
+    options: list[str] = []
+    guiding_question: str = ""
+    order: int = 0
+
+class SaveTemplateRequest(BaseModel):
+    fields: list[TemplateFieldSchema]
+
+class NoteTemplateOut(BaseModel):
+    id: str
+    fields: list[TemplateFieldSchema]
+    created_at: datetime
+    updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Note Templates
+# ---------------------------------------------------------------------------
+
+@router.get("/template", response_model=NoteTemplateOut | None, tags=["clinical"])
+async def get_template(
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db_with_user),
+):
+    result = await db.execute(
+        select(NoteTemplate).where(NoteTemplate.psychologist_id == psychologist.id)
+    )
+    tmpl = result.scalar_one_or_none()
+    if tmpl is None:
+        return None
+    return NoteTemplateOut(
+        id=str(tmpl.id),
+        fields=[TemplateFieldSchema(**f) for f in (tmpl.fields or [])],
+        created_at=tmpl.created_at,
+        updated_at=tmpl.updated_at,
+    )
+
+@router.post("/template", response_model=NoteTemplateOut, tags=["clinical"])
+async def save_template(
+    body: SaveTemplateRequest,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db_with_user),
+):
+    result = await db.execute(
+        select(NoteTemplate).where(NoteTemplate.psychologist_id == psychologist.id)
+    )
+    tmpl = result.scalar_one_or_none()
+    fields_data = [f.model_dump() for f in body.fields]
+    if tmpl is None:
+        tmpl = NoteTemplate(psychologist_id=psychologist.id, fields=fields_data)
+        db.add(tmpl)
+    else:
+        tmpl.fields = fields_data
+        tmpl.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(tmpl)
+    return NoteTemplateOut(
+        id=str(tmpl.id),
+        fields=[TemplateFieldSchema(**f) for f in tmpl.fields],
+        created_at=tmpl.created_at,
+        updated_at=tmpl.updated_at,
+    )
+
+
 class PatientUpdate(BaseModel):
     # Todos opcionales — PATCH parcial. Los 3 campos mínimos validan min_length=1
     # cuando se envían (no se pueden limpiar con "").
@@ -251,6 +318,10 @@ class PaginatedConversations(BaseModel):
 class ProcessSessionOut(BaseModel):
     text_fallback: Optional[str]
     session_id: Optional[str] = None
+    format: str = "SOAP"
+    custom_fields: Optional[dict] = None
+    template_fields: Optional[list] = None
+
 
 class ConfirmNoteOut(BaseModel):
     id: uuid.UUID
