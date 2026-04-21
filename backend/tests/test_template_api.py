@@ -1,4 +1,5 @@
 import pytest
+import io
 from httpx import AsyncClient, ASGITransport
 import uuid
 from datetime import datetime, timezone
@@ -94,9 +95,32 @@ async def test_get_template_returns_saved(client: AsyncClient, auth_headers, moc
     tmpl.fields = fields
     tmpl.created_at = _NOW
     tmpl.updated_at = _NOW
-    
+
     mock_db.execute.return_value = _result(scalar_one_or_none=tmpl)
-    
+
     r = await client.get("/api/v1/template", headers=auth_headers)
     assert r.status_code == 200
     assert r.json()["fields"][0]["label"] == "Plan"
+
+
+@pytest.mark.asyncio
+async def test_analyze_pdf_returns_proposed_fields(client: AsyncClient, auth_headers, monkeypatch):
+    async def mock_analyze(pdf_base64: str) -> list[dict]:
+        return [{"id": "f1", "label": "Estado afectivo", "type": "text", "options": [], "guiding_question": "¿Cómo se siente?", "order": 1}]
+    monkeypatch.setattr("api.routes.analyze_pdf_with_claude", mock_analyze)
+
+    pdf_bytes = b"%PDF-1.4 mock content"
+    files = {"file": ("nota.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
+    r = await client.post("/api/v1/template/analyze-pdf", files=files, headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    assert data[0]["label"] == "Estado afectivo"
+
+
+@pytest.mark.asyncio
+async def test_analyze_pdf_too_large_returns_422(client: AsyncClient, auth_headers):
+    big = b"x" * (5 * 1024 * 1024 + 1)
+    files = {"file": ("nota.pdf", io.BytesIO(big), "application/pdf")}
+    r = await client.post("/api/v1/template/analyze-pdf", files=files, headers=auth_headers)
+    assert r.status_code == 422

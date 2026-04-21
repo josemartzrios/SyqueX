@@ -1,14 +1,17 @@
 import uuid
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, BackgroundTasks
+import base64
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, BackgroundTasks, UploadFile, File
+from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 from sqlalchemy.exc import IntegrityError
 from typing import Optional, List, Dict, Any, Literal
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal, NoteTemplate
+from config import settings
 import json as _json
 from crypto import encrypt_if_set, decrypt_if_set
 from agent import process_session, update_patient_profile_summary
@@ -166,6 +169,63 @@ class NoteTemplateOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# PDF analysis helper
+# ---------------------------------------------------------------------------
+
+_PDF_EXTRACTION_PROMPT = """
+You are analyzing a clinical psychologist's note template.
+Extract the sections and fields from this PDF note.
+For each section, return a JSON object with:
+- id: a unique short slug (e.g. "estado_afectivo")
+- label: the section name in Spanish
+- type: one of "text", "scale", "checkbox", "list", "date"
+  - Use "scale" if the field is numeric 1-10
+  - Use "checkbox" if the field has multiple yes/no options
+  - Use "list" if the field has a fixed set of single-choice options
+  - Use "date" if the field captures a date
+  - Default to "text"
+- options: list of strings (required for checkbox and list types, empty otherwise)
+- guiding_question: a question that helps the AI know what to extract from a dictation
+- order: sequential integer starting at 1
+
+Return ONLY a valid JSON array. No explanation, no markdown fences.
+""".strip()
+
+MAX_PDF_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+async def analyze_pdf_with_claude(pdf_base64: str) -> list[dict]:
+    import json as _json2
+    _client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    response = await _client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "document",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "application/pdf",
+                        "data": pdf_base64,
+                    },
+                },
+                {"type": "text", "text": _PDF_EXTRACTION_PROMPT},
+            ],
+        }],
+    )
+    text = response.content[0].text.strip()
+    try:
+        fields = _json2.loads(text)
+    except _json2.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="No pudimos detectar secciones — revisa que el PDF tenga texto seleccionable.")
+    if not fields:
+        raise HTTPException(status_code=422, detail="No pudimos detectar secciones — revisa que el PDF tenga texto seleccionable.")
+    return fields
+
+
+# ---------------------------------------------------------------------------
 # Note Templates
 # ---------------------------------------------------------------------------
 
@@ -212,6 +272,29 @@ async def save_template(
         created_at=tmpl.created_at,
         updated_at=tmpl.updated_at,
     )
+
+
+@router.post("/template/analyze-pdf", tags=["clinical"])
+async def analyze_pdf_endpoint(
+    file: UploadFile = File(...),
+    psychologist: Psychologist = Depends(get_current_psychologist),
+):
+    content = await file.read()
+    if len(content) > MAX_PDF_BYTES:
+        raise HTTPException(status_code=422, detail="El PDF no puede superar 5 MB.")
+    pdf_b64 = base64.b64encode(content).decode("utf-8")
+    fields = await analyze_pdf_with_claude(pdf_b64)
+    result = []
+    for i, f in enumerate(fields):
+        result.append(TemplateFieldSchema(
+            id=f.get("id", f"field_{i+1}"),
+            label=f.get("label", f"Campo {i+1}"),
+            type=f.get("type", "text"),
+            options=f.get("options", []),
+            guiding_question=f.get("guiding_question", ""),
+            order=f.get("order", i + 1),
+        ))
+    return result
 
 
 class PatientUpdate(BaseModel):
