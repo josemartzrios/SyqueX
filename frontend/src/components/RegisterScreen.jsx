@@ -29,7 +29,11 @@ export default function RegisterScreen({ onSuccess, onLogin }) {
       setAccessToken(data.access_token);
       onSuccess();
     } catch (err) {
-      setError(err.message || 'Error al crear la cuenta');
+      if (err.code === 'EMAIL_TAKEN') {
+        setError('EMAIL_TAKEN');
+      } else {
+        setError(err.message || 'Error al crear la cuenta');
+      }
     } finally {
       setLoading(false);
     }
@@ -91,7 +95,16 @@ export default function RegisterScreen({ onSuccess, onLogin }) {
             </label>
           </div>
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error === 'EMAIL_TAKEN' ? (
+            <p className="text-red-600 text-sm">
+              Este email ya tiene una cuenta.{' '}
+              <button onClick={onLogin} className="underline font-medium">
+                Iniciar sesión
+              </button>
+            </p>
+          ) : error ? (
+            <p className="text-red-600 text-sm">{error}</p>
+          ) : null}
 
           <button
             type="submit"
