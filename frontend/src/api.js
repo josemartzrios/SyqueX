@@ -121,6 +121,35 @@ export async function updatePatient(patientId, data) {
   });
 }
 
+export async function getTemplate() {
+  return _authFetch(`${API_BASE}/template`);
+}
+
+export async function saveTemplate(fields) {
+  return _authFetch(`${API_BASE}/template`, {
+    method: 'POST',
+    body: JSON.stringify({ fields }),
+  });
+}
+
+export async function analyzePdf(file) {
+  // Use fetch() directly — _authFetch always sets Content-Type: application/json
+  // which breaks multipart/form-data. Let the browser set the boundary automatically.
+  const formData = new FormData();
+  formData.append('file', file);
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE}/template/analyze-pdf`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new ApiError(err.detail || 'Error al analizar el PDF', res.status);
+  }
+  return res.json();
+}
+
 export async function listConversations() {
   const data = await _authFetch(`${API_BASE}/conversations`);
   return data.items;
