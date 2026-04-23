@@ -861,6 +861,8 @@ function App() {
               patientName={selectedPatientName}
               sessionCount={confirmedSessions.length}
               compact
+              patientId={selectedPatientId}
+              onEditPatient={(id) => setEditingPatientId(id)}
             />
 
             {/* Tab nav */}
