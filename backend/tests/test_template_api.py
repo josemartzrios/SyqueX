@@ -124,3 +124,72 @@ async def test_analyze_pdf_too_large_returns_422(client: AsyncClient, auth_heade
     files = {"file": ("nota.pdf", io.BytesIO(big), "application/pdf")}
     r = await client.post("/api/v1/template/analyze-pdf", files=files, headers=auth_headers)
     assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_template_replaces_existing(client, auth_headers, mock_db):
+    payload1 = {"fields": [{"id": "f1", "label": "A", "type": "text", "options": [], "guiding_question": "", "order": 1}]}
+    payload2 = {"fields": [{"id": "f2", "label": "B", "type": "scale", "options": [], "guiding_question": "", "order": 1}]}
+
+    tmpl_id = uuid.uuid4()
+
+    # First POST: no existing template → create; refresh must set timestamps
+    mock_db.execute.return_value = _result(scalar_one_or_none=None)
+    mock_db.refresh.side_effect = lambda x: (
+        setattr(x, "id", tmpl_id)
+        or setattr(x, "fields", payload1["fields"])
+        or setattr(x, "created_at", _NOW)
+        or setattr(x, "updated_at", _NOW)
+    )
+    await client.post("/api/v1/template", json=payload1, headers=auth_headers)
+
+    # Second POST: simulate existing template found (upsert path)
+    existing = MagicMock()
+    existing.id = tmpl_id
+    existing.fields = payload1["fields"]
+    existing.created_at = _NOW
+    existing.updated_at = _NOW
+    mock_db.execute.return_value = _result(scalar_one_or_none=existing)
+    mock_db.refresh.side_effect = lambda x: setattr(x, "fields", payload2["fields"]) or setattr(x, "id", existing.id) or setattr(x, "created_at", _NOW) or setattr(x, "updated_at", _NOW)
+    await client.post("/api/v1/template", json=payload2, headers=auth_headers)
+
+    # GET: now mock returns the updated template
+    updated = MagicMock()
+    updated.id = existing.id
+    updated.fields = payload2["fields"]
+    updated.created_at = _NOW
+    updated.updated_at = _NOW
+    mock_db.execute.return_value = _result(scalar_one_or_none=updated)
+    mock_db.refresh.side_effect = None
+
+    r = await client.get("/api/v1/template", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json()["fields"][0]["id"] == "f2"
+
+
+@pytest.mark.asyncio
+async def test_template_requires_auth(mock_db, monkeypatch):
+    """GET /template without a token must return 401."""
+    from cryptography.fernet import Fernet
+    import config as _config
+    monkeypatch.setattr(_config.settings, "ENCRYPTION_KEY", Fernet.generate_key().decode())
+    with patch("database.init_db", new=AsyncMock()):
+        from main import app as _app
+        from database import get_db
+        from api.routes import get_db_with_user
+
+        async def override_get_db():
+            yield mock_db
+
+        async def override_get_db_with_user(psychologist=None):
+            yield mock_db
+
+        # Only override DB — auth is NOT overridden so the real JWT check runs
+        _app.dependency_overrides[get_db] = override_get_db
+        _app.dependency_overrides[get_db_with_user] = override_get_db_with_user
+        try:
+            async with AsyncClient(transport=ASGITransport(app=_app), base_url="http://test") as c:
+                r = await c.get("/api/v1/template")
+            assert r.status_code == 401
+        finally:
+            _app.dependency_overrides.clear()
