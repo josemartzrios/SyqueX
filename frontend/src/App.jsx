@@ -705,6 +705,13 @@ function App() {
                         noteData={currentSessionNote.noteData}
                         onConfirm={fetchConversations}
                         readOnly={currentSessionNote.readOnly}
+                        onDelete={!currentSessionNote.readOnly ? async () => {
+                          const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
+                          if (!sid) return;
+                          await deleteSession(sid);
+                          setCurrentSessionNote(null);
+                          fetchPatientSessions(selectedPatientId);
+                        } : undefined}
                       />
                     ) : null}
                   </div>
@@ -937,6 +944,13 @@ function App() {
                       noteData={currentSessionNote.noteData}
                       onConfirm={fetchConversations}
                       readOnly={currentSessionNote.readOnly}
+                      onDelete={!currentSessionNote.readOnly ? async () => {
+                        const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
+                        if (!sid) return;
+                        await deleteSession(sid);
+                        setCurrentSessionNote(null);
+                        fetchPatientSessions(selectedPatientId);
+                      } : undefined}
                     />
                   ) : null}
                 </div>
