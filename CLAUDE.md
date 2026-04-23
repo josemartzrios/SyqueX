@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SyqueX (PsicoAgente) is a clinical AI assistant for psychologists. Clinicians dictate session notes, the system generates structured SOAP notes via Claude, stores them with vector embeddings for semantic search, and tracks patient evolution over time.
+SyqueX (PsicoAgente) is a clinical AI assistant for psychologists. Clinicians dictate session notes, the system generates structured notes via Claude, stores them with vector embeddings for semantic search, and tracks patient evolution over time.
 
 ## Development Commands
 
@@ -16,6 +16,8 @@ docker-compose up -d postgres
 
 Terminal 1 — Backend:                                                       
 .\start-backend.ps1  
+
+Terminal 2 — Frontend:
 .\start-frontend.ps1                                                      
                                                                                                                          
 
@@ -24,45 +26,6 @@ El script de backend crea el venv con Python 3.11 automáticamente si no     exi
   ▎ Si PowerShell bloquea la ejecución de scripts, corre primero:
   ▎ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
-# Backend (from /backend)
-cd "C:\Users\josma\OneDrive\Escritorio\SyqueX\backend"
-                                                                              # Crear venv con Python 3.11 explícitamente
-& "C:\Users\josma\AppData\Local\Programs\Python\Python311\python.exe" -m  venv venv       
-
-# Activar venv
-.\venv\Scripts\Activate.ps1
-
-# Verificar que ahora usa 3.11
-python --version   # debe decir Python 3.11.x
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-python seed.py          # Initialize DB with test data
-uvicorn main:app --reload
-
-Para usar el seed demo:
-  # 1. Parar el servidor
-  # 2. Instalar fastembed (primera vez descarga ~570 MB)
-  pip install -r requirements.txt
-  # 3. Correr seed
-  python seed_demo.py
-  # 4. Arrancar servidor — init_db() aplica la migración
-  uvicorn main:app --reload
-  # Login: ana@syquex.demo / demo1234
-
-# Frontend (from /frontend)
-npm install
-npm run dev             # Vite dev server at http://localhost:5173
-```
-
-### Frontend only
-```bash
-cd frontend
-npm run dev       # Dev server
-npm run build     # Production build
-npm run preview   # Preview production build
-```
 
 ### Database
 ```bash
@@ -149,58 +112,12 @@ Tailwind is loaded via CDN in `index.html` (not npm), so no `tailwind.config.js`
 
 ### Estado actual
 
-**Rama activa:** `feature/desktop-ui-cleanup`
-
-- [x] Split-document view (dictado izq + SOAP der) — implementado
-- [x] Mobile: tabs Dictar / Nota / Historial — implementado
-- [x] Auth con JWT + registro + login — implementado
-- [x] Botón nuevo paciente → icono junto al label PACIENTES
-- [x] Eliminar botón voz deshabilitado
-- [x] Eliminar historial duplicado del panel dictado
-- [x] Cards revisión desktop → estilo mobile unificado
-- [x] Empty state SOAP → ícono sutil
 
 ---
 
-### Sprint siguiente — Bloqueantes producción
-
-No se puede hacer deploy a producción sin estos cinco ítems, en este orden:
-
-| # | Feature | Nota |
-|---|---------|------|
-| 1 | **Fix flujo activar pago** | Billing endpoint retorna 404 — core del revenue |
-| 2 | **Página Aviso de Privacidad** (`/privacidad`) | LFPDPPP Art. 8 — link obligatorio en registro |
-| 3 | **Página Términos y Condiciones** (`/terminos`) | Link obligatorio en registro |
-| 4 | **Auditoría de vulnerabilidades** | OWASP top 10 sobre endpoints auth/billing |
-| 5 | **Auditoría LFPDPPP — audit_logs** | Verificar que todos los eventos sensibles quedan registrados |
-
-Spec de referencia: `docs/superpowers/specs/2026-03-30-auth-billing-launch-design.md`
-
 ---
 
-### Pre-deploy backlog 499
-
-Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueantes.
-
-| # | Feature | Descripción |
-|---|---------|-------------|
-| 1 | **Vulnerabilidades criticas** | Configurar buzón de contacto/soporte del servicio antes del lanzamiento |
-| 3 | **Actualizar landing apuntando a app dns** | Apuntar el dns de la landing a la app |
-| 4 | **Terminar de configurar stripe para pagos** | 
-
----
-
-### Post-MVP 
-
-| # | Feature | Descripción |
-|---|---------|-------------|
-| 1 | **Flujo olvide mi contraseña** | Crear cuenta en resend, verificar dominio, configurar flujo de recuperación de contraseña.
-| 2 | **Interfaz de perfil de psicologo** | interfaz para que psicólogo edite datos clinicos del paciente una vez que existe en el sistema. 
-| 3 | **Editar datos clinicos de paciente** | interfaz para que psicólogo edite datos clinicos del paciente una vez que existe en el sistema. 
-| 4 | **Mejorar Evolución chat** | Estado vacío más poderoso ("Analiza N sesiones de [paciente]…"); chips ordenados por relevancia clínica (factores de riesgo primero) |
-| 12 | **Visualizar contraseña** | Toggle show/hide en login y registro |
-
-### SyqueX pro
+### Siguientes features
 
 | 5 | **Dictado de voz con streaming** | Transcripción en tiempo real + SOAP construyéndose progresivamente (Whisper API) |
 | 6 | **Crear nota personalizada para usuario** | Export con membrete profesional |
@@ -224,9 +141,6 @@ Mejoras clínicas y UX que agregan valor antes del lanzamiento — no bloqueante
 - **Desktop:** split-view — panel dictado (320px izq) + panel nota (flex derecho)
 - **Mobile:** tabs Dictar / Nota / Historial
 
-**Mockups aprobados:**
-- `docs/mockups/syquex-v2-desktop.html`
-- `docs/mockups/syquex-v2-mobile.html`
 
 ## Branching Strategy
 
@@ -238,6 +152,8 @@ Git Flow simplificado para un solo desarrollador con CI/CD automático.
 | `dev` | Staging | Auto → Vercel preview + Railway staging |
 | `feature/*` | Preview | Vercel preview URL por branch |
 | `hotfix/*` | — | Merge directo a `main`, luego backport a `dev` |
+
+Sigue el archivo @git-sync.ps1 para mantener todo sincronizado con las ramas principales en local y remoto despues de cada feature/hotfix merge en dev/main.
 
 **Flujo normal:**
 ```
@@ -255,29 +171,18 @@ hotfix/nombre → main (fix urgente) → dev (backport)
 - Los `feature/*` salen de `dev` y vuelven a `dev` via PR
 - Los `hotfix/*` salen de `main` y se mergean a `main` + `dev`
 
-## Deuda técnica pendiente
 
-### CORS — ALLOWED_ORIGINS no se carga desde Railway (post-demo)
+- Utiliza patrones SOLID para que el código sea más mantenible
+- Mantén el código limpio y organizado
+- Utiliza comentarios para explicar el código
 
-La variable de entorno `ALLOWED_ORIGINS=https://syquex.vercel.app` está configurada en Railway pero `settings.get_allowed_origins()` retorna el default (`http://localhost:5173`) en runtime. Causa raíz desconocida — el debug log `[CORS_DEBUG]` en `main.py` imprime `repr(os.environ.get("ALLOWED_ORIGINS"))` al startup; revisar los logs de Railway para diagnosticar.
+Con cada nuevo feature con merge a dev actualiza los diagramas y documentos del proyecto de CLAUDE.md y dentro de /docs/architecture en caso de ser necesario. Para generar los diagramas puedes utilizar herramientas como mermaid.
 
-**Workaround activo:** `allow_origin_regex=r"https://syquex(-[a-z0-9]+)*\.vercel\.app"` en `main.py` — no depende del env var.
+Haz pruebas unitarias de cada cambio que realices en el backend y frontend y asegúrate de que todo funcione correctamente.
 
-**Al investigar:** Railway → servicio → Logs → buscar `[CORS_DEBUG]`. Si muestra `NOT_SET` o caracteres raros, el env var no llega al proceso Python. Verificar que el env var está en el environment correcto (Production vs Preview en Railway) y que el servicio redesplegó después de guardarlo.
+Revisa los skills del proyecto para seguirlos al pie de la letra sobre todo los de seguridad @skills/security.md y @skills/clinic/agent-clinic.md.
 
 ---
 
-## Pendientes landing page (retomar 2026-04-16)
 
-### Conversión / prueba social
-- No hay testimonios — ninguna prueba social real.
-- No hay capturas de pantalla del producto.
-- No hay respuesta a objeciones comunes.
-- No hay sección "¿Para quién es SyqueX?".
 
-### Acciones concretas
-1. **Captura prioritaria:** pestaña Evolución con las preguntas clínicas generadas automáticamente. Esa imagen sola vale más que tres párrafos de descripción.
-2. **CTA duplicado:** hay dos botones idénticos "Empieza gratis — 14 días". El segundo debería ser "Ver demo" o "¿Cómo funciona?" para usuarios que aún no están convencidos.
-3. **Prueba social real (no inventada):** después del primer demo positivo, pedir permiso para usar una frase del psicólogo, con formato:
-   > "Por fin algo que entiende mi flujo de trabajo"
-   > — Psicóloga, consulta privada, Culiacán
