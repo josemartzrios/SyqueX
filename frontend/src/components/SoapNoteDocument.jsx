@@ -34,10 +34,12 @@ const SECTIONS = [
   { key: 'plan',       letter: 'P', label: 'Plan'       },
 ]
 
-export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false, compact = false }) {
+export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOnly = false, compact = false }) {
   const [saving, setSaving] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [saveError, setSaveError] = useState(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Parse note data
   const parsedNote = !noteData.clinical_note && noteData.text_fallback
@@ -67,6 +69,12 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try { await onDelete() } finally { setDeleting(false); setShowDeleteConfirm(false) }
   }
 
   // Handle confirm timeout cleanup
@@ -145,9 +153,36 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
         <p className="font-sans mt-4 text-[13px] text-red-600">{saveError}</p>
       )}
 
-      {/* Confirm button — only when not readOnly and there is a structured note */}
+      {/* CTA bar — only when not readOnly and there is a structured note */}
       {!readOnly && hasStructuredNote && (
-        <div className="mt-8">
+        <div className="mt-8 flex items-center gap-2">
+          {!confirmed && onDelete && (
+            showDeleteConfirm ? (
+              <div className="flex items-center gap-2 mr-auto">
+                <span className="font-sans text-[12px] text-red-600">¿Eliminar nota?</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="font-sans text-[12px] text-red-600 border border-red-300 rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  {deleting ? 'Eliminando…' : 'Sí, eliminar'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="font-sans text-[12px] text-ink-muted px-2 py-1.5"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="mr-auto font-sans text-[13px] font-medium text-red-500 border border-red-200 rounded-xl px-4 py-2 hover:bg-red-50 transition-colors"
+              >
+                Borrar nota
+              </button>
+            )
+          )}
           {!confirmed ? (
             <button
               onClick={handleConfirm}
