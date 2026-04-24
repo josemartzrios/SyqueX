@@ -8,7 +8,7 @@
 
 ## Resumen
 
-El psicólogo puede editar la nota clínica generada por el agente directamente en la interfaz antes de confirmarla. La edición aplica únicamente a notas en estado **draft**. Una vez confirmada, la nota es inmutable.
+El psicólogo puede editar la nota clínica generada por el agente directamente en la interfaz antes de confirmarla aplica para mobile y desktop. La edición aplica únicamente a notas en estado **draft**. Una vez confirmada, la nota es inmutable.
 
 ---
 

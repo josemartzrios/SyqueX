@@ -8,7 +8,7 @@ def build_json_schema_for_field(field: dict) -> dict:
         return {"type": "string", "description": desc}
     if ftype == "scale":
         return {"type": "integer", "minimum": 1, "maximum": 10, "description": desc}
-    if ftype == "checkbox":
+    if ftype in ("checkbox", "options"):
         options = field.get("options", [])
         return {"type": "array", "items": {"type": "string", "enum": options}, "description": desc}
     if ftype == "list":
