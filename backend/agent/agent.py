@@ -72,6 +72,7 @@ SYSTEM_PROMPT = f"""Eres SyqueX, asistente clínico de salud mental.
 MODO CHAT: responde breve y directo, máximo 3 oraciones. Sin introducciones ni cierres.
 Si el psicólogo comparte datos de un paciente, haz UNA pregunta clínica clave o una observación concisa.
 NO generes notas SOAP ni formato estructurado.
+Si en el historial aparecen bloques etiquetados como [NOTA CLÍNICA PREVIA — Sesión #N], son notas de sesiones anteriores ya confirmadas. Úsalas para responder preguntas sobre la evolución del paciente.
 {_SHARED_RULES}"""
 
 SOAP_SYSTEM_PROMPT = f"""Eres SyqueX, asistente clínico de salud mental.
@@ -100,11 +101,15 @@ CUSTOM_NOTE_SYSTEM_PROMPT = (
 )
 
 
-async def _get_patient_context(db, patient_id: str, patient_name: str = "") -> list:
+async def _get_patient_context(db, patient_id: str, patient_name: str = "", chat_mode: bool = False) -> list:
     """
-    Builds the full context message list for a patient:
-    1. A clinical profile block (patient_summary + risk/protective factors + recurring themes)
-    2. Verbatim turns from the last N confirmed sessions (for recency)
+    Builds the full context message list for a patient.
+
+    chat_mode=False (note generation): injects verbatim session turns so the LLM
+        continues the conversation in the same format.
+    chat_mode=True (Evolution tab): injects labeled clinical note summaries so the
+        LLM recognises them as PREVIOUS sessions, not as the current chat thread.
+        Filters out chat-format and draft sessions to keep context clean.
     """
     from database import Session as SessionModel, PatientProfile
 
@@ -138,27 +143,65 @@ async def _get_patient_context(db, patient_id: str, patient_name: str = "") -> l
             "content": "Entendido. Tengo en cuenta el historial clínico del paciente para esta sesión."
         })
 
-    # --- 2. Load verbatim turns from last N sessions ---
-    result = await db.execute(
+    # --- 2. Load session history ---
+    base_query = (
         select(SessionModel)
         .where(
             SessionModel.patient_id == patient_id,
             SessionModel.is_archived == False,
-            SessionModel.messages != None,
         )
         .order_by(SessionModel.created_at.desc())
         .limit(ClinicalNoteConfig.MAX_SESSIONS_CONTEXT)
     )
+
+    if chat_mode:
+        # For Evolution chat: only confirmed clinical sessions with a note text.
+        # Excludes chat-format sessions to prevent the agent from recycling its own
+        # previous Evolution responses as "clinical history".
+        base_query = base_query.where(
+            SessionModel.format != "chat",
+            SessionModel.status == "confirmed",
+            SessionModel.ai_response != None,
+        )
+    else:
+        base_query = base_query.where(SessionModel.messages != None)
+
+    result = await db.execute(base_query)
     sessions = result.scalars().all()
 
-    for session in reversed(sessions):  # Oldest first for correct temporal order
-        decrypted_msg = decrypt_if_set(session.messages)
-        if decrypted_msg:
-            try:
-                msgs = _json.loads(decrypted_msg) if isinstance(decrypted_msg, str) else decrypted_msg
-                context.extend(msgs)
-            except (_json.JSONDecodeError, TypeError):
-                pass
+    if chat_mode:
+        # Inject each clinical session as a labeled summary block so the LLM
+        # knows these are PRIOR sessions, not the current conversation.
+        for session in reversed(sessions):
+            # Belt-and-suspenders: also filter at application level so tests can
+            # verify the exclusion logic without a real database.
+            if getattr(session, "format", None) == "chat":
+                continue
+            if getattr(session, "status", None) != "confirmed":
+                continue
+            note_text = decrypt_if_set(session.ai_response)
+            if not note_text:
+                continue
+            date_str = str(session.session_date) if session.session_date else "fecha desconocida"
+            num_str = str(session.session_number) if session.session_number else "?"
+            context.append({
+                "role": "user",
+                "content": f"[NOTA CLÍNICA PREVIA — Sesión #{num_str} del {date_str}]\n{note_text}",
+            })
+            context.append({
+                "role": "assistant",
+                "content": "Entendido. He registrado esta nota clínica en el historial del paciente.",
+            })
+    else:
+        # For note generation: inject verbatim turns for format continuity.
+        for session in reversed(sessions):
+            decrypted_msg = decrypt_if_set(session.messages)
+            if decrypted_msg:
+                try:
+                    msgs = _json.loads(decrypted_msg) if isinstance(decrypted_msg, str) else decrypted_msg
+                    context.extend(msgs)
+                except (_json.JSONDecodeError, TypeError):
+                    pass
 
     return context
 
@@ -236,8 +279,8 @@ async def process_session(db, patient_id: str, raw_dictation: str, session_id: s
     # Sanitizar contra prompt injection antes de enviar al LLM
     dictado_seguro = _sanitizar_dictado(raw_dictation)
 
-    # Load persistent context from previous sessions
-    context_messages = await _get_patient_context(db, patient_id, patient_name)
+    is_chat = format_.lower() == "chat"
+    context_messages = await _get_patient_context(db, patient_id, patient_name, chat_mode=is_chat)
 
     # Append the current user message to the full conversation history
     messages = context_messages + [{"role": "user", "content": dictado_seguro}]

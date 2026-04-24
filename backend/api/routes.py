@@ -623,6 +623,7 @@ async def get_patient_sessions(
 
     items = []
     for s, cn in res.all():
+        is_custom = cn and cn.format == "custom"
         items.append(SessionOut(
             id=s.id,
             session_number=s.session_number,
@@ -631,12 +632,13 @@ async def get_patient_sessions(
             ai_response=decrypt_if_set(s.ai_response),
             status=s.status,
             format=s.format,
-            structured_note={
+            structured_note=None if is_custom else ({
                 "subjective": decrypt_if_set(cn.subjective),
                 "objective": decrypt_if_set(cn.objective),
                 "assessment": decrypt_if_set(cn.assessment),
                 "plan": decrypt_if_set(cn.plan),
-            } if cn else None,
+            } if cn else None),
+            custom_fields=cn.custom_fields if is_custom else None,
             detected_patterns=list(cn.detected_patterns) if cn and cn.detected_patterns is not None else None,
             alerts=list(cn.alerts) if cn and cn.alerts is not None else None,
             suggested_next_steps=list(cn.suggested_next_steps) if cn and cn.suggested_next_steps is not None else None,
@@ -690,7 +692,7 @@ async def process_session_endpoint(
     )
     template = tmpl_result.scalar_one_or_none()
 
-    if template and template.fields:
+    if template and template.fields and rec.format.lower() != "chat":
         result = await process_session_custom(
             db=db,
             patient_id=str(patient_uuid),

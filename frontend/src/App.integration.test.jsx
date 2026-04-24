@@ -16,7 +16,9 @@ vi.mock('./api', () => ({
   setAuthCallbacks: vi.fn(),
   getBillingStatus: vi.fn().mockResolvedValue({ status: 'active' }),
   createCheckout: vi.fn(),
-  register: vi.fn().mockResolvedValue({ access_token: 'fake-token' })
+  register: vi.fn().mockResolvedValue({ access_token: 'fake-token' }),
+  getTemplate: vi.fn().mockResolvedValue({ fields: [] }),
+  saveTemplate: vi.fn().mockResolvedValue({}),
 }))
 
 // Mock auth.js
@@ -35,6 +37,7 @@ window.HTMLElement.prototype.scrollIntoView = function() {}
 describe('App - Evolución Tab Logic', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.setItem('syquex_onboarding_done', 'true')
     api.listConversations.mockResolvedValue([
       { patient_id: 'p1', patient_name: 'Juan Perez' }
     ])
@@ -145,6 +148,7 @@ describe('App - Registration routing', () => {
 describe('App - Nota panel empty state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.setItem('syquex_onboarding_done', 'true')
     auth.getScreenFromUrl.mockReturnValue({ screen: 'app' })
     auth.refreshAccessToken.mockResolvedValue('fake-token')
     api.getBillingStatus.mockResolvedValue({ status: 'active' })

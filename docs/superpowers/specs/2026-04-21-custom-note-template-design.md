@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-21  
 **Status:** Approved  
-**Branch target:** `dev`
+**Branch target:** `feature/note-personalized`
 
 ---
 

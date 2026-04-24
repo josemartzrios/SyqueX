@@ -112,6 +112,9 @@ Tailwind is loaded via CDN in `index.html` (not npm), so no `tailwind.config.js`
 
 ### Estado actual
 
+```
+Feature completa: custom note templates (Tasks 6–16) implementada y commiteada en feature/note-personalized. Próximo paso: abrir PR hacia dev para revisión.
+```
 
 ---
 
@@ -180,7 +183,7 @@ Con cada nuevo feature con merge a dev actualiza los diagramas y documentos del 
 
 Haz pruebas unitarias de cada cambio que realices en el backend y frontend y asegúrate de que todo funcione correctamente.
 
-Revisa los skills del proyecto para seguirlos al pie de la letra sobre todo los de seguridad @skills/security.md y @skills/clinic/agent-clinic.md.
+Sigue los skills del proyecto@skills/security.md y @skills/clinic/agent-clinic.md y @skills/solid.md
 
 ---
 
