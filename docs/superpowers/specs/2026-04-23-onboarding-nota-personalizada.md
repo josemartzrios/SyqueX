@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-04-23
 **Branch base:** `dev`
-**Feature branch:** `feature/onboarding-nota-personalizada`
+**Feature branch:** `feature/note-personalized`
 
 ---
 
@@ -36,7 +36,8 @@ Tarjeta centrada (`max-w-[560px]`) sobre fondo `#f4f4f2`. Contenido:
 - Ícono documento (sage)
 - Badge: `Estándar clínico`
 - Descripción: _"Estructura clásica de documentación usada en psicología y medicina. El agente organiza tu dictado en cuatro secciones automáticamente."_
-- Píldoras explicativas en la misma tarjeta:
+- Línea explicativa (antes de las píldoras): `SOAP son las iniciales de Subjetivo, Objetivo, Análisis y Plan.` (texto 12px, color `#6b7280`)
+- Píldoras explicativas debajo:
   - `S Subjetivo` · `O Objetivo` · `A Análisis` · `P Plan`
   - Con la letra inicial en color sage
 
@@ -152,6 +153,17 @@ Dictado · 23 abr 2026
 ### Texto del botón "Generar"
 - Toggle en SOAP: `"Generar nota SOAP"`
 - Toggle en Personalizada: `"Generar nota personalizada"`
+
+### Renderizado en el tab "Nota" según formato activo
+El panel derecho (desktop) / tab "Nota" (mobile) muestra un componente diferente según el `noteFormat` activo al momento de generar:
+
+| `noteFormat` | Componente renderizado | Descripción |
+|---|---|---|
+| `'soap'` | `SoapNoteDocument` | Secciones S / O / A / P con tipografía Georgia, labels en small caps sage |
+| `'custom'` | `CustomNoteDocument` | Campos del template del usuario, en el mismo estilo visual (Georgia, small caps sage) |
+
+- El formato queda ligado a la sesión generada: si el usuario cambia el toggle después de generar, la nota ya confirmada no cambia de formato.
+- Si hay una nota en pantalla de una sesión anterior con formato diferente al toggle actual, se muestra con su formato original (el que tenía al generarse).
 
 ### Estado
 - `noteFormat: 'soap' | 'custom'` en `App.jsx` (state local, persiste en `localStorage` con clave `syquex_note_format` para que el psicólogo no tenga que cambiar el toggle en cada recarga)
