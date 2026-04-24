@@ -1,17 +1,107 @@
-# NoteConfigurator — Rediseño Mobile-First
+# Onboarding + NoteConfigurator — Rediseño Mobile-First
 
 **Fecha:** 2026-04-23  
-**Contexto:** El `NoteConfigurator` fue diseñado como split-panel de desktop. En pantallas de 300–375px, el chrome consumía 192px (topbar 64px + tabs 48px + bottombar 80px), dejando solo ~108px de área útil. Se eliminan los tabs Diseñar/Vista previa y se adopta un scroll único compacto.
+**Contexto:** El `OnboardingScreen` y el `NoteConfigurator` fueron diseñados para desktop. En pantallas de 300–375px el chrome del configurador consumía 192px dejando solo 108px útiles, y la pantalla de onboarding era imposible de scrollear. Además hay un bug de navegación que atrapa al usuario en `OnboardingScreen` al elegir "Personalizar".
+
+**Principio guía — Mobile-first:** diseñar desde 300px hacia arriba. Desktop hereda y expande.
 
 ---
 
-## Principio guía
+## Parte 1 — OnboardingScreen
 
-**Mobile-first:** diseñar desde 300px hacia arriba. Desktop hereda el layout mobile y agrega el split-panel solo en `md+`.
+### Bug de navegación (root cause)
+
+`onSelectCustom` llama `setShowNoteConfigurator(true)` pero no cambia `onboardingCompleted`. En el siguiente render el bloque de early-return `if (!onboardingCompleted && template !== null)` vuelve a ejecutarse y retorna `<OnboardingScreen>` porque el `<NoteConfigurator>` vive dentro del `return (` principal que nunca se alcanza.
+
+**Fix:** añadir `else if (showNoteConfigurator)` dentro del bloque de onboarding en App.jsx:
+
+```jsx
+if (!onboardingCompleted && template !== null) {
+  if (template.fields?.length > 0) {
+    localStorage.setItem('syquex_onboarding_done', 'true');
+    setOnboardingCompleted(true);
+  } else if (showNoteConfigurator) {
+    return (
+      <NoteConfigurator
+        initialFields={[]}
+        isFirstTime={true}
+        onSave={async (fields) => { /* guardar + marcar onboarding completo */ }}
+        onCancel={() => { /* marcar onboarding como soap + cerrar */ }}
+      />
+    );
+  } else {
+    return <OnboardingScreen ... />;
+  }
+}
+```
+
+### Diseño mobile-first — Cards tappables
+
+La card completa es el botón. Sin fila de botones separada debajo. El texto descriptivo largo se oculta en mobile con `hidden md:block`.
+
+**Layout mobile:**
+
+```
+┌──────────────────────────────────┐
+│ ⚡ SyqueX            p-4 top     │  logo inline (no absolute)
+│                                  │
+│ ¿Cómo quieres documentar         │  text-[20px] md:text-[26px] font-bold
+│ tus sesiones?                    │
+│ Solo te preguntamos una vez.     │  text-[12px] text-muted mb-5
+│                                  │
+│ ┌──────────────────────────────┐ │  ← onClick = onSelectSoap
+│ │ 📄  Formato SOAP             │ │  p-4, border rounded-xl
+│ │              [Estándar ›]    │ │  badge alineado a la derecha
+│ │ [S Subjetivo][O][A][P]       │ │  pills compactos
+│ └──────────────────────────────┘ │
+│                                  │
+│ ┌──────────────────────────────┐ │  ← onClick = onSelectCustom
+│ │ ✏️  Nota personalizada       │ │  border-[#5a9e8a] bg-[#f0f8f5]
+│ │              [Recomendado ›] │ │
+│ │ [Motivo][Estado][+ campos…]  │ │
+│ └──────────────────────────────┘ │
+│                                  │
+│      Decidir después             │  text-[12px] muted, centered
+└──────────────────────────────────┘
+```
+
+**Desktop (md+):** mismas cards, agregan párrafo descriptivo con `hidden md:block`. Sin botones separados.
+
+**Especificaciones de las cards:**
+
+| Elemento | Valor |
+|----------|-------|
+| Card padding | `p-4 md:p-5` |
+| Card border radius | `rounded-xl` |
+| Card SOAP border | `border border-black/[0.08]` |
+| Card Custom border | `border-2 border-[#5a9e8a]` + `bg-[#f0f8f5]/50` |
+| Card hover | `hover:shadow-sm active:scale-[0.99] transition-all cursor-pointer` |
+| Texto descriptivo | `<p className="hidden md:block text-[13px] text-[#6b7280] mt-2 mb-3">` |
+| h1 | `text-[20px] md:text-[26px] font-bold` |
+| Wrapper externo | `p-4 md:p-8`, sin card blanca contenedora en mobile |
+
+**Pills SOAP:** `text-[10px] md:text-[11px] px-2 py-0.5 md:px-2.5 md:py-1`
+
+**Chips Custom:** `text-[10px] md:text-[11px]`, mismo patrón
+
+### Archivos a modificar
+
+| Archivo | Cambio |
+|---------|--------|
+| `frontend/src/components/OnboardingScreen.jsx` | Reescribir con cards tappables, mobile-first |
+| `frontend/src/App.jsx` | Añadir `else if (showNoteConfigurator)` en bloque onboarding; mover render de `NoteConfigurator` dentro del bloque |
+
+### Tests a actualizar
+
+`OnboardingScreen.test.jsx`:
+- Tests existentes siguen válidos (mismos props, mismas callbacks)
+- Verificar que no haya referencias a botones separados "Usar SOAP" / "Personalizar mi nota →" que ya no existen como elementos independientes
 
 ---
 
-## Chrome (topbar + bottombar)
+## Parte 2 — NoteConfigurator
+
+### Chrome antes / después
 
 | Elemento | Antes | Después |
 |----------|-------|---------|
@@ -21,32 +111,31 @@
 | **Total chrome** | **192px** | **92px** |
 | **Área útil en 300px** | **108px** | **208px** |
 
-- Topbar: logo (icono, sin texto en mobile), título `text-[13px]`, botón "Saltar" `text-[12px]`
+- Topbar: logo icono, título `text-[13px]`, "Saltar" `text-[12px]`
 - Bottombar: `← Volver` + `Guardar y entrar →` / `Guardar cambios`, botones `py-2 text-[13px]`
-- **Sin tabs Diseñar/Vista previa** — eliminados en mobile
+- **Sin tabs Diseñar/Vista previa** — eliminados completamente
 
----
-
-## Layout mobile (< md): scroll único
+### Layout mobile (< md): scroll único
 
 ```
 [topbar 40px — fixed]
-scroll-area {
-  Sección A: Lista de secciones (acordeón)
-  Sección B: Agregar sección (chips + input)
-  Sección C: Vista previa inline (expandible)
+scroll-area (overflow-y-auto) {
+  A: Lista de secciones (acordeón)
+  B: Agregar sección (chips + input)
+  C: Vista previa inline (expandible)
 }
 [bottombar 52px — fixed]
 ```
 
-Todo en una sola columna. Sin tabs. El usuario hace scroll natural hacia abajo.
+### Layout desktop (md+): split-panel
 
----
+Panel izquierdo `w-[450px]`: lista + agregar sección.  
+Panel derecho `flex-1 bg-[#f4f4f2]`: vista previa.  
+Topbar `h-16`, bottombar `h-20` (alturas originales recuperadas).
 
-## Sección A: Lista de secciones
+### Sección A — Lista de secciones
 
-### Fila de sección (vacía)
-
+**Fila normal:**
 ```
 ┌──────────────────────────────────────────────┐
 │ ⠿  📝  Motivo de consulta         ↑  ↓   ✕ │  44px
@@ -54,108 +143,86 @@ Todo en una sola columna. Sin tabs. El usuario hace scroll natural hacia abajo.
 ```
 
 - `py-2.5 px-3`, `gap-1.5` entre filas
-- Handle `⠿`: drag en desktop, decorativo en mobile
-- **Botones ↑↓**: mecanismo de reordenado en mobile — siempre visibles, `p-1.5`, tocan `setFields` con swap de índices
-- Botón ✕: elimina la sección
-- Tap en la fila → abre editor de tipo (acordeón)
+- Handle `⠿`: drag en desktop (atributo `draggable`), decorativo en mobile
+- **Botones ↑↓** (mobile reorder): siempre visibles, `p-1.5`, hacen swap de posición en `fields`
+- Botón ✕: elimina la sección con `stopPropagation`
+- Tap en fila → toggle acordeón (abre si cerrada, cierra si activa)
 
-### Fila activa (editor inline expandido)
-
+**Fila activa (acordeón abierto):**
 ```
 ┌──────────────────────────────────────────────┐
 │ ⠿  📝  Motivo de consulta         ↑  ↓   ✕ │
 │ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ │
-│  [📝 Texto libre] [📊 Escala 1-10]           │
-│  [☑️  Opciones]   [📅 Fecha]                 │
+│  [📝 Texto libre]  [📊 Escala 1-10]          │
+│  [☑️  Opciones]    [📅 Fecha]                │
 └──────────────────────────────────────────────┘
 ```
 
-- `border-[#5a9e8a] bg-[#f0f8f5]` cuando activa
-- Grid 2×2 del `TemplateFieldEditor`: botones `py-2 px-3 text-[11px]`
-- Solo una sección abierta a la vez (cerrar la activa al abrir otra)
-- `TemplateFieldEditor` existente se reutiliza, solo se ajusta padding
+- Borde `border-[#5a9e8a]` + fondo `bg-[#f0f8f5]`
+- Grid 2×2 de `TemplateFieldEditor`: `py-2 px-3 text-[11px]`
+- Solo una sección abierta a la vez — abrir otra cierra la anterior
+- `activeFieldIndex` controla cuál está abierta (`-1` = ninguna)
 
-### Empty state
-
+**Empty state:**
 ```
 ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
   Agrega secciones abajo para comenzar
 └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
 ```
+`border-dashed p-4 text-[12px] text-center`
 
-- `border-dashed p-4 text-[12px] text-center`
-
----
-
-## Sección B: Agregar sección
+### Sección B — Agregar sección
 
 ```
-AGREGAR SECCIÓN (label uppercase 10px)
+AGREGAR SECCIÓN   (label 10px uppercase)
 
 [+ Motivo de consulta][+ Estado de ánimo][+ Intervenciones]
 [+ Acuerdos y tareas][+ Escala de malestar][+ Objetivos]
 [+ Riesgos][+ Observaciones][+ Recursos]
 
-┌─────────────────────┐  ┌──────────┐
-│ Nombre personalizado│  │ + Agregar│
-└─────────────────────┘  └──────────┘
+┌─────────────────────────┐  ┌──────────┐
+│  Nombre personalizado…  │  │+ Agregar │
+└─────────────────────────┘  └──────────┘
 ```
 
-- Chips: `text-[11px] px-2.5 py-1 rounded-full` (reducidos vs `text-[12px] px-3 py-1.5` actual)
+- Chips: `text-[11px] px-2.5 py-1 rounded-full` (reducidos)
 - Chip usada → `opacity-40 cursor-not-allowed`
 - Input + botón en misma fila: `py-2 text-[13px]`
-- Enter en input = agregar
+- Enter en input dispara agregar
 
----
-
-## Sección C: Vista previa inline
+### Sección C — Vista previa inline
 
 ```
 ──────────────────────────────────────────
 VISTA PREVIA                            ∨
 
 ┌──────────────────────────────────────┐
-│ MOTIVO DE CONSULTA                   │  ← sage uppercase
+│ MOTIVO DE CONSULTA                   │  sage uppercase
 │ ▬▬▬▬▬▬▬▬▬▬ ▬▬▬▬▬▬▬                 │
 │                                      │
-│ ESTADO DE ÁNIMO                      │  ← campo activo en ámbar
+│ ESTADO DE ÁNIMO                      │  campo activo → ámbar
 │ ① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩             │
 └──────────────────────────────────────┘
 ```
 
-- Header "VISTA PREVIA" `text-[10px] uppercase tracking-wide` + chevron toggle
+- Header `text-[10px] uppercase tracking-wide` + chevron `∨/∧`
 - **Por defecto: expandida**
-- Colapsada: solo el header (40px), sin la card
-- `NotePreview` existente reutilizado sin cambios
-- Campo activo (sección seleccionada en lista) → resaltado en ámbar dentro del preview
+- Colapsada: solo el header (40px)
+- `NotePreview` existente reutilizado sin cambios — recibe `fields` y `activeFieldIndex`
 
----
-
-## Layout desktop (md+): split-panel sin cambios
-
-En `md+` se mantiene el split-panel actual:
-- Panel izquierdo `w-[450px]`: lista + agregar sección
-- Panel derecho `flex-1`: vista previa
-- Topbar y bottombar recuperan sus alturas originales: `h-16` y `h-20`
-
-Los mobile tabs desaparecen porque la lógica de "una columna / dos columnas" se maneja exclusivamente con clases responsive.
-
----
-
-## Archivos a modificar
+### Archivos a modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `NoteConfigurator.jsx` | Reescribir layout: eliminar tabs, chrome compacto, acordeón, ↑↓, preview inline |
-| `TemplateFieldEditor.jsx` | Reducir padding de botones tipo: `p-4` → `py-2 px-3`, `text-xl` emoji → `text-base` |
+| `NoteConfigurator.jsx` | Reescribir layout: eliminar tabs, chrome compacto, acordeón, ↑↓, preview inline colapsable |
+| `TemplateFieldEditor.jsx` | `p-4` → `py-2 px-3` en botones de tipo; emoji `text-xl` → `text-base` |
 
-`NotePreview.jsx` no cambia.
+`NotePreview.jsx` — sin cambios.
 
----
-
-## Tests a actualizar
+### Tests a actualizar
 
 `NoteConfigurator.test.jsx`:
-- Eliminar tests que referencian tabs "Diseñar" / "Vista previa"
-- Agregar test: botones ↑↓ reordenan campos correctamente
-- Agregar test: tap en sección abre editor, tap en otra sección cierra la anterior
+- Eliminar tests que referencian tabs "Diseñar" / "Vista previa" (eliminados)
+- Agregar: botones ↑↓ reordenan campos correctamente
+- Agregar: tap en sección abre acordeón; tap en otra sección cierra la anterior y abre la nueva
+- Agregar: preview se colapsa/expande con chevron
