@@ -5,6 +5,8 @@
 
 **Principio guía — Mobile-first:** diseñar desde 300px hacia arriba. Desktop hereda y expande.
 
+**Flujo post-onboarding:** una vez completado el onboarding, el usuario usa el **toggle SOAP/Personalizada** del `DictationPanel` para cambiar de formato en cualquier momento, y el link **"Editar plantilla"** (visible cuando el toggle está en Personalizada) para reconfigurar sus campos. Ambos ya están implementados y funcionan en desktop y mobile.
+
 ---
 
 ## Parte 1 — OnboardingScreen
@@ -39,6 +41,8 @@ if (!onboardingCompleted && template !== null) {
 
 La card completa es el botón. Sin fila de botones separada debajo. El texto descriptivo largo se oculta en mobile con `hidden md:block`.
 
+**"Decidir después" eliminado.** El onboarding es obligatorio — el usuario debe elegir SOAP o Personalizada antes de entrar a la app. No hay prop `onSkip` en `OnboardingScreen`.
+
 **Layout mobile:**
 
 ```
@@ -60,10 +64,10 @@ La card completa es el botón. Sin fila de botones separada debajo. El texto des
 │ │              [Recomendado ›] │ │
 │ │ [Motivo][Estado][+ campos…]  │ │
 │ └──────────────────────────────┘ │
-│                                  │
-│      Decidir después             │  text-[12px] muted, centered
 └──────────────────────────────────┘
 ```
+
+Sin link "Decidir después". Sin botones separados debajo de las cards.
 
 **Desktop (md+):** mismas cards, agregan párrafo descriptivo con `hidden md:block`. Sin botones separados.
 
@@ -84,18 +88,35 @@ La card completa es el botón. Sin fila de botones separada debajo. El texto des
 
 **Chips Custom:** `text-[10px] md:text-[11px]`, mismo patrón
 
+### Props de OnboardingScreen
+
+```jsx
+// Antes
+OnboardingScreen({ onSelectSoap, onSelectCustom, onSkip })
+
+// Después — onSkip eliminado
+OnboardingScreen({ onSelectSoap, onSelectCustom })
+```
+
+App.jsx deja de pasar `onSkip`. El bloque de onboarding en App.jsx también elimina el handler `onSkip` de `setOnboardingCompleted` que existía para "Decidir después".
+
+### NoteConfigurator "← Volver" desde onboarding
+
+Cuando `isFirstTime=true` (flujo desde onboarding), el botón "← Volver" en el bottombar regresa a `OnboardingScreen` — no completa el onboarding con SOAP por defecto. El `onCancel` cuando `isFirstTime=true` simplemente hace `setShowNoteConfigurator(false)`, lo que devuelve el render al bloque `else` del onboarding que muestra `<OnboardingScreen>`.
+
 ### Archivos a modificar
 
 | Archivo | Cambio |
 |---------|--------|
-| `frontend/src/components/OnboardingScreen.jsx` | Reescribir con cards tappables, mobile-first |
-| `frontend/src/App.jsx` | Añadir `else if (showNoteConfigurator)` en bloque onboarding; mover render de `NoteConfigurator` dentro del bloque |
+| `frontend/src/components/OnboardingScreen.jsx` | Reescribir con cards tappables, mobile-first, eliminar `onSkip` |
+| `frontend/src/App.jsx` | Añadir `else if (showNoteConfigurator)` en bloque onboarding; eliminar `onSkip` handler |
 
 ### Tests a actualizar
 
 `OnboardingScreen.test.jsx`:
-- Tests existentes siguen válidos (mismos props, mismas callbacks)
-- Verificar que no haya referencias a botones separados "Usar SOAP" / "Personalizar mi nota →" que ya no existen como elementos independientes
+- Eliminar tests que referencian `onSkip` / "Decidir después"
+- Actualizar firma del componente: ya no recibe `onSkip`
+- Cards son los botones — los tests deben hacer click en la card completa o en el texto del título
 
 ---
 
@@ -111,8 +132,12 @@ La card completa es el botón. Sin fila de botones separada debajo. El texto des
 | **Total chrome** | **192px** | **92px** |
 | **Área útil en 300px** | **108px** | **208px** |
 
-- Topbar: logo icono, título `text-[13px]`, "Saltar" `text-[12px]`
+- Topbar: logo icono, título `text-[13px]`
+  - `isFirstTime=true` (onboarding): sin botón "Saltar" en topbar — el onboarding es obligatorio
+  - `isFirstTime=false` (edición): botón "✕ Cerrar" `text-[12px]` en topbar
 - Bottombar: `← Volver` + `Guardar y entrar →` / `Guardar cambios`, botones `py-2 text-[13px]`
+  - `isFirstTime=true`: "← Volver" regresa a `OnboardingScreen` (no completa onboarding)
+  - `isFirstTime=false`: "← Volver" / "Cancelar" cierra el overlay
 - **Sin tabs Diseñar/Vista previa** — eliminados completamente
 
 ### Layout mobile (< md): scroll único
