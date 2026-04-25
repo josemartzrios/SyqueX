@@ -78,13 +78,22 @@ describe('SoapNoteDocument', () => {
     expect(screen.getByText('Riesgo suicida alto')).toBeInTheDocument()
   })
 
-  it('no muestra alertas cuando array está vacío', () => {
+  it('no muestra sección alertas cuando readOnly=true y array vacío', () => {
     const noteData = {
       ...STRUCTURED_NOTE_DATA,
       clinical_note: { ...STRUCTURED_NOTE_DATA.clinical_note, alerts: [] },
     }
-    render(<SoapNoteDocument noteData={noteData} />)
+    render(<SoapNoteDocument noteData={noteData} readOnly={true} />)
     expect(screen.queryByText('Alertas detectadas')).not.toBeInTheDocument()
+  })
+
+  it('muestra sección alertas en modo draft aunque esté vacía', () => {
+    const noteData = {
+      ...STRUCTURED_NOTE_DATA,
+      clinical_note: { ...STRUCTURED_NOTE_DATA.clinical_note, alerts: [] },
+    }
+    render(<SoapNoteDocument noteData={noteData} readOnly={false} />)
+    expect(screen.getByText('Alertas detectadas')).toBeInTheDocument()
   })
 
   // ── Fallback text ────────────────────────
@@ -174,5 +183,141 @@ describe('SoapNoteDocument', () => {
     expect(root.className).toContain('py-4')
     expect(root.className).not.toContain('px-6')
     expect(root.className).not.toContain('py-6')
+  })
+
+  // ── Edición de alertas ────────────────────
+  it('botón × elimina una alerta', async () => {
+    const user = userEvent.setup()
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
+
+    const removeBtn = screen.getByRole('button', { name: 'Eliminar alerta' })
+    await user.click(removeBtn)
+
+    expect(screen.queryByText('Riesgo de burnout')).not.toBeInTheDocument()
+  })
+
+  it('+ Agregar en alertas muestra input', async () => {
+    const user = userEvent.setup()
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
+
+    const addBtns = screen.getAllByRole('button', { name: '+ Agregar' })
+    await user.click(addBtns[0]) // primer botón = alertas
+
+    expect(screen.getByPlaceholderText('Nueva alerta…')).toBeInTheDocument()
+  })
+
+  it('Enter en input de alerta agrega la alerta', async () => {
+    const user = userEvent.setup()
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
+
+    const addBtns = screen.getAllByRole('button', { name: '+ Agregar' })
+    await user.click(addBtns[0])
+    const input = screen.getByPlaceholderText('Nueva alerta…')
+    await user.type(input, 'Riesgo de recaída')
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByText('Riesgo de recaída')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Nueva alerta…')).not.toBeInTheDocument()
+  })
+
+  it('blur con texto vacío en input de alerta no agrega nada', async () => {
+    const user = userEvent.setup()
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
+
+    const addBtns = screen.getAllByRole('button', { name: '+ Agregar' })
+    await user.click(addBtns[0])
+    const input = screen.getByPlaceholderText('Nueva alerta…')
+    await user.tab() // blur sin texto
+
+    expect(screen.queryByPlaceholderText('Nueva alerta…')).not.toBeInTheDocument()
+    // alerta original sigue ahí
+    expect(screen.getByText('Riesgo de burnout')).toBeInTheDocument()
+  })
+
+  // ── Edición de patrones ───────────────────
+  it('botón × elimina un patrón', async () => {
+    const user = userEvent.setup()
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
+
+    const removeBtns = screen.getAllByRole('button', { name: 'Eliminar patrón' })
+    await user.click(removeBtns[0])
+
+    expect(screen.queryByText(/ansiedad recurrente/i)).not.toBeInTheDocument()
+  })
+
+  it('Enter en input de patrón agrega el patrón', async () => {
+    const user = userEvent.setup()
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
+
+    const addBtns = screen.getAllByRole('button', { name: '+ Agregar' })
+    await user.click(addBtns[1]) // segundo botón = patrones
+    const input = screen.getByPlaceholderText('Nuevo patrón…')
+    await user.type(input, 'evitación social')
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByText('Evitación social')).toBeInTheDocument()
+  })
+
+  // ── Edit behavior (draft mode) ───────────────
+  it('muestra hint de edición en modo draft', () => {
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
+    expect(screen.getByText('Toca cualquier campo para editar')).toBeInTheDocument()
+  })
+
+  it('no muestra hint de edición en modo readOnly', () => {
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={true} />)
+    expect(screen.queryByText('Toca cualquier campo para editar')).not.toBeInTheDocument()
+  })
+
+  it('click en campo SOAP muestra textarea editable', async () => {
+    const user = userEvent.setup()
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
+
+    await user.click(screen.getByText('Paciente refiere ansiedad laboral'))
+
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('blur en textarea guarda el valor editado', async () => {
+    const user = userEvent.setup()
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} />)
+
+    await user.click(screen.getByText('Paciente refiere ansiedad laboral'))
+    const textarea = screen.getByRole('textbox')
+    await user.clear(textarea)
+    await user.type(textarea, 'Paciente llega tranquilo esta semana')
+    await user.tab()
+
+    expect(screen.getByText('Paciente llega tranquilo esta semana')).toBeInTheDocument()
+  })
+
+  it('confirmar envía el valor editado al backend', async () => {
+    const user = userEvent.setup()
+    confirmNote.mockResolvedValueOnce({})
+
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} onConfirm={vi.fn()} />)
+
+    await user.click(screen.getByText('Paciente refiere ansiedad laboral'))
+    const textarea = screen.getByRole('textbox')
+    await user.clear(textarea)
+    await user.type(textarea, 'Texto editado')
+    await user.tab()
+
+    await user.click(screen.getByRole('button', { name: /Confirmar/i }))
+
+    await waitFor(() => {
+      expect(confirmNote).toHaveBeenCalledWith('sess-123', expect.objectContaining({
+        structured_note: expect.objectContaining({ subjective: 'Texto editado' }),
+      }))
+    })
+  })
+
+  it('campo SOAP no es clickeable en modo readOnly', async () => {
+    const user = userEvent.setup()
+    render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={true} />)
+
+    await user.click(screen.getByText('Paciente refiere ansiedad laboral'))
+
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 })

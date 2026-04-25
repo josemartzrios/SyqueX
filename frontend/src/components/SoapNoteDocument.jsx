@@ -52,6 +52,18 @@ export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOn
 
   const hasStructuredNote = !!(clinicalNote && Object.keys(noteContent).length > 0)
 
+  const [editedFields, setEditedFields] = useState({
+    subjective: noteContent.subjective ?? '',
+    objective: noteContent.objective ?? '',
+    assessment: noteContent.assessment ?? '',
+    plan: noteContent.plan ?? '',
+    alerts: noteData.clinical_note?.alerts ?? [],
+    detected_patterns: noteData.clinical_note?.detected_patterns ?? [],
+  })
+  const [activeField, setActiveField] = useState(null)
+  const [newAlertInput, setNewAlertInput] = useState(false)
+  const [newPatternInput, setNewPatternInput] = useState(false)
+
   const handleConfirm = async () => {
     setSaving(true)
     setSaveError(null)
@@ -59,9 +71,14 @@ export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOn
       const sid = noteData.clinical_note?.session_id || noteData.session_id
       await confirmNote(sid, {
         format: 'SOAP',
-        structured_note: noteContent,
-        detected_patterns: patterns,
-        alerts: alerts,
+        structured_note: {
+          subjective: editedFields.subjective,
+          objective: editedFields.objective,
+          assessment: editedFields.assessment,
+          plan: editedFields.plan,
+        },
+        detected_patterns: editedFields.detected_patterns,
+        alerts: editedFields.alerts,
       })
       setConfirmed(true)
     } catch (err) {
@@ -101,50 +118,181 @@ export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOn
         </p>
       )}
 
+      {/* Edit hint */}
+      {!readOnly && !compact && (
+        <p className="font-sans text-[11px] text-right mb-4" style={{ color: MUTED }}>
+          Toca cualquier campo para editar
+        </p>
+      )}
+
       {/* SOAP sections */}
       {hasStructuredNote && SECTIONS.map(({ key, label }, sectionIndex) => {
-        const content = noteContent[key]
+        const content = editedFields[key]
         const hasContent = !!content
+        const isActive = activeField === key
         return (
           <div key={key} className={sectionIndex > 0 ? (compact ? 'mt-6' : 'mt-8') : ''}>
-            {/* Section label */}
             <p
               className="font-sans text-[10px] font-bold tracking-[0.12em] uppercase"
               style={{ fontVariant: 'small-caps', color: hasContent ? SAGE : MUTED }}
             >
               {label}
             </p>
-            {/* Thin rule */}
             <hr className="border-0 border-t border-current mt-1 mb-3" style={{ color: hasContent ? `${SAGE}33` : `${MUTED}33` }} />
-            {/* Content */}
-            <p className="font-serif text-[15px] leading-relaxed" style={{ color: INK }}>
-              {content || <span style={{ color: MUTED }}>—</span>}
-            </p>
+            {!readOnly && isActive ? (
+              <textarea
+                autoFocus
+                defaultValue={content}
+                className="font-serif text-[15px] leading-relaxed w-full resize-none rounded-md p-2 outline-none"
+                style={{ border: `1.5px solid ${SAGE}`, background: '#fffef9', color: INK, overflow: 'hidden' }}
+                ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }}
+                onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
+                onBlur={(e) => { setEditedFields(prev => ({ ...prev, [key]: e.target.value })); setActiveField(null) }}
+              />
+            ) : (
+              <p
+                className="font-serif text-[15px] leading-relaxed rounded-md p-2"
+                style={{
+                  color: INK,
+                  cursor: readOnly ? 'default' : 'text',
+                  border: readOnly ? 'none' : '1.5px dashed #d1d5db',
+                }}
+                onClick={() => !readOnly && setActiveField(key)}
+              >
+                {content || <span style={{ color: MUTED }}>—</span>}
+              </p>
+            )}
           </div>
         )
       })}
 
       {/* Alerts */}
-      {alerts.length > 0 && (
+      {(editedFields.alerts.length > 0 || !readOnly) && (
         <div className="mt-8">
           <p className="font-sans text-[10px] font-bold tracking-[0.12em] uppercase text-red-600 mb-2">
             Alertas detectadas
           </p>
-          <ul className="font-sans text-[14px] text-red-700 space-y-1 list-disc pl-4">
-            {alerts.map((a, i) => <li key={i}>{a.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>)}
-          </ul>
+          {readOnly ? (
+            <ul className="font-sans text-[14px] text-red-700 space-y-1 list-disc pl-4">
+              {editedFields.alerts.map((a, i) => (
+                <li key={i}>{a.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flex flex-wrap gap-2 items-center">
+              {editedFields.alerts.map((a, i) => (
+                <span key={i} className="inline-flex items-center gap-1 bg-red-100 text-red-800 text-[12px] font-sans px-3 py-1 rounded-full">
+                  {a.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}
+                  <button
+                    onClick={() => setEditedFields(prev => ({
+                      ...prev,
+                      alerts: prev.alerts.filter((_, idx) => idx !== i),
+                    }))}
+                    className="ml-1 text-red-500 hover:text-red-700 font-bold leading-none"
+                    aria-label="Eliminar alerta"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {newAlertInput ? (
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Nueva alerta…"
+                  className="font-sans text-[12px] border border-red-300 rounded-full px-3 py-1 outline-none"
+                  style={{ background: '#fef2f2' }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      setEditedFields(prev => ({ ...prev, alerts: [...prev.alerts, e.target.value.trim()] }))
+                      setNewAlertInput(false)
+                    } else if (e.key === 'Escape') {
+                      setNewAlertInput(false)
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value.trim()) {
+                      setEditedFields(prev => ({ ...prev, alerts: [...prev.alerts, e.target.value.trim()] }))
+                    }
+                    setNewAlertInput(false)
+                  }}
+                />
+              ) : (
+                <button
+                  onClick={() => setNewAlertInput(true)}
+                  className="inline-flex items-center font-sans text-[12px] text-red-600 border border-dashed border-red-300 rounded-full px-3 py-1 hover:bg-red-50 transition-colors"
+                  aria-label="+ Agregar"
+                >
+                  + Agregar
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {/* Patterns */}
-      {patterns.length > 0 && (
+      {(editedFields.detected_patterns.length > 0 || !readOnly) && (
         <div className="mt-6">
           <p className="font-sans text-[10px] font-bold tracking-[0.12em] uppercase text-[#c4935a] mb-2">
             Patrones evolutivos
           </p>
-          <ul className="font-sans text-[14px] text-[#92681e] space-y-1 list-disc pl-4">
-            {patterns.map((p, i) => <li key={i}>{p.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>)}
-          </ul>
+          {readOnly ? (
+            <ul className="font-sans text-[14px] text-[#92681e] space-y-1 list-disc pl-4">
+              {editedFields.detected_patterns.map((p, i) => (
+                <li key={i}>{p.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flex flex-wrap gap-2 items-center">
+              {editedFields.detected_patterns.map((p, i) => (
+                <span key={i} className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[12px] font-sans px-3 py-1 rounded-full">
+                  {p.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}
+                  <button
+                    onClick={() => setEditedFields(prev => ({
+                      ...prev,
+                      detected_patterns: prev.detected_patterns.filter((_, idx) => idx !== i),
+                    }))}
+                    className="ml-1 text-amber-500 hover:text-amber-700 font-bold leading-none"
+                    aria-label="Eliminar patrón"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {newPatternInput ? (
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Nuevo patrón…"
+                  className="font-sans text-[12px] border border-amber-300 rounded-full px-3 py-1 outline-none"
+                  style={{ background: '#fffbeb' }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      setEditedFields(prev => ({ ...prev, detected_patterns: [...prev.detected_patterns, e.target.value.trim()] }))
+                      setNewPatternInput(false)
+                    } else if (e.key === 'Escape') {
+                      setNewPatternInput(false)
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value.trim()) {
+                      setEditedFields(prev => ({ ...prev, detected_patterns: [...prev.detected_patterns, e.target.value.trim()] }))
+                    }
+                    setNewPatternInput(false)
+                  }}
+                />
+              ) : (
+                <button
+                  onClick={() => setNewPatternInput(true)}
+                  className="inline-flex items-center font-sans text-[12px] text-[#c4935a] border border-dashed border-amber-300 rounded-full px-3 py-1 hover:bg-amber-50 transition-colors"
+                  aria-label="+ Agregar"
+                >
+                  + Agregar
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
