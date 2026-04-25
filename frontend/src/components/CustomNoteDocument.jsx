@@ -1,33 +1,42 @@
 import { useState } from 'react';
 
-function ScaleField({ value, max = 10 }) {
+function ScaleField({ value, max = 10, onChange, readOnly = false }) {
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
-        <div
+        <button
           key={n}
-          className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold ${n === value
+          type="button"
+          onClick={() => !readOnly && onChange?.(n)}
+          className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold transition-colors ${
+            n === value
               ? 'bg-[#5a9e8a] text-white'
               : 'bg-[#f4f4f2] text-[#9ca3af]'
-            }`}
+          } ${!readOnly ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
         >
           {n}
-        </div>
+        </button>
       ))}
     </div>
   );
 }
 
-function CheckboxField({ options, selected = [] }) {
+function CheckboxField({ options, selected = [], onChange, readOnly = false }) {
   const selectedSet = new Set(selected);
   return (
     <div className="flex flex-col gap-1.5">
       {options.map((opt) => (
-        <label key={opt} className="flex items-center gap-2 text-[13px] text-ink">
+        <label key={opt} className={`flex items-center gap-2 text-[13px] text-ink ${!readOnly ? 'cursor-pointer' : ''}`}>
           <input
             type="checkbox"
             checked={selectedSet.has(opt)}
-            readOnly
+            onChange={() => {
+              if (readOnly) return;
+              const next = selectedSet.has(opt)
+                ? selected.filter(o => o !== opt)
+                : [...selected, opt];
+              onChange?.(next);
+            }}
             className="accent-[#5a9e8a] w-4 h-4"
           />
           {opt}
@@ -83,7 +92,7 @@ export default function CustomNoteDocument({ templateFields = [], values = {}, o
 
       <div className="space-y-5 mb-4">
         {sorted.map((field) => {
-          const value = values[field.id];
+          const value = editedValues[field.id];
           return (
             <div key={field.id}>
               <p className="text-[10px] uppercase tracking-[0.12em] font-bold text-[#9ca3af] mb-2">
@@ -93,7 +102,7 @@ export default function CustomNoteDocument({ templateFields = [], values = {}, o
                 activeField === field.id ? (
                   <textarea
                     autoFocus
-                    defaultValue={editedValues[field.id] ?? ''}
+                    defaultValue={value ?? ''}
                     className="font-serif text-[14px] leading-relaxed w-full resize-none rounded-md p-2 outline-none"
                     style={{ border: '1.5px solid #5a9e8a', background: '#fffef9', color: '#18181b', overflow: 'hidden' }}
                     ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }}
@@ -112,23 +121,50 @@ export default function CustomNoteDocument({ templateFields = [], values = {}, o
                     }}
                     onClick={() => !readOnly && setActiveField(field.id)}
                   >
-                    {editedValues[field.id] || <span className="italic text-ink-tertiary">Sin información</span>}
+                    {value || <span className="italic text-ink-tertiary">Sin información</span>}
                   </p>
                 )
               )}
               {field.type === 'scale' && (
-                <ScaleField value={value} />
+                <ScaleField
+                  value={value}
+                  readOnly={readOnly}
+                  onChange={(n) => setEditedValues(prev => ({ ...prev, [field.id]: n }))}
+                />
               )}
               {(field.type === 'checkbox' || field.type === 'options') && (
-                <CheckboxField options={field.options || []} selected={value || []} />
+                <CheckboxField
+                  options={field.options || []}
+                  selected={value || []}
+                  readOnly={readOnly}
+                  onChange={(next) => setEditedValues(prev => ({ ...prev, [field.id]: next }))}
+                />
               )}
               {field.type === 'list' && (
-                <span className="inline-block bg-[#f4f4f2] text-[#18181b] text-[13px] px-3 py-1 rounded-full">
-                  {value || '—'}
-                </span>
+                readOnly ? (
+                  <span className="inline-block bg-[#f4f4f2] text-[#18181b] text-[13px] px-3 py-1 rounded-full">
+                    {value || '—'}
+                  </span>
+                ) : (
+                  <input
+                    type="text"
+                    value={value || ''}
+                    onChange={(e) => setEditedValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                    className="text-[13px] text-[#18181b] border border-dashed border-gray-300 rounded-md px-3 py-1.5 outline-none focus:border-[#5a9e8a] focus:border-solid w-full"
+                  />
+                )
               )}
               {field.type === 'date' && (
-                <span className="text-[13px] text-ink-secondary">{value || '—'}</span>
+                readOnly ? (
+                  <span className="text-[13px] text-[#6b7280]">{value || '—'}</span>
+                ) : (
+                  <input
+                    type="date"
+                    value={value || ''}
+                    onChange={(e) => setEditedValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                    className="text-[13px] text-[#18181b] border border-dashed border-gray-300 rounded-md px-3 py-1.5 outline-none focus:border-[#5a9e8a]"
+                  />
+                )
               )}
             </div>
           );
