@@ -692,7 +692,7 @@ async def process_session_endpoint(
     )
     template = tmpl_result.scalar_one_or_none()
 
-    if template and template.fields and rec.format.lower() != "chat":
+    if template and template.fields and rec.format.lower() == "custom":
         result = await process_session_custom(
             db=db,
             patient_id=str(patient_uuid),
