@@ -42,13 +42,15 @@ export default function CustomNoteDocument({ templateFields = [], values = {}, o
   const [confirmed, setConfirmed] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editedValues, setEditedValues] = useState({ ...values });
+  const [activeField, setActiveField] = useState(null);
 
   const sorted = [...templateFields].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   const handleConfirm = async () => {
     setSaving(true);
     try {
-      await onConfirm?.();
+      await onConfirm?.(editedValues);
       setConfirmed(true);
     } finally {
       setSaving(false);
@@ -88,9 +90,31 @@ export default function CustomNoteDocument({ templateFields = [], values = {}, o
                 {field.label}
               </p>
               {field.type === 'text' && (
-                <p className="font-serif text-[14px] leading-relaxed text-ink-secondary whitespace-pre-wrap">
-                  {value || <span className="italic text-ink-tertiary">Sin información</span>}
-                </p>
+                activeField === field.id ? (
+                  <textarea
+                    autoFocus
+                    defaultValue={editedValues[field.id] ?? ''}
+                    className="font-serif text-[14px] leading-relaxed w-full resize-none rounded-md p-2 outline-none"
+                    style={{ border: '1.5px solid #5a9e8a', background: '#fffef9', color: '#18181b', overflow: 'hidden' }}
+                    ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }}
+                    onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
+                    onBlur={(e) => {
+                      setEditedValues(prev => ({ ...prev, [field.id]: e.target.value }))
+                      setActiveField(null)
+                    }}
+                  />
+                ) : (
+                  <p
+                    className="font-serif text-[14px] leading-relaxed rounded-md p-2 whitespace-pre-wrap"
+                    style={{
+                      cursor: readOnly ? 'default' : 'text',
+                      border: readOnly ? 'none' : '1.5px dashed #d1d5db',
+                    }}
+                    onClick={() => !readOnly && setActiveField(field.id)}
+                  >
+                    {editedValues[field.id] || <span className="italic text-ink-tertiary">Sin información</span>}
+                  </p>
+                )
               )}
               {field.type === 'scale' && (
                 <ScaleField value={value} />
