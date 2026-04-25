@@ -744,11 +744,11 @@ function App() {
                       <CustomNoteDocument
                         templateFields={currentSessionNote.noteData.template_fields || template?.fields || []}
                         values={currentSessionNote.noteData.custom_fields || {}}
-                        onConfirm={async () => {
+                        onConfirm={async (editedValues) => {
                           const sid = currentSessionNote.noteData.session_id;
                           await confirmNote(sid, {
                             format: 'custom',
-                            custom_fields: currentSessionNote.noteData.custom_fields,
+                            custom_fields: editedValues,
                           });
                           setNewlyConfirmedSessionId(sid);
                           fetchPatientSessions(selectedPatientId);
@@ -1010,11 +1010,11 @@ function App() {
                     <CustomNoteDocument
                       templateFields={currentSessionNote.noteData.template_fields || template?.fields || []}
                       values={currentSessionNote.noteData.custom_fields || {}}
-                      onConfirm={async () => {
+                      onConfirm={async (editedValues) => {
                         const sid = currentSessionNote.noteData.session_id;
                         await confirmNote(sid, {
                           format: 'custom',
-                          custom_fields: currentSessionNote.noteData.custom_fields,
+                          custom_fields: editedValues,
                         });
                         setNewlyConfirmedSessionId(sid);
                         fetchPatientSessions(selectedPatientId);
