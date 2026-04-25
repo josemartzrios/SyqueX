@@ -768,8 +768,44 @@ class TestProcessSessionFormat:
         )
 
     @pytest.mark.asyncio
-    async def test_soap_with_template_uses_custom_flow(self, app, mock_db, patient_uuid):
-        """format='SOAP' + template → process_session_custom is called (existing behavior)."""
+    async def test_soap_with_template_uses_soap_flow(self, app, mock_db, patient_uuid):
+        """format='soap' + template → SOAP path. Template existence must not override format choice."""
+        fake_template = MagicMock()
+        fake_template.fields = [
+            {"id": "estado_animo", "label": "Estado de ánimo", "type": "text",
+             "options": [], "guiding_question": "", "order": 1},
+        ]
+        mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=fake_template),  # NoteTemplate query
+            _result(scalar_one_or_none=None),            # _get_patient_context: profile
+            _result(scalars_all=[]),                     # _get_patient_context: sessions
+            _result(scalar_one_or_none=None),            # last session (session_number)
+        ]
+
+        custom_response = {
+            "custom_fields": {"estado_animo": "Ansioso"},
+            "text_fallback": "Estado de ánimo: Ansioso",
+            "session_messages": [],
+        }
+
+        patcher = self._mock_claude("Subjetivo:\nPaciente refiere mejoría en sueño.")
+        try:
+            with patch("api.routes.process_session_custom", new=AsyncMock(return_value=custom_response)) as mock_custom:
+                async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                    response = await client.post(
+                        f"/api/v1/sessions/{patient_uuid}/process",
+                        json={"raw_dictation": "Paciente refiere mejoría en sueño.", "format": "soap"},
+                    )
+        finally:
+            patcher.stop()
+
+        mock_custom.assert_not_called()
+        assert response.status_code == 200
+        assert response.json().get("format") != "custom"
+
+    @pytest.mark.asyncio
+    async def test_custom_with_template_uses_custom_flow(self, app, mock_db, patient_uuid):
+        """format='custom' + template → process_session_custom is called."""
         fake_template = MagicMock()
         fake_template.fields = [
             {"id": "estado_animo", "label": "Estado de ánimo", "type": "text",
@@ -788,12 +824,14 @@ class TestProcessSessionFormat:
 
         with patch("api.routes.process_session_custom", new=AsyncMock(return_value=custom_response)) as mock_custom:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-                await client.post(
+                response = await client.post(
                     f"/api/v1/sessions/{patient_uuid}/process",
-                    json={"raw_dictation": "Paciente refiere mejoría en sueño.", "format": "SOAP"},
+                    json={"raw_dictation": "Paciente refiere mejoría en sueño.", "format": "custom"},
                 )
 
         mock_custom.assert_called_once()
+        assert response.status_code == 200
+        assert response.json().get("format") == "custom"
 
 
 # ---------------------------------------------------------------------------
