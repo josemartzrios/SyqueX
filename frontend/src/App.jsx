@@ -533,6 +533,11 @@ function App() {
   const soapSessions = sessionHistory.filter(s => s.format !== 'chat');
   const confirmedSessions = soapSessions.filter(s => s.status === 'confirmed');
   const orphanedSessions = soapSessions.filter(s => s.status === 'draft');
+  // Sequential display number per confirmed session (oldest = #1). Sessions come
+  // newest-first from the backend, so index 0 = newest → gets confirmedSessions.length.
+  const confirmedDisplayNum = new Map(
+    confirmedSessions.map((s, i) => [String(s.id), confirmedSessions.length - i])
+  );
 
   // Derive the latest note message for the note panel
   const latestNoteMsg = (() => {
@@ -823,7 +828,7 @@ function App() {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-1.5">
-                                      <p className="text-[13px] font-semibold text-ink">Sesión #{s.session_number || (confirmedSessions.length - i)}</p>
+                                      <p className="text-[13px] font-semibold text-ink">Sesión #{confirmedDisplayNum.get(String(s.id)) ?? i + 1}</p>
                                       {String(s.id) === newlyConfirmedSessionId && (
                                         <span className="text-[9px] font-bold bg-[#5a9e8a] text-white rounded-full px-2 py-0.5">
                                           Nueva
@@ -1092,7 +1097,7 @@ function App() {
                               <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
                               <div className="min-w-0 flex-1">
                                 <p className="text-[13px] font-medium text-ink">
-                                  Sesión #{s.session_number || (soapSessions.length - i)} · {formatDate(s.session_date)}
+                                  Sesión #{confirmedDisplayNum.get(String(s.id)) ?? '—'} · {formatDate(s.session_date)}
                                 </p>
                                 {s.raw_dictation && (
                                   <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
