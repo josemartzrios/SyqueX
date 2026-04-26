@@ -286,7 +286,7 @@ async def process_session(db, patient_id: str, raw_dictation: str, session_id: s
     messages = context_messages + [{"role": "user", "content": dictado_seguro}]
 
     try:
-        active_prompt = SOAP_SYSTEM_PROMPT if format_ == "SOAP" else SYSTEM_PROMPT
+        active_prompt = SOAP_SYSTEM_PROMPT if format_.upper() == "SOAP" else SYSTEM_PROMPT
         anthropic_client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
         response = await anthropic_client.messages.create(
             model="claude-sonnet-4-6",
