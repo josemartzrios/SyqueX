@@ -165,6 +165,7 @@ function App() {
   const [isConfiguratorFirstTime, setIsConfiguratorFirstTime] = useState(false);
   const [newlyConfirmedSessionId, setNewlyConfirmedSessionId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [dismissedOrphanIds, setDismissedOrphanIds] = useState(new Set());
 
   // Evolución tab state
   const [evolutionMessages, setEvolutionMessages] = useState(new Map()); // Map<patientId, Message[]>
@@ -467,7 +468,7 @@ function App() {
   }, [noteFormat]);
 
   // Clear "Nueva" badge when patient changes
-  useEffect(() => { setNewlyConfirmedSessionId(null); }, [selectedPatientId]);
+  useEffect(() => { setNewlyConfirmedSessionId(null); setDismissedOrphanIds(new Set()); }, [selectedPatientId]);
 
   const handleSendDictation = async (dictation) => {
     const activeFormat = noteFormat;
@@ -510,16 +511,17 @@ function App() {
 
   const handleResumeOrphan = (orphan) => {
     setDraft(orphan.raw_dictation);
-    // Cleanup the bot message from chat that shows the orphaned state if needed
-    // (In this version, we simple set the draft and the user will see it in the textarea)
+    setDismissedOrphanIds(prev => new Set([...prev, String(orphan.id)]));
   };
 
   const handleDiscardOrphan = async (sessionId) => {
+    setDismissedOrphanIds(prev => new Set([...prev, String(sessionId)]));
     try {
       await deleteSession(sessionId);
       if (selectedPatientId) fetchPatientSessions(selectedPatientId);
     } catch (err) {
       console.error("Error discarding orphan:", err);
+      setDismissedOrphanIds(prev => { const next = new Set(prev); next.delete(String(sessionId)); return next; });
     }
   };
 
@@ -532,7 +534,7 @@ function App() {
   
   const soapSessions = sessionHistory.filter(s => s.format !== 'chat');
   const confirmedSessions = soapSessions.filter(s => s.status === 'confirmed');
-  const orphanedSessions = soapSessions.filter(s => s.status === 'draft');
+  const orphanedSessions = soapSessions.filter(s => s.status === 'draft' && !dismissedOrphanIds.has(String(s.id)));
   // Sequential display number per confirmed session (oldest = #1). Sessions come
   // newest-first from the backend, so index 0 = newest → gets confirmedSessions.length.
   const confirmedDisplayNum = new Map(
