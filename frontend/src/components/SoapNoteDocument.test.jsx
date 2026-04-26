@@ -130,7 +130,7 @@ describe('SoapNoteDocument', () => {
     })
   })
 
-  it('muestra "Guardada ✓" después de confirmar exitosamente', async () => {
+  it('muestra "Guardado en expediente" después de confirmar exitosamente', async () => {
     const user = userEvent.setup()
     confirmNote.mockResolvedValueOnce({})
 
@@ -138,7 +138,7 @@ describe('SoapNoteDocument', () => {
     await user.click(screen.getByRole('button', { name: /Confirmar/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Guardada ✓')).toBeInTheDocument()
+      expect(screen.getByText('Guardado en expediente')).toBeInTheDocument()
     })
   })
 
@@ -154,7 +154,7 @@ describe('SoapNoteDocument', () => {
     })
   })
 
-  it('muestra "Guardando…" durante el proceso de confirmación', async () => {
+  it('muestra "Registrando..." durante el proceso de confirmación', async () => {
     // Make confirmNote hang
     confirmNote.mockImplementation(() => new Promise(() => {}))
 
@@ -162,7 +162,7 @@ describe('SoapNoteDocument', () => {
     render(<SoapNoteDocument noteData={STRUCTURED_NOTE_DATA} readOnly={false} onConfirm={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: /Confirmar/i }))
 
-    expect(screen.getByText('Guardando…')).toBeInTheDocument()
+    expect(screen.getByText('Registrando...')).toBeInTheDocument()
   })
 
   // ── Compact mode ──────────────────────────
