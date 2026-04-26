@@ -303,7 +303,7 @@ export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOn
 
       {/* CTA bar — only when not readOnly and there is a structured note */}
       {!readOnly && hasStructuredNote && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 border-t border-ink/[0.06] pt-4 mt-4">
+        <div className="font-sans flex flex-col sm:flex-row sm:items-center gap-2 border-t border-ink/[0.06] pt-4 mt-4">
           {!confirmed && (
             <>
               {showDeleteConfirm ? (
