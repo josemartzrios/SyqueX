@@ -768,7 +768,16 @@ function App() {
                     ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
                       <SoapNoteDocument
                         noteData={currentSessionNote.noteData}
-                        onConfirm={fetchConversations}
+                        onConfirm={async () => {
+                          const sid = currentSessionNote.noteData?.session_id || currentSessionNote.sessionId;
+                          if (sid) setNewlyConfirmedSessionId(sid);
+                          fetchPatientSessions(selectedPatientId);
+                          fetchConversations();
+                          setDesktopMode('review');
+                          setCurrentSessionNote(null);
+                          setToast('Sesión confirmada — nota guardada en historial');
+                          setTimeout(() => setToast(null), 3500);
+                        }}
                         readOnly={currentSessionNote.readOnly}
                         onDelete={!currentSessionNote.readOnly ? async () => {
                           const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
@@ -1033,7 +1042,15 @@ function App() {
                   ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
                     <SoapNoteDocument
                       noteData={currentSessionNote.noteData}
-                      onConfirm={fetchConversations}
+                      onConfirm={async () => {
+                        const sid = currentSessionNote.noteData?.session_id || currentSessionNote.sessionId;
+                        if (sid) setNewlyConfirmedSessionId(sid);
+                        fetchPatientSessions(selectedPatientId);
+                        fetchConversations();
+                        setCurrentSessionNote(null);
+                        setToast('Sesión confirmada — nota guardada en historial');
+                        setTimeout(() => setToast(null), 3500);
+                      }}
                       readOnly={currentSessionNote.readOnly}
                       onDelete={!currentSessionNote.readOnly ? async () => {
                         const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
