@@ -44,7 +44,7 @@ async def get_db_with_user(
     from sqlalchemy import text as _text
     async with AsyncSessionLocal() as session:
         await session.execute(
-            _text("SELECT set_config('app.psychologist_id', :pid, true)"),
+            _text("SELECT set_config('app.psychologist_id', :pid, false)"),
             {"pid": str(psychologist.id)},
         )
         yield session
@@ -1013,7 +1013,8 @@ async def list_conversations(
             s.session_date,
             s.raw_dictation AS dictation_preview,
             s.status,
-            s.messages
+            s.messages,
+            s.created_at    AS last_activity
         FROM patients p
         LEFT JOIN sessions s
             ON s.patient_id = p.id
@@ -1031,6 +1032,7 @@ async def list_conversations(
     items = []
     for row in rows:
         raw = decrypt_if_set(row.get("dictation_preview"))
+        patient_name = decrypt_if_set(row.get("patient_name"))
         preview = (raw[:120] + "...") if raw and len(raw) > 120 else raw
         messages_raw = decrypt_if_set(row.get("messages"))
         try:
@@ -1041,7 +1043,7 @@ async def list_conversations(
         items.append(ConversationOut(
             id=str(row["session_id"]) if row["session_id"] else None,
             patient_id=str(row["patient_id"]),
-            patient_name=row["patient_name"],
+            patient_name=patient_name,
             session_number=row.get("session_number"),
             session_date=row.get("session_date"),
             dictation_preview=preview,

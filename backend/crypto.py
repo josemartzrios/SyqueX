@@ -53,7 +53,11 @@ def decrypt_if_set(value: str | None) -> str | None:
     if value is None:
         return None
     if isinstance(value, str) and (value.startswith(_V1_PREFIX) or value.startswith(_V2_PREFIX)):
-        return decrypt(value)
+        try:
+            return decrypt(value)
+        except DecryptionError as e:
+            logger.warning("Fallo al descifrar valor: %s", e)
+            return value
     return value  # valor legacy sin cifrar o ya descifrado — retornar tal cual
 
 
