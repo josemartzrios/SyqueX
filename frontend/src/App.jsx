@@ -179,24 +179,49 @@ function App() {
   const scrollRef = useRef(null);
   const mobileScrollRef = useRef(null);
 
+  // Limpia todo estado perteneciente al usuario anterior.
+  // Llamar antes de mostrar la pantalla de login o app de un usuario distinto.
+  const resetUserState = useCallback(() => {
+    setConversations([]);
+    setSelectedPatientId(null);
+    setSelectedPatientName(null);
+    setMessages([]);
+    setSessionHistory([]);
+    setCurrentSessionNote(null);
+    setTemplate(null);
+    setPatientProfile(null);
+    setEvolutionMessages(new Map());
+    setExpandedSessionId(null);
+    setReviewExpandedSessionId(null);
+    setDismissedOrphanIds(new Set());
+    setNewlyConfirmedSessionId(null);
+    setMobileTab('dictar');
+    setDesktopMode('session');
+    setBillingStatus(null);
+  }, []);
+
   const checkBillingAndRoute = useCallback(async () => {
     try {
       const status = await getBillingStatus();
       setBillingStatus(status);
       if (status.status === 'trialing' || status.status === 'active') {
         setAuthScreen({ screen: 'app' });
+        // Re-fetch con el token del usuario recién autenticado
+        listConversations().then(setConversations).catch(() => {});
+        getTemplate().then(t => setTemplate(t ?? {})).catch(() => setTemplate({}));
       } else {
         setAuthScreen({ screen: 'billing' });
       }
     } catch {
       setAuthScreen({ screen: 'billing' });
     }
-  }, []);
+  }, [resetUserState]);
 
   async function handleLogout() {
     try {
       await logout();
     } finally {
+      resetUserState();
       setAuthScreen({ screen: 'login' });
     }
   }
@@ -592,9 +617,11 @@ function App() {
   // Onboarding Screen Logic
   if (!onboardingCompleted && template !== null) {
     if (template.fields?.length > 0) {
-      // Auto-complete if they already have a template
+      // Auto-complete if they already have a template; sync format to match
       localStorage.setItem('syquex_onboarding_done', 'true');
+      localStorage.setItem('syquex_note_format', 'custom');
       setOnboardingCompleted(true);
+      setNoteFormat('custom');
     } else if (showNoteConfigurator) {
       return (
         <NoteConfigurator

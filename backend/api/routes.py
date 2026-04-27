@@ -738,7 +738,9 @@ async def process_session_endpoint(
     session_id = str(uuid.uuid4())
 
     # Chat sessions are confirmed immediately (no confirmation step needed)
-    session_format = rec.format or "SOAP"
+    _fmt_raw = rec.format or "SOAP"
+    _fmt_lower = _fmt_raw.lower()
+    session_format = "chat" if _fmt_lower == "chat" else ("custom" if _fmt_lower == "custom" else _fmt_raw.upper())
     session_status = "confirmed" if session_format.lower() == "chat" else "draft"
 
     # Only SOAP sessions get a session_number; chat sessions are not clinical sessions
@@ -816,7 +818,9 @@ async def confirm_session(
     note_format = note_data.get("format", "SOAP")
     custom_fields_data = note_data.get("custom_fields") if req.edited_note else None
 
-    if note_format == "custom" and custom_fields_data is not None:
+    if note_format == "custom":
+        # Ensure custom_fields is never None — fall back to empty dict
+        custom_fields_data = custom_fields_data if custom_fields_data is not None else {}
         text_for_embedding = note_data.get("text_fallback", "")
         try:
             embedding = await get_embedding(text_for_embedding) if text_for_embedding else ZERO_VECTOR
