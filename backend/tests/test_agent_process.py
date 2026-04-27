@@ -182,6 +182,70 @@ class TestProcessSessionSuccess:
             assert "SyqueX" in call_kwargs["system"]
 
     @pytest.mark.asyncio
+    async def test_soap_format_uppercase_uses_soap_system_prompt(self):
+        """format_='SOAP' (uppercase) must use SOAP_SYSTEM_PROMPT."""
+        db = _make_db_with_empty_context()
+        mock_response = _make_anthropic_response("Subjetivo: Paciente refiere ansiedad.")
+
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            await agent_module.process_session(
+                db, "patient-1", "Paciente refiere ansiedad.", "session-1",
+                format_="SOAP"
+            )
+
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+            assert call_kwargs["system"] == agent_module.SOAP_SYSTEM_PROMPT
+
+    @pytest.mark.asyncio
+    async def test_soap_format_lowercase_uses_soap_system_prompt(self):
+        """format_='soap' (lowercase) must also use SOAP_SYSTEM_PROMPT — frontend sends lowercase."""
+        db = _make_db_with_empty_context()
+        mock_response = _make_anthropic_response("Subjetivo: Paciente refiere ansiedad.")
+
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            await agent_module.process_session(
+                db, "patient-1", "Paciente refiere ansiedad.", "session-1",
+                format_="soap"
+            )
+
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+            assert call_kwargs["system"] == agent_module.SOAP_SYSTEM_PROMPT, (
+                "format_='soap' (lowercase sent by frontend) must use SOAP_SYSTEM_PROMPT, not chat prompt"
+            )
+
+    @pytest.mark.asyncio
+    async def test_chat_format_uses_chat_system_prompt(self):
+        """format_='chat' must use the chat SYSTEM_PROMPT, not SOAP."""
+        db = _make_db_with_empty_context()
+        db.execute.side_effect = [
+            MagicMock(**{"scalar_one_or_none.return_value": None}),  # profile
+            MagicMock(**{"scalars.return_value.all.return_value": []}),  # sessions (chat_mode=True)
+        ]
+        mock_response = _make_anthropic_response("¿Cuál es el motivo principal de consulta?")
+
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            await agent_module.process_session(
+                db, "patient-1", "¿Qué pasó en la última sesión?", "session-1",
+                format_="chat"
+            )
+
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+            assert call_kwargs["system"] == agent_module.SYSTEM_PROMPT
+            assert call_kwargs["system"] != agent_module.SOAP_SYSTEM_PROMPT
+
+    @pytest.mark.asyncio
     async def test_calls_anthropic_with_zero_temperature(self):
         db = _make_db_with_empty_context()
         mock_response = _make_anthropic_response("Ok")
@@ -597,3 +661,141 @@ class TestGetPatientContextNameInjection:
             call_kwargs = mock_client.messages.create.call_args.kwargs
             messages_sent = call_kwargs["messages"]
             assert "María Torres" in messages_sent[0]["content"]
+
+
+# ---------------------------------------------------------------------------
+# process_session_custom — UNKNOWN / placeholder sanitization
+# ---------------------------------------------------------------------------
+
+def _make_tool_response(fields: dict):
+    """Build an Anthropic response mock that returns a tool_use block with given fields."""
+    tool_block = MagicMock()
+    tool_block.type = "tool_use"
+    tool_block.input = fields
+    response = MagicMock()
+    response.content = [tool_block]
+    return response
+
+
+def _make_db_custom():
+    """DB mock: empty profile + empty session history (two execute calls)."""
+    db = AsyncMock()
+    profile_result = MagicMock()
+    profile_result.scalar_one_or_none.return_value = None
+    session_result = MagicMock()
+    session_result.scalars.return_value.all.return_value = []
+    db.execute.side_effect = [profile_result, session_result]
+    return db
+
+
+TEMPLATE_FIELDS = [
+    {"id": "estado_animo", "label": "Estado de ánimo", "type": "text", "order": 1},
+    {"id": "fecha_sesion", "label": "Fecha de sesión", "type": "date", "order": 2},
+    {"id": "escala_ansiedad", "label": "Escala de ansiedad", "type": "scale", "order": 3},
+]
+
+
+class TestProcessSessionCustomSanitization:
+    @pytest.mark.asyncio
+    async def test_unknown_string_removed_from_custom_fields(self):
+        """'UNKNOWN' returned by Claude must be stripped from custom_fields."""
+        db = _make_db_custom()
+        mock_response = _make_tool_response({
+            "estado_animo": "Paciente estable",
+            "fecha_sesion": "UNKNOWN",
+        })
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            result = await agent_module.process_session_custom(
+                db, "patient-1", "Paciente estable, sin mencionar fecha.", None, TEMPLATE_FIELDS
+            )
+
+        assert "fecha_sesion" not in result["custom_fields"], (
+            "UNKNOWN must be stripped — campo con valor UNKNOWN no debe aparecer en custom_fields"
+        )
+
+    @pytest.mark.asyncio
+    async def test_unknown_not_in_text_fallback(self):
+        """'UNKNOWN' must not appear in the rendered text_fallback."""
+        db = _make_db_custom()
+        mock_response = _make_tool_response({
+            "estado_animo": "Ansiedad moderada",
+            "fecha_sesion": "UNKNOWN",
+        })
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            result = await agent_module.process_session_custom(
+                db, "patient-1", "Dictado sin fecha.", None, TEMPLATE_FIELDS
+            )
+
+        assert "UNKNOWN" not in result["text_fallback"], (
+            "text_fallback no debe contener 'UNKNOWN'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_valid_date_preserved(self):
+        """A real ISO date returned by Claude must be kept in custom_fields."""
+        db = _make_db_custom()
+        mock_response = _make_tool_response({
+            "estado_animo": "Paciente en calma",
+            "fecha_sesion": "2026-04-26",
+        })
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            result = await agent_module.process_session_custom(
+                db, "patient-1", "Sesión del 26 de abril.", None, TEMPLATE_FIELDS
+            )
+
+        assert result["custom_fields"].get("fecha_sesion") == "2026-04-26"
+        assert "2026-04-26" in result["text_fallback"]
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_placeholders_removed(self):
+        """Placeholders like 'unknown', 'N/A', 'Sin dato' in any case must be stripped."""
+        db = _make_db_custom()
+        mock_response = _make_tool_response({
+            "estado_animo": "n/a",
+            "fecha_sesion": "Sin dato",
+            "escala_ansiedad": 7,
+        })
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            result = await agent_module.process_session_custom(
+                db, "patient-1", "Dictado mínimo.", None, TEMPLATE_FIELDS
+            )
+
+        fields = result["custom_fields"]
+        assert "estado_animo" not in fields
+        assert "fecha_sesion" not in fields
+        assert fields.get("escala_ansiedad") == 7
+
+    @pytest.mark.asyncio
+    async def test_empty_string_removed(self):
+        """Empty string fields must not appear in custom_fields."""
+        db = _make_db_custom()
+        mock_response = _make_tool_response({
+            "estado_animo": "",
+            "fecha_sesion": "2026-04-26",
+        })
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            result = await agent_module.process_session_custom(
+                db, "patient-1", "Dictado.", None, TEMPLATE_FIELDS
+            )
+
+        assert "estado_animo" not in result["custom_fields"]

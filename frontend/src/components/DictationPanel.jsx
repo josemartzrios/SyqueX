@@ -1,4 +1,15 @@
-export default function DictationPanel({ value, onChange, onGenerate, loading, orphanedSessions = [], onResumeOrphan, onDiscardOrphan }) {
+export default function DictationPanel({ 
+  value, 
+  onChange, 
+  onGenerate, 
+  loading, 
+  orphanedSessions = [], 
+  onResumeOrphan, 
+  onDiscardOrphan,
+  noteFormat = 'soap',
+  onFormatChange,
+  onEditTemplate
+}) {
   const handleGenerate = () => {
     if (!value.trim() || loading) return;
     onGenerate(value.trim());
@@ -51,6 +62,45 @@ export default function DictationPanel({ value, onChange, onGenerate, loading, o
           </div>
         )}
 
+        <div className="flex items-center justify-between mb-3 mt-1">
+          <div className="flex bg-[#f4f4f2] p-1 rounded-lg">
+            <button
+              onClick={() => onFormatChange('soap')}
+              className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-all ${
+                noteFormat === 'soap' 
+                  ? 'bg-white shadow-sm text-[#18181b]' 
+                  : 'text-[#6b7280] hover:text-[#18181b]'
+              }`}
+            >
+              SOAP
+            </button>
+            <button
+              onClick={() => onFormatChange('custom')}
+              className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-all ${
+                noteFormat === 'custom' 
+                  ? 'bg-white shadow-sm text-[#18181b]' 
+                  : 'text-[#6b7280] hover:text-[#18181b]'
+              }`}
+            >
+              Personalizada
+            </button>
+          </div>
+          
+          {noteFormat === 'custom' && (
+            <button
+              onClick={onEditTemplate}
+              className="flex items-center gap-1.5 text-[12px] text-[#9ca3af] hover:text-[#18181b] transition-colors group"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              <span className="underline decoration-transparent group-hover:decoration-[#18181b] underline-offset-2">
+                Editar plantilla
+              </span>
+            </button>
+          )}
+        </div>
+
         <textarea
           className="w-full h-52 resize-none bg-white border border-black/[0.07] rounded-xl px-4 py-3 text-[14px] leading-relaxed text-[#18181b] outline-none focus:border-[#5a9e8a] focus:ring-0 transition-colors placeholder-ink-muted disabled:bg-slate-50"
           placeholder="Dicta los puntos clave de la sesión…"
@@ -87,7 +137,7 @@ export default function DictationPanel({ value, onChange, onGenerate, loading, o
               Generando…
             </>
           ) : (
-            <>Generar nota →</>
+            <>{noteFormat === 'soap' ? 'Generar nota SOAP →' : 'Generar nota personalizada →'}</>
           )}
         </button>
       </div>

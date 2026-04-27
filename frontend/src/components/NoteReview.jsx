@@ -202,7 +202,7 @@ export default function NoteReview({ noteData, onConfirm, readOnly = false }) {
             {/* BORRADOR pill + Confirmar — empuja a la derecha en desktop */}
             <div className="flex items-center gap-2 ml-auto">
               {!confirmed && (
-                <span className="bg-parchment-dark text-ink-tertiary text-[11px] font-semibold tracking-[0.06em] rounded-full px-3 py-1">
+                <span className="border border-dashed border-ink/20 text-ink/35 text-[10px] tracking-[0.1em] font-medium rounded px-2 py-0.5">
                   BORRADOR
                 </span>
               )}
