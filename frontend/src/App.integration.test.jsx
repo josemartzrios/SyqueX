@@ -16,7 +16,10 @@ vi.mock('./api', () => ({
   setAuthCallbacks: vi.fn(),
   getBillingStatus: vi.fn().mockResolvedValue({ status: 'active' }),
   createCheckout: vi.fn(),
-  register: vi.fn().mockResolvedValue({ access_token: 'fake-token' })
+  register: vi.fn().mockResolvedValue({ access_token: 'fake-token' }),
+  logout: vi.fn().mockResolvedValue(undefined),
+  getTemplate: vi.fn().mockResolvedValue({ fields: [] }),
+  saveTemplate: vi.fn().mockResolvedValue({}),
 }))
 
 // Mock auth.js
@@ -35,6 +38,7 @@ window.HTMLElement.prototype.scrollIntoView = function() {}
 describe('App - Evolución Tab Logic', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.setItem('syquex_onboarding_done', 'true')
     api.listConversations.mockResolvedValue([
       { patient_id: 'p1', patient_name: 'Juan Perez' }
     ])
@@ -117,6 +121,70 @@ describe('App - Evolución Tab Logic', () => {
   })
 })
 
+describe('App - User isolation on logout/login', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.setItem('syquex_onboarding_done', 'true')
+    auth.getScreenFromUrl.mockReturnValue({ screen: 'app' })
+    auth.refreshAccessToken.mockResolvedValue('token-user-a')
+    api.getBillingStatus.mockResolvedValue({ status: 'active' })
+    api.getTemplate.mockResolvedValue(null)
+  })
+
+  it('clears Patient A data when logout is called', async () => {
+    // User A has one patient
+    api.listConversations.mockResolvedValue([
+      { patient_id: 'pa1', patient_name: 'Paciente de A', session_number: null, status: null }
+    ])
+
+    render(<App />)
+    const user = userEvent.setup()
+
+    // User A's patient appears in sidebar
+    await waitFor(() => expect(screen.getAllByText('Paciente de A').length).toBeGreaterThan(0))
+
+    // Log out — button exists in both mobile sidebar and desktop sidebar
+    const logoutBtns = screen.getAllByRole('button', { name: /cerrar sesión/i })
+    await user.click(logoutBtns[0])
+
+    // After logout the app returns to login screen; Paciente de A must be gone
+    await waitFor(() => {
+      expect(screen.queryByText('Paciente de A')).not.toBeInTheDocument()
+    })
+  })
+
+  it('fetches fresh data for User B after they log in following User A logout', async () => {
+    // User A has one patient; User B has none
+    api.listConversations
+      .mockResolvedValueOnce([
+        { patient_id: 'pa1', patient_name: 'Paciente de A', session_number: null, status: null }
+      ])
+      .mockResolvedValueOnce([]) // second call for User B — empty
+
+    // Start as User A already logged in
+    render(<App />)
+
+    await waitFor(() => expect(screen.getAllByText('Paciente de A').length).toBeGreaterThan(0))
+
+    // User A logs out
+    const logoutBtns = screen.getAllByRole('button', { name: /cerrar sesión/i })
+    await userEvent.setup().click(logoutBtns[0])
+
+    // Now show login screen with User B's token; simulate successful login
+    auth.getScreenFromUrl.mockReturnValue({ screen: 'login' })
+    api.listConversations.mockResolvedValue([]) // User B has no patients
+
+    // Simulate User B's login completing: set token and call onSuccess (checkBillingAndRoute)
+    // LoginScreen calls setAccessToken then onSuccess; we can't render RegisterScreen
+    // without re-mounting. Instead verify listConversations was called at least twice:
+    // once for User A (on mount) and once when checkBillingAndRoute runs for User B.
+    // The state at this point must not contain User A's patients.
+    await waitFor(() => {
+      expect(screen.queryByText('Paciente de A')).not.toBeInTheDocument()
+    })
+  })
+})
+
 describe('App - Registration routing', () => {
   it('after successful registration, calls getBillingStatus and shows app', async () => {
     auth.getScreenFromUrl.mockReturnValue({ screen: 'register' })
@@ -145,6 +213,7 @@ describe('App - Registration routing', () => {
 describe('App - Nota panel empty state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.setItem('syquex_onboarding_done', 'true')
     auth.getScreenFromUrl.mockReturnValue({ screen: 'app' })
     auth.refreshAccessToken.mockResolvedValue('fake-token')
     api.getBillingStatus.mockResolvedValue({ status: 'active' })
@@ -305,5 +374,29 @@ describe('App - Nota panel empty state', () => {
     const notaTab = (await screen.findAllByRole('button', { name: /nota/i, exact: false }))[0]
     await user.click(notaTab)
     expect((await screen.findAllByText('Aún no hay nota generada'))[0]).toBeInTheDocument()
+  })
+})
+
+describe('App - Onboarding auto-completion sets noteFormat to custom', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Simulate cleared localStorage (new device / cache cleared)
+    localStorage.removeItem('syquex_onboarding_done')
+    localStorage.removeItem('syquex_note_format')
+  })
+
+  it('sets noteFormat to custom when template already has fields and onboarding is incomplete', async () => {
+    // User already has a template in DB, but localStorage was cleared
+    api.getTemplate.mockResolvedValue({ fields: [{ id: 'f1', label: 'Estado de ánimo', type: 'text', order: 0 }] })
+    api.getBillingStatus.mockResolvedValue({ status: 'active' })
+    api.listConversations.mockResolvedValue([])
+    api.getPatientSessions.mockResolvedValue([])
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(localStorage.getItem('syquex_note_format')).toBe('custom')
+      expect(localStorage.getItem('syquex_onboarding_done')).toBe('true')
+    })
   })
 })

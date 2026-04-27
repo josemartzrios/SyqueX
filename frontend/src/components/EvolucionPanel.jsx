@@ -113,12 +113,16 @@ export default function EvolucionPanel({ patient, messages, profile, loading, on
       {/* Suggested chips */}
       {chips.length > 0 && !loading && (
         <div className="px-4 py-2 border-t border-black/[0.05] flex flex-wrap gap-2">
-          {chips.map(chip => (
+          {chips.map((chip, i) => (
             <button
               key={chip}
               onClick={() => handleChip(chip)}
               disabled={sending}
-              className="text-[11px] text-[#c4935a] bg-[#fff7ed] border border-[#fed7aa] rounded-full px-3 py-1 hover:bg-[#ffedd5] transition-colors disabled:opacity-50"
+              className={`text-[11px] rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
+                i % 2 === 0
+                  ? 'bg-[#f0f8f5] border border-[#b3d9ce] text-[#3d7a65] hover:bg-[#e4f4ef]'
+                  : 'bg-[#fdf6ee] border border-[#e8c99a] text-[#9a6630] hover:bg-[#faecd8]'
+              }`}
             >
               {chip}
             </button>

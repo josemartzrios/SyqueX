@@ -34,10 +34,12 @@ const SECTIONS = [
   { key: 'plan',       letter: 'P', label: 'Plan'       },
 ]
 
-export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false, compact = false }) {
+export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOnly = false, compact = false }) {
   const [saving, setSaving] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [saveError, setSaveError] = useState(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Parse note data
   const parsedNote = !noteData.clinical_note && noteData.text_fallback
@@ -50,6 +52,18 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
 
   const hasStructuredNote = !!(clinicalNote && Object.keys(noteContent).length > 0)
 
+  const [editedFields, setEditedFields] = useState({
+    subjective: noteContent.subjective ?? '',
+    objective: noteContent.objective ?? '',
+    assessment: noteContent.assessment ?? '',
+    plan: noteContent.plan ?? '',
+    alerts: noteData.clinical_note?.alerts ?? [],
+    detected_patterns: noteData.clinical_note?.detected_patterns ?? [],
+  })
+  const [activeField, setActiveField] = useState(null)
+  const [newAlertInput, setNewAlertInput] = useState(false)
+  const [newPatternInput, setNewPatternInput] = useState(false)
+
   const handleConfirm = async () => {
     setSaving(true)
     setSaveError(null)
@@ -57,9 +71,14 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
       const sid = noteData.clinical_note?.session_id || noteData.session_id
       await confirmNote(sid, {
         format: 'SOAP',
-        structured_note: noteContent,
-        detected_patterns: patterns,
-        alerts: alerts,
+        structured_note: {
+          subjective: editedFields.subjective,
+          objective: editedFields.objective,
+          assessment: editedFields.assessment,
+          plan: editedFields.plan,
+        },
+        detected_patterns: editedFields.detected_patterns,
+        alerts: editedFields.alerts,
       })
       setConfirmed(true)
     } catch (err) {
@@ -67,6 +86,12 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleDelete = async () => {
+    if (!onDelete) return
+    setDeleting(true)
+    try { await onDelete() } finally { setDeleting(false); setShowDeleteConfirm(false) }
   }
 
   // Handle confirm timeout cleanup
@@ -93,50 +118,181 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
         </p>
       )}
 
+      {/* Edit hint */}
+      {!readOnly && !compact && (
+        <p className="font-sans text-[11px] text-right mb-4" style={{ color: MUTED }}>
+          Toca cualquier campo para editar
+        </p>
+      )}
+
       {/* SOAP sections */}
       {hasStructuredNote && SECTIONS.map(({ key, label }, sectionIndex) => {
-        const content = noteContent[key]
+        const content = editedFields[key]
         const hasContent = !!content
+        const isActive = activeField === key
         return (
           <div key={key} className={sectionIndex > 0 ? (compact ? 'mt-6' : 'mt-8') : ''}>
-            {/* Section label */}
             <p
               className="font-sans text-[10px] font-bold tracking-[0.12em] uppercase"
               style={{ fontVariant: 'small-caps', color: hasContent ? SAGE : MUTED }}
             >
               {label}
             </p>
-            {/* Thin rule */}
             <hr className="border-0 border-t border-current mt-1 mb-3" style={{ color: hasContent ? `${SAGE}33` : `${MUTED}33` }} />
-            {/* Content */}
-            <p className="font-serif text-[15px] leading-relaxed" style={{ color: INK }}>
-              {content || <span style={{ color: MUTED }}>—</span>}
-            </p>
+            {!readOnly && isActive ? (
+              <textarea
+                autoFocus
+                defaultValue={content}
+                className="font-serif text-[15px] leading-relaxed w-full resize-none rounded-md p-2 outline-none"
+                style={{ border: `1.5px solid ${SAGE}`, background: '#fffef9', color: INK, overflow: 'hidden' }}
+                ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }}
+                onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
+                onBlur={(e) => { setEditedFields(prev => ({ ...prev, [key]: e.target.value })); setActiveField(null) }}
+              />
+            ) : (
+              <p
+                className="font-serif text-[15px] leading-relaxed rounded-md p-2"
+                style={{
+                  color: INK,
+                  cursor: readOnly ? 'default' : 'text',
+                  border: readOnly ? 'none' : '1.5px dashed #d1d5db',
+                }}
+                onClick={() => !readOnly && setActiveField(key)}
+              >
+                {content || <span style={{ color: MUTED }}>—</span>}
+              </p>
+            )}
           </div>
         )
       })}
 
       {/* Alerts */}
-      {alerts.length > 0 && (
+      {(editedFields.alerts.length > 0 || !readOnly) && (
         <div className="mt-8">
           <p className="font-sans text-[10px] font-bold tracking-[0.12em] uppercase text-red-600 mb-2">
             Alertas detectadas
           </p>
-          <ul className="font-sans text-[14px] text-red-700 space-y-1 list-disc pl-4">
-            {alerts.map((a, i) => <li key={i}>{a.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>)}
-          </ul>
+          {readOnly ? (
+            <ul className="font-sans text-[14px] text-red-700 space-y-1 list-disc pl-4">
+              {editedFields.alerts.map((a, i) => (
+                <li key={i}>{a.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flex flex-wrap gap-2 items-center">
+              {editedFields.alerts.map((a, i) => (
+                <span key={i} className="inline-flex items-center gap-1 bg-red-100 text-red-800 text-[12px] font-sans px-3 py-1 rounded-full">
+                  {a.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}
+                  <button
+                    onClick={() => setEditedFields(prev => ({
+                      ...prev,
+                      alerts: prev.alerts.filter((_, idx) => idx !== i),
+                    }))}
+                    className="ml-1 text-red-500 hover:text-red-700 font-bold leading-none"
+                    aria-label="Eliminar alerta"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {newAlertInput ? (
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Nueva alerta…"
+                  className="font-sans text-[12px] border border-red-300 rounded-full px-3 py-1 outline-none"
+                  style={{ background: '#fef2f2' }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      setEditedFields(prev => ({ ...prev, alerts: [...prev.alerts, e.target.value.trim()] }))
+                      setNewAlertInput(false)
+                    } else if (e.key === 'Escape') {
+                      setNewAlertInput(false)
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value.trim()) {
+                      setEditedFields(prev => ({ ...prev, alerts: [...prev.alerts, e.target.value.trim()] }))
+                    }
+                    setNewAlertInput(false)
+                  }}
+                />
+              ) : (
+                <button
+                  onClick={() => setNewAlertInput(true)}
+                  className="inline-flex items-center font-sans text-[12px] text-red-600 border border-dashed border-red-300 rounded-full px-3 py-1 hover:bg-red-50 transition-colors"
+                  aria-label="+ Agregar"
+                >
+                  + Agregar
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {/* Patterns */}
-      {patterns.length > 0 && (
+      {(editedFields.detected_patterns.length > 0 || !readOnly) && (
         <div className="mt-6">
           <p className="font-sans text-[10px] font-bold tracking-[0.12em] uppercase text-[#c4935a] mb-2">
             Patrones evolutivos
           </p>
-          <ul className="font-sans text-[14px] text-[#92681e] space-y-1 list-disc pl-4">
-            {patterns.map((p, i) => <li key={i}>{p.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>)}
-          </ul>
+          {readOnly ? (
+            <ul className="font-sans text-[14px] text-[#92681e] space-y-1 list-disc pl-4">
+              {editedFields.detected_patterns.map((p, i) => (
+                <li key={i}>{p.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</li>
+              ))}
+            </ul>
+          ) : (
+            <div className="flex flex-wrap gap-2 items-center">
+              {editedFields.detected_patterns.map((p, i) => (
+                <span key={i} className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[12px] font-sans px-3 py-1 rounded-full">
+                  {p.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}
+                  <button
+                    onClick={() => setEditedFields(prev => ({
+                      ...prev,
+                      detected_patterns: prev.detected_patterns.filter((_, idx) => idx !== i),
+                    }))}
+                    className="ml-1 text-amber-500 hover:text-amber-700 font-bold leading-none"
+                    aria-label="Eliminar patrón"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {newPatternInput ? (
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Nuevo patrón…"
+                  className="font-sans text-[12px] border border-amber-300 rounded-full px-3 py-1 outline-none"
+                  style={{ background: '#fffbeb' }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      setEditedFields(prev => ({ ...prev, detected_patterns: [...prev.detected_patterns, e.target.value.trim()] }))
+                      setNewPatternInput(false)
+                    } else if (e.key === 'Escape') {
+                      setNewPatternInput(false)
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value.trim()) {
+                      setEditedFields(prev => ({ ...prev, detected_patterns: [...prev.detected_patterns, e.target.value.trim()] }))
+                    }
+                    setNewPatternInput(false)
+                  }}
+                />
+              ) : (
+                <button
+                  onClick={() => setNewPatternInput(true)}
+                  className="inline-flex items-center font-sans text-[12px] text-[#c4935a] border border-dashed border-amber-300 rounded-full px-3 py-1 hover:bg-amber-50 transition-colors"
+                  aria-label="+ Agregar"
+                >
+                  + Agregar
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -145,23 +301,56 @@ export default function SoapNoteDocument({ noteData, onConfirm, readOnly = false
         <p className="font-sans mt-4 text-[13px] text-red-600">{saveError}</p>
       )}
 
-      {/* Confirm button — only when not readOnly and there is a structured note */}
+      {/* CTA bar — only when not readOnly and there is a structured note */}
       {!readOnly && hasStructuredNote && (
-        <div className="mt-8">
-          {!confirmed ? (
-            <button
-              onClick={handleConfirm}
-              disabled={saving}
-              className={`text-white rounded-xl px-5 py-2.5 text-[14px] font-medium transition-opacity font-sans ${
-                saving ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90'
-              }`}
-              style={{ backgroundColor: SAGE }}
-            >
-              {saving ? 'Guardando…' : 'Confirmar'}
-            </button>
-          ) : (
-            <span className="font-sans text-[14px] font-medium" style={{ color: SAGE }}>
-              Guardada ✓
+        <div className="font-sans flex flex-col sm:flex-row sm:items-center gap-2 border-t border-ink/[0.06] pt-4 mt-4">
+          {!confirmed && (
+            <>
+              {showDeleteConfirm ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <span className="text-[12px] text-red-600 font-medium">¿Eliminar nota permanentemente?</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 sm:flex-none text-[13px] font-medium text-ink-secondary border border-ink/15 rounded-xl px-4 py-2 hover:bg-[#f4f4f2] transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex-1 sm:flex-none text-[13px] font-medium text-white bg-[#DC2626] rounded-xl px-4 py-2 hover:bg-red-700 transition-colors disabled:opacity-50"
+                    >
+                      {deleting ? 'Eliminando…' : 'Sí, eliminar'}
+                    </button>
+                  </div>
+                </div>
+              ) : onDelete && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full sm:w-auto text-[13px] font-medium text-red-500 border border-red-200 rounded-xl px-4 py-2 hover:bg-red-50 transition-colors"
+                >
+                  Borrar nota
+                </button>
+              )}
+
+              <button
+                onClick={handleConfirm}
+                disabled={saving || showDeleteConfirm}
+                className={`w-full sm:w-auto sm:ml-auto bg-[#5a9e8a] text-white text-[13px] font-medium rounded-xl px-4 py-2.5 transition-colors ${
+                  saving || showDeleteConfirm ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#4a8a78]'
+                }`}
+              >
+                {saving ? 'Registrando...' : '✓ Confirmar en Expediente'}
+              </button>
+            </>
+          )}
+          {confirmed && (
+            <span className="text-emerald-600 text-[13px] font-medium flex items-center justify-center gap-1 py-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+              Guardado en expediente
             </span>
           )}
         </div>
