@@ -6,8 +6,12 @@ export default function Hero() {
         <br className="hidden sm:block" /> para psicólogos
       </h1>
       <p className="text-lg sm:text-xl text-ink-secondary max-w-xl mx-auto mb-10 leading-relaxed">
-        Dicta tu sesión. SyqueX genera la nota SOAP al instante —
+        Dicta tu sesión. SyqueX genera la nota personalizada o SOAP al instante —
         estructurada, lista para el expediente.
+      </p>
+      <p className="text-lg sm:text-xl text-ink-secondary max-w-xl mx-auto mb-10 leading-relaxed">
+        Deja de perder tiempo revisando archivos o notas dispersas.
+        En segundos tienes contexto del paciente gracias al agente de IA.
       </p>
       <a
         href="https://app.syquex.mx/registro"

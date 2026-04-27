@@ -1,21 +1,21 @@
 const benefits = [
   {
     icon: '⚡',
-    title: 'Notas SOAP en segundos',
+    title: 'Notas personalizadas o SOAP en segundos',
     description:
-      'La IA estructura el dictado en Subjetivo, Objetivo, Análisis y Plan.',
+      'La IA estructura el dictado a tu estilo o en formato SOAP (Subjetivo, Objetivo, Análisis y Plan)',
   },
   {
     icon: '🔍',
     title: 'Historial con búsqueda semántica',
     description:
-      'Encuentra patrones clínicos en sesiones anteriores al instante.',
+      'Encuentra patrones clínicos en sesiones anteriores al instante con ayuda del agente de IA.',
   },
   {
     icon: '🔒',
     title: 'Datos protegidos bajo LFPDPPP',
     description:
-      'Tu información y la de tus pacientes bajo la ley mexicana de privacidad.',
+      'Tu información y la de tus pacientes protegidas con encriptación y respaldos bajo la ley mexicana de privacidad.',
   },
 ]
 

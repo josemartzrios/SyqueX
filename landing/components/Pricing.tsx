@@ -10,7 +10,7 @@ export default function Pricing() {
         <ul className="space-y-2 mb-6 text-sm text-ink-secondary">
           {[
             'Pacientes ilimitados',
-            'Notas SOAP con IA',
+            'Notas personalizadas o SOAP con IA',
             'Historial clínico completo',
             'Soporte por email',
           ].map((f) => (
