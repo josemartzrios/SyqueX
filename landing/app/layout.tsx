@@ -4,12 +4,12 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'SyqueX — Documentación clínica con IA para psicólogos',
   description:
-    'Dicta tu sesión. SyqueX genera la nota SOAP al instante — estructurada, lista para el expediente.',
+    'Dicta tu sesión. SyqueX genera la nota personalizada o SOAP al instante — estructurada, lista para el expediente.',
   metadataBase: new URL('https://syquex.mx'),
   openGraph: {
     title: 'SyqueX — Documentación clínica con IA para psicólogos',
     description:
-      'Dicta tu sesión. SyqueX genera la nota SOAP al instante.',
+      'Dicta tu sesión. SyqueX genera la nota clínica personalizada o SOAP al instante.',
     url: 'https://syquex.mx',
     siteName: 'SyqueX',
     images: [{ url: '/og-image.png', width: 1200, height: 630 }],
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'SyqueX — Documentación clínica con IA',
-    description: 'Notas SOAP generadas con IA en segundos.',
+    description: 'Notas personalizadas o SOAP generadas con IA en segundos.',
     images: ['/og-image.png'],
   },
 }
