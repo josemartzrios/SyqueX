@@ -204,6 +204,8 @@ class Patient(Base):
     reason_for_consultation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     medical_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     psychological_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    gender_identity: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     risk_level: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
@@ -421,6 +423,8 @@ async def init_db():
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS reason_for_consultation TEXT;"))
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS medical_history TEXT;"))
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS psychological_history TEXT;"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS gender_identity VARCHAR(30);"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS phone VARCHAR(20);"))
 
         # Encryption: JSONB → Text (idempotente)
         await conn.execute(text("""
@@ -485,6 +489,17 @@ async def init_db():
                 ) THEN
                     ALTER TABLE patients ADD CONSTRAINT chk_patients_risk_level
                         CHECK (risk_level IN ('low', 'medium', 'high'));
+                END IF;
+            END$$;
+        """))
+        await conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'chk_patients_gender_identity'
+                ) THEN
+                    ALTER TABLE patients ADD CONSTRAINT chk_patients_gender_identity
+                        CHECK (gender_identity IN ('hombre', 'mujer', 'no_binario', 'otro'));
                 END IF;
             END$$;
         """))
