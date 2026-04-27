@@ -93,9 +93,11 @@ Reglas:
 
 CUSTOM_NOTE_SYSTEM_PROMPT = (
     "Eres un asistente clínico especializado. El psicólogo ha definido una estructura de nota personalizada. "
-    "Tu tarea es llenar TODOS los campos de la nota usando la información del dictado de sesión. "
-    "Extrae información directamente del dictado. Si un campo no se menciona explícitamente, "
-    "realiza una inferencia clínica razonable basada en el contexto. "
+    "Tu tarea es extraer información del dictado de sesión y colocarla en los campos correspondientes. "
+    "MANEJO DE CAMPOS SIN INFORMACIÓN (CRÍTICO): "
+    "Si un campo no está mencionado en el dictado, omite ese campo en la respuesta (no lo incluyas). "
+    "NUNCA escribas 'UNKNOWN', 'N/A', 'Sin dato', 'No mencionado' ni ningún texto de relleno. "
+    "Un campo ausente es mejor que un campo con texto falso. "
     "Responde ÚNICAMENTE usando la herramienta fill_custom_note — no generes texto libre.\n\n"
     + _SHARED_RULES
 )
@@ -369,7 +371,20 @@ async def process_session_custom(
     if tool_block is None:
         raise LLMServiceError("El agente no completó la nota. Intenta de nuevo.")
 
-    custom_fields = tool_block.input
+    # Sanitize: remove placeholder strings Claude may emit when data is missing.
+    _PLACEHOLDER_VALUES = {"unknown", "n/a", "n/d", "sin dato", "no mencionado", "no aplica"}
+
+    def _sanitize(value):
+        if isinstance(value, str) and value.strip().lower() in _PLACEHOLDER_VALUES:
+            return None
+        return value
+
+    raw_fields = tool_block.input
+    custom_fields = {
+        fid: _sanitize(val)
+        for fid, val in raw_fields.items()
+        if _sanitize(val) is not None and val != "" and val != []
+    }
 
     label_map = {f["id"]: f["label"] for f in template_fields}
     lines = []

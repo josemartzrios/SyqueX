@@ -26,13 +26,13 @@ def build_fill_tool(template_fields: list[dict]) -> dict:
     return {
         "name": "fill_custom_note",
         "description": (
-            "Fill all fields of the psychologist's clinical note from the session dictation. "
-            "Extract information from the dictation for every field. "
-            "If information for a field is not mentioned, make a reasonable clinical inference."
+            "Fill the psychologist's clinical note from the session dictation. "
+            "Include only fields that have information in the dictation. "
+            "Omit fields entirely when the information is not in the dictation — "
+            "never use placeholder text like 'UNKNOWN', 'N/A', or 'Sin dato'."
         ),
         "input_schema": {
             "type": "object",
             "properties": properties,
-            "required": [f["id"] for f in template_fields],
         },
     }

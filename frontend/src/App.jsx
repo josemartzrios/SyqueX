@@ -561,9 +561,9 @@ function App() {
   const confirmedSessions = soapSessions.filter(s => s.status === 'confirmed');
   const orphanedSessions = soapSessions.filter(s => s.status === 'draft' && !dismissedOrphanIds.has(String(s.id)));
   // Sequential display number per confirmed session (oldest = #1). Sessions come
-  // newest-first from the backend, so index 0 = newest → gets confirmedSessions.length.
+  // oldest-first from the backend (asc), so index 0 = oldest → gets number 1.
   const confirmedDisplayNum = new Map(
-    confirmedSessions.map((s, i) => [String(s.id), confirmedSessions.length - i])
+    confirmedSessions.map((s, i) => [String(s.id), i + 1])
   );
 
   // Derive the latest note message for the note panel
