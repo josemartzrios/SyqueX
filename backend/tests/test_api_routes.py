@@ -611,28 +611,16 @@ class TestListConversations:
         assert patient_names == {"Ana García", "Luis Pérez"}
 
     @pytest.mark.asyncio
-    async def test_patient_with_no_sessions_appears(self, app, mock_db):
-        """Patient with zero Sessions (chat-only) still appears with nulls."""
-        import uuid as uuid_mod
-
-        p_id = uuid_mod.uuid4()
-        row = {
-            "patient_id": p_id, "patient_name": "María Sin Notas",
-            "session_id": None, "session_number": None,
-            "session_date": None, "dictation_preview": None,
-            "status": None, "messages": None,
-        }
-        mock_db.execute.return_value = _result(all_rows=[row])
+    async def test_patient_with_no_sessions_is_excluded(self, app, mock_db):
+        """Patient with zero Sessions should no longer appear in the conversations list."""
+        mock_db.execute.return_value = _result(all_rows=[])
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/conversations")
 
         assert response.status_code == 200
         items = response.json()["items"]
-        assert len(items) == 1
-        assert items[0]["patient_name"] == "María Sin Notas"
-        assert items[0]["id"] is None
-        assert items[0]["session_number"] is None
+        assert len(items) == 0
 
 
 # ---------------------------------------------------------------------------
