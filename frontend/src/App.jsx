@@ -6,7 +6,7 @@ import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import PatientIntakeModal from './components/PatientIntakeModal'
 import EvolucionPanel from './components/EvolucionPanel'
-import { processSession, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout, deleteSession } from './api'
+import { processSession, confirmNote, getTemplate, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout, deleteSession } from './api'
 import useDraft from './hooks/useDraft';
 import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
 import LoginScreen from './components/LoginScreen.jsx';
@@ -15,6 +15,10 @@ import ForgotPasswordScreen from './components/ForgotPasswordScreen.jsx';
 import ResetPasswordScreen from './components/ResetPasswordScreen.jsx';
 import BillingScreen from './components/BillingScreen.jsx';
 import TrialBanner from './components/TrialBanner.jsx';
+import CustomNoteDocument from './components/CustomNoteDocument.jsx';
+import OnboardingScreen from './components/OnboardingScreen.jsx';
+import NoteConfigurator from './components/NoteConfigurator.jsx';
+import { saveTemplate } from './api';
 
 // ── Module-level constants ─────────────────────────────────────────────────
 const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
@@ -152,7 +156,17 @@ function App() {
   // Desktop two-mode layout state
   const [desktopMode, setDesktopMode] = useState('session'); // 'session' | 'review'
   const [reviewExpandedSessionId, setReviewExpandedSessionId] = useState(null);
-  
+
+  // Template state
+  const [template, setTemplate] = useState(null);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(() => localStorage.getItem('syquex_onboarding_done') === 'true');
+  const [noteFormat, setNoteFormat] = useState(() => localStorage.getItem('syquex_note_format') || 'soap');
+  const [showNoteConfigurator, setShowNoteConfigurator] = useState(false);
+  const [isConfiguratorFirstTime, setIsConfiguratorFirstTime] = useState(false);
+  const [newlyConfirmedSessionId, setNewlyConfirmedSessionId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [dismissedOrphanIds, setDismissedOrphanIds] = useState(new Set());
+
   // Evolución tab state
   const [evolutionMessages, setEvolutionMessages] = useState(new Map()); // Map<patientId, Message[]>
   const [evolutionLoading, setEvolutionLoading] = useState(false);
@@ -263,8 +277,9 @@ function App() {
 
     const historyMessages = [];
     // Only include confirmed sessions in chat bubbles
-    const historyToShow = history.filter(s => s.status === 'confirmed');
+    const historyToShow = history.filter(s => s?.status === 'confirmed');
     historyToShow.forEach(session => {
+      if (!session) return;
       if (session.raw_dictation) {
         historyMessages.push({ role: 'user', text: session.raw_dictation });
       }
@@ -411,7 +426,10 @@ function App() {
     setExpandedSessionId(prev => toggleExpandedSession(prev, sessionId));
   };
 
-  useEffect(() => { fetchConversations(); }, []);
+  useEffect(() => {
+    fetchConversations();
+    getTemplate().then(setTemplate).catch(() => setTemplate({}));
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -443,25 +461,32 @@ function App() {
         loadPatientProfile(selectedPatientId);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desktopMode, selectedPatientId]);
 
-  const handleSendDictation = async (dictation, format) => {
+  useEffect(() => {
+    localStorage.setItem('syquex_note_format', noteFormat);
+  }, [noteFormat]);
+
+  // Clear "Nueva" badge when patient changes
+  useEffect(() => { setNewlyConfirmedSessionId(null); setDismissedOrphanIds(new Set()); }, [selectedPatientId]);
+
+  const handleSendDictation = async (dictation) => {
+    const activeFormat = noteFormat;
     setMessages(prev => [
       ...markPendingNotesReadOnly(prev),
       { role: 'user', text: dictation },
       { role: 'assistant', type: 'loading' }
     ]);
-    if (format === 'SOAP') setMobileTab('nota');
-    if (format === 'SOAP') setCurrentSessionNote({ type: 'loading' });
+    if (activeFormat === 'soap' || activeFormat === 'custom') setMobileTab('nota');
+    if (activeFormat === 'soap' || activeFormat === 'custom') setCurrentSessionNote({ type: 'loading' });
     try {
-      const noteData = await processSession(selectedPatientId, dictation, format);
+      const noteData = await processSession(selectedPatientId, dictation, activeFormat);
       clearDraft();
-      const botMessage = format === 'SOAP'
+      const botMessage = (activeFormat === 'soap' || activeFormat === 'custom')
         ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
         : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
       setMessages(prev => [...prev.slice(0, -1), botMessage]);
-      if (format === 'SOAP') {
+      if (activeFormat === 'soap' || activeFormat === 'custom') {
         setCurrentSessionNote({
           type: 'bot',
           noteData,
@@ -475,7 +500,7 @@ function App() {
         ...prev.slice(0, -1),
         { role: 'assistant', type: 'error', text: 'Anomalía de conexión: ' + err.message }
       ]);
-      if (format === 'SOAP') {
+      if (activeFormat === 'soap' || activeFormat === 'custom') {
         setCurrentSessionNote({
           type: 'error',
           text: 'Anomalía de conexión: ' + err.message,
@@ -486,16 +511,17 @@ function App() {
 
   const handleResumeOrphan = (orphan) => {
     setDraft(orphan.raw_dictation);
-    // Cleanup the bot message from chat that shows the orphaned state if needed
-    // (In this version, we simple set the draft and the user will see it in the textarea)
+    setDismissedOrphanIds(prev => new Set([...prev, String(orphan.id)]));
   };
 
   const handleDiscardOrphan = async (sessionId) => {
+    setDismissedOrphanIds(prev => new Set([...prev, String(sessionId)]));
     try {
       await deleteSession(sessionId);
       if (selectedPatientId) fetchPatientSessions(selectedPatientId);
     } catch (err) {
       console.error("Error discarding orphan:", err);
+      setDismissedOrphanIds(prev => { const next = new Set(prev); next.delete(String(sessionId)); return next; });
     }
   };
 
@@ -508,7 +534,12 @@ function App() {
   
   const soapSessions = sessionHistory.filter(s => s.format !== 'chat');
   const confirmedSessions = soapSessions.filter(s => s.status === 'confirmed');
-  const orphanedSessions = soapSessions.filter(s => s.status === 'draft');
+  const orphanedSessions = soapSessions.filter(s => s.status === 'draft' && !dismissedOrphanIds.has(String(s.id)));
+  // Sequential display number per confirmed session (oldest = #1). Sessions come
+  // newest-first from the backend, so index 0 = newest → gets confirmedSessions.length.
+  const confirmedDisplayNum = new Map(
+    confirmedSessions.map((s, i) => [String(s.id), confirmedSessions.length - i])
+  );
 
   // Derive the latest note message for the note panel
   const latestNoteMsg = (() => {
@@ -558,8 +589,63 @@ function App() {
     />;
   }
 
+  // Onboarding Screen Logic
+  if (!onboardingCompleted && template !== null) {
+    if (template.fields?.length > 0) {
+      // Auto-complete if they already have a template
+      localStorage.setItem('syquex_onboarding_done', 'true');
+      setOnboardingCompleted(true);
+    } else if (showNoteConfigurator) {
+      return (
+        <NoteConfigurator
+          initialFields={[]}
+          isFirstTime={true}
+          onSave={async (fields) => {
+            await saveTemplate(fields);
+            setTemplate({ fields });
+            setNoteFormat('custom');
+            localStorage.setItem('syquex_onboarding_done', 'true');
+            setOnboardingCompleted(true);
+            setShowNoteConfigurator(false);
+          }}
+          onCancel={() => {
+            setShowNoteConfigurator(false);
+          }}
+        />
+      );
+    } else {
+      return (
+        <OnboardingScreen
+          onSelectSoap={() => {
+            setNoteFormat('soap');
+            localStorage.setItem('syquex_onboarding_done', 'true');
+            setOnboardingCompleted(true);
+          }}
+          onSelectCustom={() => {
+            setShowNoteConfigurator(true);
+          }}
+        />
+      );
+    }
+  }
+
   return (
     <div className="h-screen bg-white font-sans flex flex-col overflow-hidden">
+      {showNoteConfigurator && (
+        <NoteConfigurator
+          initialFields={template?.fields || []}
+          isFirstTime={false}
+          onSave={async (fields) => {
+            await saveTemplate(fields);
+            setTemplate({ fields });
+            setNoteFormat('custom');
+            setShowNoteConfigurator(false);
+          }}
+          onCancel={() => {
+            setShowNoteConfigurator(false);
+          }}
+        />
+      )}
       {billingStatus?.status === 'trialing' && billingStatus?.days_remaining != null && (
         <TrialBanner
           daysRemaining={billingStatus.days_remaining}
@@ -626,11 +712,24 @@ function App() {
                     <DictationPanel
                       value={draft}
                       onChange={setDraft}
-                      onGenerate={(d) => handleSendDictation(d, 'SOAP')}
+                      onGenerate={(d) => handleSendDictation(d)}
                       loading={isLoading}
                       orphanedSessions={orphanedSessions}
                       onResumeOrphan={handleResumeOrphan}
                       onDiscardOrphan={handleDiscardOrphan}
+                      noteFormat={noteFormat}
+                      onFormatChange={(format) => {
+                        if (format === 'custom' && (!template?.fields || template.fields.length === 0)) {
+                          setIsConfiguratorFirstTime(false);
+                          setShowNoteConfigurator(true);
+                        } else {
+                          setNoteFormat(format);
+                        }
+                      }}
+                      onEditTemplate={() => {
+                        setIsConfiguratorFirstTime(false);
+                        setShowNoteConfigurator(true);
+                      }}
                     />
 
                   </div>
@@ -648,11 +747,52 @@ function App() {
                       <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
                         <strong className="font-medium">Error:</strong> {currentSessionNote.text}
                       </div>
+                    ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData?.format === 'custom' ? (
+                      <CustomNoteDocument
+                        templateFields={currentSessionNote.noteData.template_fields || template?.fields || []}
+                        values={currentSessionNote.noteData.custom_fields || {}}
+                        onConfirm={async (editedValues) => {
+                          const sid = currentSessionNote.noteData.session_id;
+                          await confirmNote(sid, {
+                            format: 'custom',
+                            custom_fields: editedValues,
+                          });
+                          setNewlyConfirmedSessionId(sid);
+                          fetchPatientSessions(selectedPatientId);
+                          fetchConversations();
+                          setDesktopMode('review');
+                          setCurrentSessionNote(null);
+                          setToast('Sesión confirmada — nota guardada en historial');
+                          setTimeout(() => setToast(null), 3500);
+                        }}
+                        onDelete={async () => {
+                          const sid = currentSessionNote.noteData.session_id;
+                          await deleteSession(sid);
+                          setCurrentSessionNote(null);
+                          fetchPatientSessions(selectedPatientId);
+                        }}
+                      />
                     ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
                       <SoapNoteDocument
                         noteData={currentSessionNote.noteData}
-                        onConfirm={fetchConversations}
+                        onConfirm={async () => {
+                          const sid = currentSessionNote.noteData?.session_id || currentSessionNote.sessionId;
+                          if (sid) setNewlyConfirmedSessionId(sid);
+                          fetchPatientSessions(selectedPatientId);
+                          fetchConversations();
+                          setDesktopMode('review');
+                          setCurrentSessionNote(null);
+                          setToast('Sesión confirmada — nota guardada en historial');
+                          setTimeout(() => setToast(null), 3500);
+                        }}
                         readOnly={currentSessionNote.readOnly}
+                        onDelete={!currentSessionNote.readOnly ? async () => {
+                          const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
+                          if (!sid) return;
+                          await deleteSession(sid);
+                          setCurrentSessionNote(null);
+                          fetchPatientSessions(selectedPatientId);
+                        } : undefined}
                       />
                     ) : null}
                   </div>
@@ -674,7 +814,8 @@ function App() {
                       ) : (
                         confirmedSessions.map((s, i) => {
                           const isExpanded = reviewExpandedSessionId === String(s.id);
-                          const hasNote = s.status === 'confirmed' && s.structured_note;
+                          const isCustom = s.format === 'custom';
+                          const hasNote = s.status === 'confirmed' && (s.structured_note || s.custom_fields);
                           return (
                             <div
                               key={s.id || i}
@@ -688,7 +829,14 @@ function App() {
                               >
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between gap-2">
-                                    <p className="text-[13px] font-semibold text-ink">Sesión #{s.session_number || (confirmedSessions.length - i)}</p>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="text-[13px] font-semibold text-ink">Sesión #{confirmedDisplayNum.get(String(s.id)) ?? i + 1}</p>
+                                      {String(s.id) === newlyConfirmedSessionId && (
+                                        <span className="text-[9px] font-bold bg-[#5a9e8a] text-white rounded-full px-2 py-0.5">
+                                          Nueva
+                                        </span>
+                                      )}
+                                    </div>
                                     <span className="text-[11px] text-ink-tertiary font-medium">{formatDate(s.session_date)}</span>
                                   </div>
                                   {!isExpanded && s.raw_dictation && (
@@ -715,19 +863,27 @@ function App() {
                               </div>
                               {isExpanded && hasNote && (
                                 <div className="bg-white border-t border-ink/[0.04]">
-                                  <SoapNoteDocument
-                                    noteData={{
-                                      clinical_note: {
-                                        structured_note: s.structured_note,
-                                        detected_patterns: s.detected_patterns || [],
-                                        alerts: s.alerts || [],
-                                        session_id: String(s.id),
-                                      },
-                                      text_fallback: s.ai_response,
-                                    }}
-                                    readOnly
-                                    compact
-                                  />
+                                  {isCustom ? (
+                                    <CustomNoteDocument
+                                      templateFields={template?.fields || []}
+                                      values={s.custom_fields || {}}
+                                      readOnly
+                                    />
+                                  ) : (
+                                    <SoapNoteDocument
+                                      noteData={{
+                                        clinical_note: {
+                                          structured_note: s.structured_note,
+                                          detected_patterns: s.detected_patterns || [],
+                                          alerts: s.alerts || [],
+                                          session_id: String(s.id),
+                                        },
+                                        text_fallback: s.ai_response,
+                                      }}
+                                      readOnly
+                                      compact
+                                    />
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -795,6 +951,8 @@ function App() {
               patientName={selectedPatientName}
               sessionCount={confirmedSessions.length}
               compact
+              patientId={selectedPatientId}
+              onEditPatient={(id) => setEditingPatientId(id)}
             />
 
             {/* Tab nav */}
@@ -823,11 +981,24 @@ function App() {
                 <DictationPanel
                   value={draft}
                   onChange={setDraft}
-                  onGenerate={(d) => handleSendDictation(d, 'SOAP')}
+                  onGenerate={(d) => handleSendDictation(d)}
                   loading={isLoading}
                   orphanedSessions={orphanedSessions}
                   onResumeOrphan={handleResumeOrphan}
                   onDiscardOrphan={handleDiscardOrphan}
+                  noteFormat={noteFormat}
+                  onFormatChange={(format) => {
+                    if (format === 'custom' && (!template?.fields || template.fields.length === 0)) {
+                      setIsConfiguratorFirstTime(false);
+                      setShowNoteConfigurator(true);
+                    } else {
+                      setNoteFormat(format);
+                    }
+                  }}
+                  onEditTemplate={() => {
+                    setIsConfiguratorFirstTime(false);
+                    setShowNoteConfigurator(true);
+                  }}
                 />
               </div>
             )}
@@ -843,17 +1014,58 @@ function App() {
                       {[0, 0.2, 0.4].map((d, i) => (
                         <div key={i} className="w-2 h-2 rounded-full bg-ink-muted animate-pulse" style={{ animationDelay: `${d}s` }} />
                       ))}
-                      <span className="text-ink-tertiary text-sm">Generando nota…</span>
+                      <span className="text-ink-tertiary text-sm">
+                        {noteFormat === 'custom' ? 'Generando nota personalizada…' : 'Generando nota SOAP…'}
+                      </span>
                     </div>
                   ) : currentSessionNote.type === 'error' ? (
                     <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
                       <strong>Error:</strong> {currentSessionNote.text}
                     </div>
+                  ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData?.format === 'custom' ? (
+                    <CustomNoteDocument
+                      templateFields={currentSessionNote.noteData.template_fields || template?.fields || []}
+                      values={currentSessionNote.noteData.custom_fields || {}}
+                      onConfirm={async (editedValues) => {
+                        const sid = currentSessionNote.noteData.session_id;
+                        await confirmNote(sid, {
+                          format: 'custom',
+                          custom_fields: editedValues,
+                        });
+                        setNewlyConfirmedSessionId(sid);
+                        fetchPatientSessions(selectedPatientId);
+                        fetchConversations();
+                        setCurrentSessionNote(null);
+                        setToast('Sesión confirmada — nota guardada en historial');
+                        setTimeout(() => setToast(null), 3500);
+                      }}
+                      onDelete={async () => {
+                        const sid = currentSessionNote.noteData.session_id;
+                        await deleteSession(sid);
+                        setCurrentSessionNote(null);
+                        fetchPatientSessions(selectedPatientId);
+                      }}
+                    />
                   ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
                     <SoapNoteDocument
                       noteData={currentSessionNote.noteData}
-                      onConfirm={fetchConversations}
+                      onConfirm={async () => {
+                        const sid = currentSessionNote.noteData?.session_id || currentSessionNote.sessionId;
+                        if (sid) setNewlyConfirmedSessionId(sid);
+                        fetchPatientSessions(selectedPatientId);
+                        fetchConversations();
+                        setCurrentSessionNote(null);
+                        setToast('Sesión confirmada — nota guardada en historial');
+                        setTimeout(() => setToast(null), 3500);
+                      }}
                       readOnly={currentSessionNote.readOnly}
+                      onDelete={!currentSessionNote.readOnly ? async () => {
+                        const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
+                        if (!sid) return;
+                        await deleteSession(sid);
+                        setCurrentSessionNote(null);
+                        fetchPatientSessions(selectedPatientId);
+                      } : undefined}
                     />
                   ) : null}
                 </div>
@@ -869,7 +1081,8 @@ function App() {
                     <div className="space-y-2">
                       {soapSessions.map((s, i) => {
                         const isExpanded = expandedSessionId === String(s.id);
-                        const hasNote = s.status === 'confirmed' && s.structured_note;
+                        const isCustom = s.format === 'custom';
+                        const hasNote = s.status === 'confirmed' && (s.structured_note || s.custom_fields);
                         return (
                           <div
                             key={s.id || i}
@@ -886,7 +1099,7 @@ function App() {
                               <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
                               <div className="min-w-0 flex-1">
                                 <p className="text-[13px] font-medium text-ink">
-                                  Sesión #{s.session_number || (soapSessions.length - i)} · {formatDate(s.session_date)}
+                                  Sesión #{confirmedDisplayNum.get(String(s.id)) ?? '—'} · {formatDate(s.session_date)}
                                 </p>
                                 {s.raw_dictation && (
                                   <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
@@ -906,19 +1119,27 @@ function App() {
                             </div>
                             {isExpanded && hasNote && (
                               <div className="border-t border-ink/[0.06]">
-                                <SoapNoteDocument
-                                  noteData={{
-                                    clinical_note: {
-                                      structured_note: s.structured_note,
-                                      detected_patterns: s.detected_patterns || [],
-                                      alerts: s.alerts || [],
-                                      session_id: String(s.id),
-                                    },
-                                    text_fallback: s.ai_response,
-                                  }}
-                                  readOnly
-                                  compact
-                                />
+                                {isCustom ? (
+                                  <CustomNoteDocument
+                                    templateFields={template?.fields || []}
+                                    values={s.custom_fields || {}}
+                                    readOnly
+                                  />
+                                ) : (
+                                  <SoapNoteDocument
+                                    noteData={{
+                                      clinical_note: {
+                                        structured_note: s.structured_note,
+                                        detected_patterns: s.detected_patterns || [],
+                                        alerts: s.alerts || [],
+                                        session_id: String(s.id),
+                                      },
+                                      text_fallback: s.ai_response,
+                                    }}
+                                    readOnly
+                                    compact
+                                  />
+                                )}
                               </div>
                             )}
                           </div>
@@ -945,6 +1166,15 @@ function App() {
           </div>
         )}
       </div>
+
+
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#18181b] text-white text-[13px] font-medium px-5 py-3 rounded-xl shadow-lg">
+          {toast}
+        </div>
+      )}
 
       {/* PatientIntakeModal — crear o editar expediente */}
       <PatientIntakeModal

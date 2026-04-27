@@ -75,4 +75,54 @@ describe('DictationPanel', () => {
 
     expect(screen.queryByText('Sesiones sin confirmar')).not.toBeInTheDocument();
   });
+
+  it('calls onFormatChange when format toggles are clicked', () => {
+    const onFormatChange = vi.fn();
+    render(
+      <DictationPanel 
+        value="" 
+        onChange={() => {}} 
+        onGenerate={() => {}} 
+        loading={false}
+        noteFormat="soap"
+        onFormatChange={onFormatChange}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Personalizada'));
+    expect(onFormatChange).toHaveBeenCalledWith('custom');
+  });
+
+  it('renders "Editar plantilla" only when noteFormat is custom', () => {
+    const onEditTemplate = vi.fn();
+    const { rerender } = render(
+      <DictationPanel 
+        value="" 
+        onChange={() => {}} 
+        onGenerate={() => {}} 
+        loading={false}
+        noteFormat="soap"
+        onEditTemplate={onEditTemplate}
+      />
+    );
+
+    expect(screen.queryByText('Editar plantilla')).not.toBeInTheDocument();
+
+    rerender(
+      <DictationPanel 
+        value="" 
+        onChange={() => {}} 
+        onGenerate={() => {}} 
+        loading={false}
+        noteFormat="custom"
+        onEditTemplate={onEditTemplate}
+      />
+    );
+
+    const editBtn = screen.getByText('Editar plantilla');
+    expect(editBtn).toBeInTheDocument();
+    
+    fireEvent.click(editBtn);
+    expect(onEditTemplate).toHaveBeenCalledTimes(1);
+  });
 });

@@ -182,6 +182,70 @@ class TestProcessSessionSuccess:
             assert "SyqueX" in call_kwargs["system"]
 
     @pytest.mark.asyncio
+    async def test_soap_format_uppercase_uses_soap_system_prompt(self):
+        """format_='SOAP' (uppercase) must use SOAP_SYSTEM_PROMPT."""
+        db = _make_db_with_empty_context()
+        mock_response = _make_anthropic_response("Subjetivo: Paciente refiere ansiedad.")
+
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            await agent_module.process_session(
+                db, "patient-1", "Paciente refiere ansiedad.", "session-1",
+                format_="SOAP"
+            )
+
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+            assert call_kwargs["system"] == agent_module.SOAP_SYSTEM_PROMPT
+
+    @pytest.mark.asyncio
+    async def test_soap_format_lowercase_uses_soap_system_prompt(self):
+        """format_='soap' (lowercase) must also use SOAP_SYSTEM_PROMPT — frontend sends lowercase."""
+        db = _make_db_with_empty_context()
+        mock_response = _make_anthropic_response("Subjetivo: Paciente refiere ansiedad.")
+
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            await agent_module.process_session(
+                db, "patient-1", "Paciente refiere ansiedad.", "session-1",
+                format_="soap"
+            )
+
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+            assert call_kwargs["system"] == agent_module.SOAP_SYSTEM_PROMPT, (
+                "format_='soap' (lowercase sent by frontend) must use SOAP_SYSTEM_PROMPT, not chat prompt"
+            )
+
+    @pytest.mark.asyncio
+    async def test_chat_format_uses_chat_system_prompt(self):
+        """format_='chat' must use the chat SYSTEM_PROMPT, not SOAP."""
+        db = _make_db_with_empty_context()
+        db.execute.side_effect = [
+            MagicMock(**{"scalar_one_or_none.return_value": None}),  # profile
+            MagicMock(**{"scalars.return_value.all.return_value": []}),  # sessions (chat_mode=True)
+        ]
+        mock_response = _make_anthropic_response("¿Cuál es el motivo principal de consulta?")
+
+        with patch("agent.agent.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.messages.create = AsyncMock(return_value=mock_response)
+            mock_cls.return_value = mock_client
+
+            await agent_module.process_session(
+                db, "patient-1", "¿Qué pasó en la última sesión?", "session-1",
+                format_="chat"
+            )
+
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+            assert call_kwargs["system"] == agent_module.SYSTEM_PROMPT
+            assert call_kwargs["system"] != agent_module.SOAP_SYSTEM_PROMPT
+
+    @pytest.mark.asyncio
     async def test_calls_anthropic_with_zero_temperature(self):
         db = _make_db_with_empty_context()
         mock_response = _make_anthropic_response("Ok")
