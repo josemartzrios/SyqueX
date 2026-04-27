@@ -66,12 +66,16 @@ export default function MobileEvolucion({ messages, patientName, onSendChat, loa
           Preguntas frecuentes
         </p>
         <div className="flex flex-wrap gap-2">
-          {QUICK_QUESTIONS.map(q => (
+          {QUICK_QUESTIONS.map((q, i) => (
             <button
               key={q}
               onClick={() => handleSend(q)}
               disabled={loading}
-              className="px-3 py-1.5 bg-white border border-sage/30 rounded-full text-[12px] font-medium text-sage-dark hover:bg-sage-light active:bg-sage-light transition-colors disabled:opacity-40"
+              className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors disabled:opacity-40 ${
+                i % 2 === 0
+                  ? 'bg-[#f0f8f5] border border-[#b3d9ce] text-[#3d7a65] hover:bg-[#e4f4ef]'
+                  : 'bg-[#fdf6ee] border border-[#e8c99a] text-[#9a6630] hover:bg-[#faecd8]'
+              }`}
             >
               {q}
             </button>

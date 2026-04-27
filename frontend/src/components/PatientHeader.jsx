@@ -38,12 +38,24 @@ export default function PatientHeader({
         <div className="w-9 h-9 rounded-full bg-[#5a9e8a] flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0">
           {initials}
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-[14px] font-semibold text-[#18181b] leading-tight">{patientName}</p>
           <p className="text-[11px] text-ink-tertiary">
             {sessionCount} {sessionCount === 1 ? 'sesión confirmada' : 'sesiones confirmadas'}
           </p>
         </div>
+        {onEditPatient && patientId && (
+          <button
+            onClick={() => onEditPatient(patientId)}
+            className="p-2 rounded-lg text-[#9ca3af] hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors flex-shrink-0"
+            aria-label="Editar expediente"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+        )}
       </div>
     );
   }
