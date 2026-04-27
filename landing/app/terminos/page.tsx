@@ -21,7 +21,7 @@ export default function Terminos() {
             <p>
               SyqueX es una plataforma de documentación clínica asistida por
               inteligencia artificial, dirigida a psicólogos profesionales. El
-              servicio permite generar notas SOAP a partir de dictados de
+              servicio permite generar notas personalizadas o SOAP a partir de dictados de
               sesión y mantener un historial clínico estructurado.
             </p>
           </section>
