@@ -1145,3 +1145,136 @@ class TestProcessSessionEndpointPatientName:
         assert response.status_code == 200
         _, kwargs = mock_ps.call_args
         assert kwargs.get("patient_name") == "Carlos Mendoza"
+
+
+# ---------------------------------------------------------------------------
+# Bug fixes — format handling
+# ---------------------------------------------------------------------------
+
+class TestConfirmCustomNoteWithoutCustomFields:
+    """Fix: custom confirm no debe caer al path SOAP cuando custom_fields es None/vacío."""
+
+    @pytest.mark.asyncio
+    async def test_custom_format_null_custom_fields_still_confirms_as_custom(self, app, mock_db, session_uuid):
+        """format='custom' con custom_fields=null debe confirmar la nota como custom, no como SOAP."""
+        sess = MagicMock()
+        sess.id = session_uuid
+        sess.patient_id = uuid.uuid4()
+        sess.ai_response = "Respuesta custom"
+        sess.status = "draft"
+
+        note_id = uuid.uuid4()
+
+        added_objects = []
+
+        def fake_add(obj):
+            from database import ClinicalNote as CN
+            if isinstance(obj, CN):
+                obj.id = note_id
+            added_objects.append(obj)
+
+        mock_db.execute.return_value = _result(scalar_one_or_none=sess)
+        mock_db.add = MagicMock(side_effect=fake_add)
+
+        with patch("api.routes.get_embedding", new=AsyncMock(return_value=[0.0] * 1024)):
+            with patch("api.routes._background_update_profile", new=AsyncMock()):
+                async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                    response = await client.post(
+                        f"/api/v1/sessions/{session_uuid}/confirm",
+                        json={"edited_note": {"format": "custom"}},
+                    )
+
+        assert response.status_code == 200
+        from database import ClinicalNote as CN
+        saved_note = next((o for o in added_objects if isinstance(o, CN)), None)
+        assert saved_note is not None, "ClinicalNote debe haber sido creada"
+        assert saved_note.format == "custom"
+        assert saved_note.custom_fields == {}
+
+    @pytest.mark.asyncio
+    async def test_custom_format_empty_custom_fields_confirms_as_custom(self, app, mock_db, session_uuid):
+        """format='custom' con custom_fields={} confirma correctamente como custom."""
+        sess = MagicMock()
+        sess.id = session_uuid
+        sess.patient_id = uuid.uuid4()
+        sess.ai_response = "Respuesta custom"
+        sess.status = "draft"
+
+        note_id = uuid.uuid4()
+        added_objects = []
+
+        def fake_add(obj):
+            from database import ClinicalNote as CN
+            if isinstance(obj, CN):
+                obj.id = note_id
+            added_objects.append(obj)
+
+        mock_db.execute.return_value = _result(scalar_one_or_none=sess)
+        mock_db.add = MagicMock(side_effect=fake_add)
+
+        with patch("api.routes.get_embedding", new=AsyncMock(return_value=[0.0] * 1024)):
+            with patch("api.routes._background_update_profile", new=AsyncMock()):
+                async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                    response = await client.post(
+                        f"/api/v1/sessions/{session_uuid}/confirm",
+                        json={"edited_note": {"format": "custom", "custom_fields": {}}},
+                    )
+
+        assert response.status_code == 200
+        from database import ClinicalNote as CN
+        saved_note = next((o for o in added_objects if isinstance(o, CN)), None)
+        assert saved_note is not None
+        assert saved_note.format == "custom"
+
+
+class TestSessionFormatNormalization:
+    """Fix: Session.format debe almacenarse en uppercase para formatos SOAP/DAP/BIRP."""
+
+    @pytest.mark.asyncio
+    async def test_soap_lowercase_stored_as_uppercase(self, app, mock_db, patient_uuid):
+        """format='soap' (minúsculas del frontend) debe guardarse como 'SOAP' en Session."""
+        mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=None),  # NoteTemplate (no template)
+            _result(scalar_one_or_none=None),  # profile
+            _result(scalars_all=[]),            # sessions history
+            _result(scalar_one_or_none=None),  # last session (session_number)
+        ]
+
+        with patch("api.routes.process_session", new=AsyncMock(return_value={
+            "text_fallback": "Nota SOAP.",
+            "session_messages": [],
+        })):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    f"/api/v1/sessions/{patient_uuid}/process",
+                    json={"raw_dictation": "Sesión de prueba.", "format": "soap"},
+                )
+
+        assert response.status_code == 200
+        added_session = mock_db.add.call_args[0][0]
+        assert added_session.format == "SOAP", (
+            f"Session.format debe ser 'SOAP' uppercase, se obtuvo '{added_session.format}'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_chat_format_stored_as_lowercase_chat(self, app, mock_db, patient_uuid):
+        """format='chat' debe guardarse en minúsculas (sin cambio)."""
+        mock_db.execute.side_effect = [
+            _result(scalar_one_or_none=None),
+            _result(scalars_all=[]),
+            _result(scalar_one_or_none=None),
+        ]
+
+        with patch("api.routes.process_session", new=AsyncMock(return_value={
+            "text_fallback": "Respuesta chat.",
+            "session_messages": [],
+        })):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                response = await client.post(
+                    f"/api/v1/sessions/{patient_uuid}/process",
+                    json={"raw_dictation": "¿Cómo está el paciente?", "format": "chat"},
+                )
+
+        assert response.status_code == 200
+        added_session = mock_db.add.call_args[0][0]
+        assert added_session.format == "chat"
