@@ -64,7 +64,9 @@ describe('PatientIntakeModal', () => {
     expect(submit).toBeDisabled()
 
     const dob = screen.getByLabelText(/Fecha de nacimiento/)
-    await user.type(dob, '1990-01-01')
+    await user.type(screen.getByPlaceholderText('DD'), '01')
+    await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
+    await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     expect(submit).toBeDisabled()
 
     const reason = screen.getByPlaceholderText(/Qué trae al paciente/)
@@ -76,7 +78,9 @@ describe('PatientIntakeModal', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<PatientIntakeModal open={true} mode="create" onClose={noop} onSaved={noop} />)
 
-    await user.type(screen.getByLabelText(/Fecha de nacimiento/), '1990-01-01')
+    await user.type(screen.getByPlaceholderText('DD'), '01')
+    await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
+    await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     expect(screen.getByText(/Edad: 36/)).toBeInTheDocument()
   })
 
@@ -86,7 +90,9 @@ describe('PatientIntakeModal', () => {
 
     // Llenar los 3 obligatorios
     await user.type(screen.getByPlaceholderText(/María García/), 'Ana')
-    await user.type(screen.getByLabelText(/Fecha de nacimiento/), '1990-01-01')
+    await user.type(screen.getByPlaceholderText('DD'), '01')
+    await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
+    await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     await user.type(screen.getByPlaceholderText(/Qué trae al paciente/), 'Ansiedad')
 
     // Escribir solo el nombre del contacto → inválido
@@ -105,7 +111,9 @@ describe('PatientIntakeModal', () => {
     render(<PatientIntakeModal open={true} mode="create" onClose={noop} onSaved={onSaved} />)
 
     await user.type(screen.getByPlaceholderText(/María García/), 'Ana')
-    await user.type(screen.getByLabelText(/Fecha de nacimiento/), '1990-01-01')
+    await user.type(screen.getByPlaceholderText('DD'), '01')
+    await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
+    await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     await user.type(screen.getByPlaceholderText(/Qué trae al paciente/), 'Ansiedad')
     await user.click(screen.getByRole('button', { name: /Crear paciente/i }))
 
@@ -157,7 +165,9 @@ describe('PatientIntakeModal', () => {
 
     render(<PatientIntakeModal open={true} mode="create" onClose={noop} onSaved={noop} />)
     await user.type(screen.getByPlaceholderText(/María García/), 'Ana')
-    await user.type(screen.getByLabelText(/Fecha de nacimiento/), '1990-01-01')
+    await user.type(screen.getByPlaceholderText('DD'), '01')
+    await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
+    await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     await user.type(screen.getByPlaceholderText(/Qué trae al paciente/), 'Ansiedad')
     await user.click(screen.getByRole('button', { name: /Crear paciente/i }))
 
@@ -178,5 +188,30 @@ describe('PatientIntakeModal', () => {
     render(<PatientIntakeModal open={true} mode="create" onClose={onClose} onSaved={noop} />)
     await user.click(screen.getByRole('button', { name: /Cerrar/i }))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('permite elegir género y teléfono, y se envían en el payload', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    createPatient.mockResolvedValueOnce({ id: 8 })
+
+    render(<PatientIntakeModal open={true} mode="create" onClose={noop} onSaved={noop} />)
+
+    await user.type(screen.getByPlaceholderText(/María García/), 'Ana')
+    await user.type(screen.getByPlaceholderText('DD'), '01')
+    await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
+    await user.type(screen.getByPlaceholderText('AAAA'), '1990')
+    await user.type(screen.getByPlaceholderText(/Qué trae al paciente/), 'Ansiedad')
+
+    // Nuevo campo: Género
+    await user.selectOptions(screen.getByLabelText(/Género/), 'mujer')
+    // Nuevo campo: Teléfono
+    await user.type(screen.getByPlaceholderText(/Ej\. 5512345678/), '5512345678')
+
+    await user.click(screen.getByRole('button', { name: /Crear paciente/i }))
+
+    await waitFor(() => expect(createPatient).toHaveBeenCalled())
+    const payload = createPatient.mock.calls[0][0]
+    expect(payload.gender_identity).toBe('mujer')
+    expect(payload.phone).toBe('5512345678')
   })
 })
