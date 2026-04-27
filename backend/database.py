@@ -204,8 +204,8 @@ class Patient(Base):
     reason_for_consultation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     medical_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     psychological_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    gender_identity: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
-    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    gender_identity: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     risk_level: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
@@ -423,8 +423,8 @@ async def init_db():
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS reason_for_consultation TEXT;"))
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS medical_history TEXT;"))
         await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS psychological_history TEXT;"))
-        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS gender_identity VARCHAR(30);"))
-        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS phone VARCHAR(20);"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS gender_identity TEXT;"))
+        await conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS phone TEXT;"))
 
         # Encryption: JSONB → Text (idempotente)
         await conn.execute(text("""
@@ -451,6 +451,11 @@ async def init_db():
                 END IF;
             END$$;
         """))
+
+        # Asegurar tipo TEXT para campos cifrados de Patient
+        await conn.execute(text("ALTER TABLE patients ALTER COLUMN emergency_contact TYPE TEXT USING emergency_contact::TEXT;"))
+        await conn.execute(text("ALTER TABLE patients ALTER COLUMN gender_identity TYPE TEXT;"))
+        await conn.execute(text("ALTER TABLE patients ALTER COLUMN phone TYPE TEXT;"))
 
         # ClinicalNote — timestamps (add if missing, then migrate to TIMESTAMPTZ)
         await conn.execute(text("ALTER TABLE clinical_notes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();"))
@@ -493,15 +498,7 @@ async def init_db():
             END$$;
         """))
         await conn.execute(text("""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_constraint WHERE conname = 'chk_patients_gender_identity'
-                ) THEN
-                    ALTER TABLE patients ADD CONSTRAINT chk_patients_gender_identity
-                        CHECK (gender_identity IN ('hombre', 'mujer', 'no_binario', 'otro'));
-                END IF;
-            END$$;
+            ALTER TABLE patients DROP CONSTRAINT IF EXISTS chk_patients_gender_identity;
         """))
         await conn.execute(text("""
             DO $$
