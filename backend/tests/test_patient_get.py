@@ -21,6 +21,8 @@ def _make_patient(psy_id, pid):
     p.reason_for_consultation = "Motivo"
     p.medical_history = None
     p.psychological_history = None
+    p.gender_identity = None
+    p.phone = None
     p.deleted_at = None
     return p
 
