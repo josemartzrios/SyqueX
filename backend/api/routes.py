@@ -1016,7 +1016,7 @@ async def list_conversations(
             s.messages,
             s.created_at    AS last_activity
         FROM patients p
-        LEFT JOIN sessions s
+        JOIN sessions s
             ON s.patient_id = p.id
             AND s.is_archived = FALSE
             AND s.raw_dictation IS NOT NULL
