@@ -1,6 +1,7 @@
 import uuid
 import logging
 import base64
+import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, BackgroundTasks, UploadFile, File
 from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field, field_validator
@@ -116,6 +117,19 @@ MaritalStatus = Literal[
 
 GenderIdentity = Literal["hombre", "mujer", "no_binario", "otro"]
 
+_PHONE_RE = re.compile(r'^[0-9\s\+\-\(\)\.]+$')
+
+
+def _validate_phone_value(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return v
+    if not _PHONE_RE.match(v):
+        raise ValueError('Número inválido: solo se permiten dígitos, espacios y los símbolos + - ( )')
+    digits = re.sub(r'[^\d]', '', v)
+    if len(digits) < 10:
+        raise ValueError('Número inválido: mínimo 10 dígitos')
+    return v
+
 
 class EmergencyContact(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
@@ -129,10 +143,12 @@ class PatientCreate(BaseModel):
     date_of_birth: date
     reason_for_consultation: str = Field(..., min_length=1, max_length=2000)
 
+    # Obligatorios adicionales
+    phone: str = Field(..., max_length=20)
+
     # Opcionales
     marital_status: Optional[MaritalStatus] = None
     gender_identity: Optional[GenderIdentity] = None
-    phone: Optional[str] = Field(None, min_length=10, max_length=20)
     occupation: Optional[str] = Field(None, max_length=120)
     address: Optional[str] = Field(None, max_length=500)
     emergency_contact: Optional[EmergencyContact] = None
@@ -142,6 +158,11 @@ class PatientCreate(BaseModel):
     # Pre-existentes
     diagnosis_tags: Optional[List[str]] = []
     risk_level: str = "low"
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        return _validate_phone_value(v)
 
     @field_validator("date_of_birth")
     @classmethod
@@ -309,7 +330,7 @@ class PatientUpdate(BaseModel):
     reason_for_consultation: Optional[str] = Field(None, min_length=1, max_length=2000)
     marital_status: Optional[MaritalStatus] = None
     gender_identity: Optional[GenderIdentity] = None
-    phone: Optional[str] = Field(None, min_length=10, max_length=20)
+    phone: Optional[str] = Field(None, max_length=20)
     occupation: Optional[str] = Field(None, max_length=120)
     address: Optional[str] = Field(None, max_length=500)
     emergency_contact: Optional[EmergencyContact] = None
@@ -317,6 +338,11 @@ class PatientUpdate(BaseModel):
     psychological_history: Optional[str] = Field(None, max_length=5000)
     diagnosis_tags: Optional[List[str]] = None
     risk_level: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_phone_value(v)
 
     @field_validator("date_of_birth")
     @classmethod
