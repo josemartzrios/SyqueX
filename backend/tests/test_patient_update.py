@@ -21,6 +21,8 @@ def _make_patient(psy_id, pid, **overrides):
     p.reason_for_consultation = "Motivo orig"
     p.medical_history = None
     p.psychological_history = None
+    p.gender_identity = None
+    p.phone = None
     p.deleted_at = None
     for k, v in overrides.items():
         setattr(p, k, v)
@@ -134,3 +136,43 @@ async def test_audit_log_has_fields_changed_only(authed_app, mock_db, fake_psych
     assert "Calle Secreta" not in extra_str
     assert "Nueva" not in extra_str
     assert set(a.extra["fields_changed"]) == {"occupation", "address"}
+
+
+@pytest.mark.asyncio
+async def test_patch_gender_identity(authed_app, mock_db, fake_psychologist):
+    """PATCH gender_identity actualiza el campo y lo retorna descifrado."""
+    pid = uuid.uuid4()
+    patient = _make_patient(fake_psychologist.id, pid, gender_identity="hombre")
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = patient
+    mock_db.execute.return_value = result
+
+    async with AsyncClient(transport=ASGITransport(app=authed_app), base_url="http://test") as client:
+        res = await client.patch(
+            f"/api/v1/patients/{pid}",
+            json={"gender_identity": "no_binario"},
+        )
+
+    assert res.status_code == 200
+    assert patient.gender_identity == "no_binario"
+    assert res.json()["gender_identity"] == "no_binario"
+
+
+@pytest.mark.asyncio
+async def test_patch_phone(authed_app, mock_db, fake_psychologist):
+    """PATCH phone actualiza el campo (validando longitud) y lo retorna descifrado."""
+    pid = uuid.uuid4()
+    patient = _make_patient(fake_psychologist.id, pid, phone="5512345678")
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = patient
+    mock_db.execute.return_value = result
+
+    async with AsyncClient(transport=ASGITransport(app=authed_app), base_url="http://test") as client:
+        res = await client.patch(
+            f"/api/v1/patients/{pid}",
+            json={"phone": "5587654321"},
+        )
+
+    assert res.status_code == 200
+    assert patient.phone == "5587654321"
+    assert res.json()["phone"] == "5587654321"

@@ -15,6 +15,14 @@ import { calculateAge } from '../utils/age';
  *   - onSaved: (patient) => void
  */
 
+const GENDER_OPTIONS = [
+  { value: '', label: '—' },
+  { value: 'hombre', label: 'Hombre' },
+  { value: 'mujer', label: 'Mujer' },
+  { value: 'no_binario', label: 'No binario' },
+  { value: 'otro', label: 'Otro' },
+];
+
 const MARITAL_OPTIONS = [
   { value: '', label: '—' },
   { value: 'soltero', label: 'Soltero/a' },
@@ -29,7 +37,9 @@ const EMPTY_FORM = {
   name: '',
   date_of_birth: '',
   reason_for_consultation: '',
+  gender_identity: '',
   marital_status: '',
+  phone: '',
   occupation: '',
   address: '',
   ec_name: '',
@@ -46,7 +56,9 @@ function toForm(patient) {
     name: patient.name || '',
     date_of_birth: patient.date_of_birth || '',
     reason_for_consultation: patient.reason_for_consultation || '',
+    gender_identity: patient.gender_identity || '',
     marital_status: patient.marital_status || '',
+    phone: patient.phone || '',
     occupation: patient.occupation || '',
     address: patient.address || '',
     ec_name: ec.name || '',
@@ -67,7 +79,9 @@ function buildPayload(form, { patchMode }) {
     name: form.name.trim(),
     date_of_birth: form.date_of_birth || null,
     reason_for_consultation: form.reason_for_consultation.trim(),
+    gender_identity: form.gender_identity || null,
     marital_status: form.marital_status || null,
+    phone: form.phone.trim() || null,
     occupation: form.occupation.trim() || null,
     address: form.address.trim() || null,
     emergency_contact,
@@ -117,12 +131,19 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
   const ecAll = form.ec_name && form.ec_relationship && form.ec_phone;
   const ecInvalid = ecAny && !ecAll;
 
+  // Teléfono: requerido, solo dígitos/símbolos válidos, mínimo 10 dígitos
+  const phoneHasInvalidChars = form.phone.trim().length > 0 && !/^[0-9\s+\-().]+$/.test(form.phone);
+  const phoneDigits = form.phone.replace(/\D/g, '');
+  const phoneInvalid = phoneHasInvalidChars || (form.phone.trim().length > 0 && phoneDigits.length < 10);
+
   const canSubmit =
     form.name.trim() &&
     form.date_of_birth &&
     !ageInvalid &&
     form.reason_for_consultation.trim() &&
     !ecInvalid &&
+    form.phone.trim() &&
+    !phoneInvalid &&
     !saving &&
     !loading;
 
@@ -234,6 +255,21 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
                   disabled={saving || loading}
                 />
               </Field>
+              <Field label="Género">
+                <select
+                  value={form.gender_identity}
+                  onChange={setField('gender_identity')}
+                  disabled={saving || loading}
+                  className={inputClass}
+                >
+                  {GENDER_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Estado civil">
                 <select
                   value={form.marital_status}
@@ -246,24 +282,40 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
                   ))}
                 </select>
               </Field>
+              <Field label="Ocupación">
+                <input
+                  type="text"
+                  value={form.occupation}
+                  onChange={setField('occupation')}
+                  maxLength={120}
+                  disabled={saving || loading}
+                  placeholder="Ej. Docente, ingeniera..."
+                  className={inputClass}
+                />
+              </Field>
             </div>
-
-            <Field label="Ocupación">
-              <input
-                type="text"
-                value={form.occupation}
-                onChange={setField('occupation')}
-                maxLength={120}
-                disabled={saving || loading}
-                placeholder="Ej. Docente, ingeniera, estudiante"
-                className={inputClass}
-              />
-            </Field>
           </section>
 
           {/* CONTACTO */}
           <section className="flex flex-col gap-3 pt-4 border-t border-ink/[0.06]">
             <h3 className="text-[10px] uppercase tracking-[0.15em] text-[#5a9e8a] font-bold">Contacto</h3>
+
+            <Field
+              label="Teléfono de contacto"
+              required
+              error={form.phone && phoneInvalid ? 'Número inválido: solo dígitos, mínimo 10' : null}
+            >
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={setField('phone')}
+                maxLength={20}
+                disabled={saving || loading}
+                placeholder="Ej. 5512345678"
+                className={inputClass}
+                aria-label="Teléfono del paciente"
+              />
+            </Field>
 
             <Field label="Domicilio">
               <textarea
@@ -442,6 +494,7 @@ function DobInput({ value, onChange, disabled }) {
       <select
         value={parts.month}
         disabled={disabled}
+        aria-label="Mes"
         onChange={(e) => update({ ...parts, month: e.target.value })}
         className={`${inputClass} min-w-0 !text-xs sm:!text-[14px]`}
         style={{ paddingRight: '8px' }}

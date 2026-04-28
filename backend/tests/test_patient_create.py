@@ -28,6 +28,7 @@ async def test_full_payload_returns_201(authed_app, mock_db):
         "name": "María López",
         "date_of_birth": "1985-03-15",
         "reason_for_consultation": "Ansiedad laboral",
+        "phone": "5512345678",
         "marital_status": "casado",
         "occupation": "Ingeniera",
         "address": "Av. Reforma 123, CDMX",
@@ -56,7 +57,7 @@ async def test_full_payload_returns_201(authed_app, mock_db):
 
 @pytest.mark.asyncio
 async def test_minimum_payload_returns_201(authed_app, mock_db):
-    """Solo los 3 obligatorios -> 201."""
+    """Los 4 campos obligatorios (name, dob, reason, phone) -> 201."""
     pid = uuid.uuid4()
 
     def capture_add(obj):
@@ -75,6 +76,7 @@ async def test_minimum_payload_returns_201(authed_app, mock_db):
                 "name": "Ana",
                 "date_of_birth": "1990-01-01",
                 "reason_for_consultation": "Depresión",
+                "phone": "5512345678",
             },
         )
 
@@ -181,6 +183,7 @@ async def test_audit_log_written_without_clinical_values(authed_app, mock_db):
                 "name": "Audit Test",
                 "date_of_birth": "1990-01-01",
                 "reason_for_consultation": "Motivo",
+                "phone": "5512345678",
                 "medical_history": "DATO CLINICO PRIVADO",
             },
         )
@@ -197,3 +200,139 @@ async def test_audit_log_written_without_clinical_values(authed_app, mock_db):
     assert "Motivo" not in extra_str
     assert "fields_set" in a.extra
     assert "medical_history" in a.extra["fields_set"]
+
+
+@pytest.mark.asyncio
+async def test_gender_identity_valid_value(authed_app, mock_db):
+    """gender_identity='mujer' persists and is returned decrypted in response."""
+    pid = uuid.uuid4()
+    captured = {}
+
+    def capture_add(obj):
+        if type(obj).__name__ == "Patient":
+            obj.id = pid
+            captured["patient"] = obj
+
+    mock_db.add.side_effect = capture_add
+
+    async def refresh(obj):
+        obj.id = pid
+    mock_db.refresh.side_effect = refresh
+
+    async with AsyncClient(transport=ASGITransport(app=authed_app), base_url="http://test") as client:
+        res = await client.post(
+            "/api/v1/patients",
+            json={
+                "name": "Ana",
+                "date_of_birth": "1990-01-01",
+                "reason_for_consultation": "Ansiedad",
+                "phone": "5512345678",
+                "gender_identity": "mujer",
+            },
+        )
+
+    assert res.status_code == 201
+    assert res.json()["gender_identity"] == "mujer"
+
+
+@pytest.mark.asyncio
+async def test_gender_identity_invalid_value_returns_422(authed_app):
+    """Valores fuera del Literal -> 422."""
+    async with AsyncClient(transport=ASGITransport(app=authed_app), base_url="http://test") as client:
+        res = await client.post(
+            "/api/v1/patients",
+            json={
+                "name": "Ana",
+                "date_of_birth": "1990-01-01",
+                "reason_for_consultation": "Ansiedad",
+                "gender_identity": "masculino",
+            },
+        )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_gender_identity_omitted_returns_201(authed_app, mock_db):
+    """gender_identity es opcional — omitirlo no impide la creación."""
+    pid = uuid.uuid4()
+    mock_db.add.side_effect = lambda obj: setattr(obj, "id", pid) if type(obj).__name__ == "Patient" else None
+
+    async def refresh(obj):
+        obj.id = pid
+    mock_db.refresh.side_effect = refresh
+
+    async with AsyncClient(transport=ASGITransport(app=authed_app), base_url="http://test") as client:
+        res = await client.post(
+            "/api/v1/patients",
+            json={
+                "name": "Ana",
+                "date_of_birth": "1990-01-01",
+                "reason_for_consultation": "Ansiedad",
+                "phone": "5512345678",
+            },
+        )
+    assert res.status_code == 201
+    assert res.json().get("gender_identity") is None
+
+
+@pytest.mark.asyncio
+async def test_phone_valid_value(authed_app, mock_db):
+    """phone de 10 dígitos persiste y se retorna descifrado en la respuesta."""
+    pid = uuid.uuid4()
+    captured = {}
+
+    def capture_add(obj):
+        if type(obj).__name__ == "Patient":
+            obj.id = pid
+            captured["patient"] = obj
+
+    mock_db.add.side_effect = capture_add
+
+    async def refresh(obj):
+        obj.id = pid
+    mock_db.refresh.side_effect = refresh
+
+    async with AsyncClient(transport=ASGITransport(app=authed_app), base_url="http://test") as client:
+        res = await client.post(
+            "/api/v1/patients",
+            json={
+                "name": "Ana",
+                "date_of_birth": "1990-01-01",
+                "reason_for_consultation": "Ansiedad",
+                "phone": "5512345678",
+            },
+        )
+
+    assert res.status_code == 201
+    assert res.json()["phone"] == "5512345678"
+
+
+@pytest.mark.asyncio
+async def test_phone_too_short_returns_422(authed_app):
+    """phone con menos de 10 caracteres -> 422."""
+    async with AsyncClient(transport=ASGITransport(app=authed_app), base_url="http://test") as client:
+        res = await client.post(
+            "/api/v1/patients",
+            json={
+                "name": "Ana",
+                "date_of_birth": "1990-01-01",
+                "reason_for_consultation": "Ansiedad",
+                "phone": "123456",
+            },
+        )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_phone_omitted_returns_422(authed_app):
+    """phone es obligatorio — omitirlo retorna 422."""
+    async with AsyncClient(transport=ASGITransport(app=authed_app), base_url="http://test") as client:
+        res = await client.post(
+            "/api/v1/patients",
+            json={
+                "name": "Ana",
+                "date_of_birth": "1990-01-01",
+                "reason_for_consultation": "Ansiedad",
+            },
+        )
+    assert res.status_code == 422
