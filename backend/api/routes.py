@@ -1,6 +1,7 @@
 import uuid
 import logging
 import base64
+import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, BackgroundTasks, UploadFile, File
 from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field, field_validator
@@ -39,15 +40,15 @@ logger = logging.getLogger(__name__)
 
 async def get_db_with_user(
     psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
 ):
     """DB session con RLS: inyecta psychologist_id como session variable de PostgreSQL."""
     from sqlalchemy import text as _text
-    async with AsyncSessionLocal() as session:
-        await session.execute(
-            _text("SELECT set_config('app.psychologist_id', :pid, false)"),
-            {"pid": str(psychologist.id)},
-        )
-        yield session
+    await db.execute(
+        _text("SELECT set_config('app.psychologist_id', :pid, false)"),
+        {"pid": str(psychologist.id)},
+    )
+    yield db
 
 
 router = APIRouter(tags=["clinical"])
@@ -72,7 +73,7 @@ def _encrypt_patient_fields(patient_orm, payload_sensitive: dict) -> None:
 
 def _decrypt_patient_orm(patient) -> None:
     """Descifra in-place los campos sensibles de un ORM Patient antes de serializar."""
-    for field in ["medical_history", "psychological_history", "reason_for_consultation", "address"]:
+    for field in ["medical_history", "psychological_history", "reason_for_consultation", "address", "gender_identity", "phone"]:
         setattr(patient, field, decrypt_if_set(getattr(patient, field, None)))
     ec = getattr(patient, "emergency_contact", None)
     if ec is not None:
@@ -114,6 +115,21 @@ MaritalStatus = Literal[
     "soltero", "casado", "divorciado", "viudo", "union_libre", "otro"
 ]
 
+GenderIdentity = Literal["hombre", "mujer", "no_binario", "otro"]
+
+_PHONE_RE = re.compile(r'^[0-9\s\+\-\(\)\.]+$')
+
+
+def _validate_phone_value(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return v
+    if not _PHONE_RE.match(v):
+        raise ValueError('Número inválido: solo se permiten dígitos, espacios y los símbolos + - ( )')
+    digits = re.sub(r'[^\d]', '', v)
+    if len(digits) < 10:
+        raise ValueError('Número inválido: mínimo 10 dígitos')
+    return v
+
 
 class EmergencyContact(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
@@ -127,8 +143,12 @@ class PatientCreate(BaseModel):
     date_of_birth: date
     reason_for_consultation: str = Field(..., min_length=1, max_length=2000)
 
+    # Obligatorios adicionales
+    phone: str = Field(..., max_length=20)
+
     # Opcionales
     marital_status: Optional[MaritalStatus] = None
+    gender_identity: Optional[GenderIdentity] = None
     occupation: Optional[str] = Field(None, max_length=120)
     address: Optional[str] = Field(None, max_length=500)
     emergency_contact: Optional[EmergencyContact] = None
@@ -138,6 +158,11 @@ class PatientCreate(BaseModel):
     # Pre-existentes
     diagnosis_tags: Optional[List[str]] = []
     risk_level: str = "low"
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        return _validate_phone_value(v)
 
     @field_validator("date_of_birth")
     @classmethod
@@ -304,6 +329,8 @@ class PatientUpdate(BaseModel):
     date_of_birth: Optional[date] = None
     reason_for_consultation: Optional[str] = Field(None, min_length=1, max_length=2000)
     marital_status: Optional[MaritalStatus] = None
+    gender_identity: Optional[GenderIdentity] = None
+    phone: Optional[str] = Field(None, max_length=20)
     occupation: Optional[str] = Field(None, max_length=120)
     address: Optional[str] = Field(None, max_length=500)
     emergency_contact: Optional[EmergencyContact] = None
@@ -311,6 +338,11 @@ class PatientUpdate(BaseModel):
     psychological_history: Optional[str] = Field(None, max_length=5000)
     diagnosis_tags: Optional[List[str]] = None
     risk_level: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_phone_value(v)
 
     @field_validator("date_of_birth")
     @classmethod
@@ -344,6 +376,8 @@ class PatientOut(BaseModel):
 
     # Intake
     marital_status: Optional[str] = None
+    gender_identity: Optional[str] = None
+    phone: Optional[str] = None
     occupation: Optional[str] = None
     address: Optional[str] = None
     emergency_contact: Optional[Dict[str, Any]] = None
@@ -464,6 +498,8 @@ async def create_patient(
         reason_for_consultation=encrypt_if_set(payload.reason_for_consultation),
         medical_history=encrypt_if_set(payload.medical_history),
         psychological_history=encrypt_if_set(payload.psychological_history),
+        gender_identity=encrypt_if_set(payload.gender_identity),
+        phone=encrypt_if_set(payload.phone),
     )
     db.add(patient)
     await db.flush()  # populate patient.id
@@ -534,7 +570,7 @@ async def update_patient(
     # Solo los campos explícitamente enviados — permite setear null en opcionales
     updates = payload.model_dump(exclude_unset=True)
 
-    _PATIENT_SENSITIVE = {"medical_history", "psychological_history", "reason_for_consultation", "address"}
+    _PATIENT_SENSITIVE = {"medical_history", "psychological_history", "reason_for_consultation", "address", "gender_identity", "phone"}
     for field, value in updates.items():
         if field == "emergency_contact":
             ec = value.model_dump() if hasattr(value, "model_dump") else value
