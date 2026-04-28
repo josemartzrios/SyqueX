@@ -183,6 +183,7 @@ class TestCreatePatient:
                     "name": "Carlos Ruiz",
                     "date_of_birth": "1990-05-20",
                     "reason_for_consultation": "Ansiedad laboral",
+                    "phone": "5512345678",
                 },
             )
 

@@ -131,12 +131,19 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
   const ecAll = form.ec_name && form.ec_relationship && form.ec_phone;
   const ecInvalid = ecAny && !ecAll;
 
+  // Teléfono: requerido, solo dígitos/símbolos válidos, mínimo 10 dígitos
+  const phoneHasInvalidChars = form.phone.trim().length > 0 && !/^[0-9\s+\-().]+$/.test(form.phone);
+  const phoneDigits = form.phone.replace(/\D/g, '');
+  const phoneInvalid = phoneHasInvalidChars || (form.phone.trim().length > 0 && phoneDigits.length < 10);
+
   const canSubmit =
     form.name.trim() &&
     form.date_of_birth &&
     !ageInvalid &&
     form.reason_for_consultation.trim() &&
     !ecInvalid &&
+    form.phone.trim() &&
+    !phoneInvalid &&
     !saving &&
     !loading;
 
@@ -293,7 +300,11 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
           <section className="flex flex-col gap-3 pt-4 border-t border-ink/[0.06]">
             <h3 className="text-[10px] uppercase tracking-[0.15em] text-[#5a9e8a] font-bold">Contacto</h3>
 
-            <Field label="Teléfono de contacto">
+            <Field
+              label="Teléfono de contacto"
+              required
+              error={form.phone && phoneInvalid ? 'Número inválido: solo dígitos, mínimo 10' : null}
+            >
               <input
                 type="tel"
                 value={form.phone}
@@ -302,6 +313,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
                 disabled={saving || loading}
                 placeholder="Ej. 5512345678"
                 className={inputClass}
+                aria-label="Teléfono del paciente"
               />
             </Field>
 
