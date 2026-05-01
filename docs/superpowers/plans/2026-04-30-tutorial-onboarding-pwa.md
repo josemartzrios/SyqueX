@@ -10,6 +10,35 @@
 
 ---
 
+## Task 0: Crear rama feature desde dev
+
+- [ ] **Step 1: Asegurarse de estar en dev y al día con el remoto**
+
+```bash
+git checkout dev
+git pull origin dev
+```
+
+Expected: branch `dev` up to date.
+
+- [ ] **Step 2: Crear la rama feature**
+
+```bash
+git checkout -b feature/tutorial-onboarding-pwa
+```
+
+Expected: `Switched to a new branch 'feature/tutorial-onboarding-pwa'`
+
+- [ ] **Step 3: Verificar punto de partida**
+
+```bash
+git log --oneline -3
+```
+
+Expected: los 3 commits más recientes de `dev` aparecen — confirma que la rama salió del punto correcto.
+
+---
+
 ## File Map
 
 | Action | File | Responsibility |
