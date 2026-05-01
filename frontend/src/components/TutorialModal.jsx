@@ -5,18 +5,18 @@ const SLIDES_DESKTOP = [
   {
     icon: '👋',
     title: 'Bienvenido a SyqueX',
-    body: 'Tu flujo de trabajo: agrega un paciente → dicta tus apuntes → la IA genera la nota → confirma y guarda.',
+    body: 'Tu flujo de trabajo: Agrega un paciente → Escribe tus apuntes → El asistente genera la nota → Confirma y guarda.',
     flow: true,
   },
   {
     icon: '👤',
     title: 'Crea tu primer paciente',
-    body: 'Haz clic en el botón + junto a "Pacientes" en el sidebar. Cada paciente tiene su propio historial de sesiones y notas clínicas.',
+    body: 'Haz clic en el botón +Nuevo junto a "Pacientes" en el sidebar. Cada paciente tiene su propio historial de sesiones y notas clínicas.',
   },
   {
-    icon: '🎙️',
-    title: 'Dicta o escribe tus apuntes',
-    body: 'Escribe libremente en el panel de dictado — sin estructura. La IA organiza automáticamente tu nota clínica.',
+    icon: '✏️',
+    title: 'Escribe tus apuntes',
+    body: 'Escribe libremente en el panel de dictado — sin estructura. El asistente organiza automáticamente tu nota clínica.',
   },
   {
     icon: '📄',
@@ -26,7 +26,7 @@ const SLIDES_DESKTOP = [
 ]
 
 function FlowDiagram() {
-  const steps = ['Paciente', 'Dictar', 'Nota IA', 'Confirmar']
+  const steps = ['Paciente', 'Escribe', 'Nota IA', 'Confirmar']
   return (
     <div className="flex items-center justify-center gap-1 mt-3 flex-wrap">
       {steps.map((s, i) => (
@@ -45,9 +45,8 @@ function ProgressBar({ current, total }) {
       {Array.from({ length: total }).map((_, i) => (
         <div
           key={i}
-          className={`h-[3px] flex-1 rounded-full transition-colors ${
-            i < current ? 'bg-[#5a9e8a]' : i === current ? 'bg-[#c4935a]' : 'bg-[#e5e7eb]'
-          }`}
+          className={`h-[3px] flex-1 rounded-full transition-colors ${i < current ? 'bg-[#5a9e8a]' : i === current ? 'bg-[#c4935a]' : 'bg-[#e5e7eb]'
+            }`}
         />
       ))}
     </div>
@@ -173,6 +172,10 @@ export default function TutorialModal({
   onTriggerInstall,
 }) {
   const [step, setStep] = useState(0)
+
+  useEffect(() => {
+    if (visible) setStep(0)
+  }, [visible])
 
   if (!visible) return null
 
