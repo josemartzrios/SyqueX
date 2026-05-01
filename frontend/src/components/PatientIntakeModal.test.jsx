@@ -53,7 +53,7 @@ describe('PatientIntakeModal', () => {
     expect(screen.getByText(/Art\. 8 LFPDPPP/)).toBeInTheDocument()
   })
 
-  it('submit deshabilitado hasta llenar los 3 obligatorios', async () => {
+  it('submit deshabilitado hasta llenar los 4 obligatorios', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<PatientIntakeModal open={true} mode="create" onClose={noop} onSaved={noop} />)
 
@@ -63,7 +63,6 @@ describe('PatientIntakeModal', () => {
     await user.type(screen.getByPlaceholderText(/María García/), 'Ana')
     expect(submit).toBeDisabled()
 
-    const dob = screen.getByLabelText(/Fecha de nacimiento/)
     await user.type(screen.getByPlaceholderText('DD'), '01')
     await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
     await user.type(screen.getByPlaceholderText('AAAA'), '1990')
@@ -71,6 +70,9 @@ describe('PatientIntakeModal', () => {
 
     const reason = screen.getByPlaceholderText(/Qué trae al paciente/)
     await user.type(reason, 'Ansiedad')
+    expect(submit).toBeDisabled()
+
+    await user.type(screen.getByPlaceholderText(/Ej\. 5512345678/), '5512345678')
     expect(submit).not.toBeDisabled()
   })
 
@@ -88,12 +90,13 @@ describe('PatientIntakeModal', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<PatientIntakeModal open={true} mode="create" onClose={noop} onSaved={noop} />)
 
-    // Llenar los 3 obligatorios
+    // Llenar los 4 obligatorios
     await user.type(screen.getByPlaceholderText(/María García/), 'Ana')
     await user.type(screen.getByPlaceholderText('DD'), '01')
     await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
     await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     await user.type(screen.getByPlaceholderText(/Qué trae al paciente/), 'Ansiedad')
+    await user.type(screen.getByPlaceholderText(/Ej\. 5512345678/), '5512345678')
 
     // Escribir solo el nombre del contacto → inválido
     await user.type(screen.getByLabelText(/Contacto de emergencia — nombre/), 'Pedro')
@@ -124,6 +127,7 @@ describe('PatientIntakeModal', () => {
     expect(payload.name).toBe('Ana')
     expect(payload.date_of_birth).toBe('1990-01-01')
     expect(payload.reason_for_consultation).toBe('Ansiedad')
+    expect(payload.phone).toBe('5512345678')
     // Campos vacíos NO deben estar en el payload de create
     expect(payload).not.toHaveProperty('occupation')
     expect(payload).not.toHaveProperty('emergency_contact')

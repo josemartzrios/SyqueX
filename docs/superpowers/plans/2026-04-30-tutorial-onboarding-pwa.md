@@ -708,17 +708,17 @@ const SLIDES_DESKTOP = [
   {
     icon: '👋',
     title: 'Bienvenido a SyqueX',
-    body: 'Tu flujo de trabajo: agrega un paciente → dicta tus apuntes → la IA genera la nota → confirma y guarda.',
+    body: 'Tu flujo de trabajo: agrega un paciente → Escribe tus apuntes → la IA genera la nota → confirma y guarda.',
     flow: true,
   },
   {
     icon: '👤',
     title: 'Crea tu primer paciente',
-    body: 'Haz clic en el botón + junto a "Pacientes" en el sidebar. Cada paciente tiene su propio historial de sesiones y notas clínicas.',
+    body: 'Haz clic en el botón +Nuevo junto a "Pacientes" en el sidebar. Cada paciente tiene su propio historial de sesiones y notas clínicas.',
   },
   {
     icon: '🎙️',
-    title: 'Dicta o escribe tus apuntes',
+    title: 'Escribe tus apuntes',
     body: 'Escribe libremente en el panel de dictado — sin estructura. La IA organiza automáticamente tu nota clínica.',
   },
   {
