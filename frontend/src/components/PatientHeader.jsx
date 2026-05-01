@@ -70,7 +70,6 @@ export default function PatientHeader({
             </svg>
           </button>
         )}
-        {tutorialButton}
       </div>
     );
   }

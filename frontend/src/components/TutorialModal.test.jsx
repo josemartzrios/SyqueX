@@ -72,11 +72,11 @@ describe('TutorialModal', () => {
     expect(localStorage.getItem('syquex_tutorial_done')).toBe('true')
   })
 
-  it('renders slide 3 — dictation content', () => {
+  it('renders slide 3 — writing content', () => {
     render(<TutorialModal {...defaultProps} />)
     fireEvent.click(screen.getByText('Siguiente →'))
     fireEvent.click(screen.getByText('Siguiente →'))
-    expect(screen.getByText(/Dicta o escribe/i)).toBeInTheDocument()
+    expect(screen.getByText(/Escribe tus apuntes/i)).toBeInTheDocument()
   })
 
   it('renders slide 4 — note review content', () => {
