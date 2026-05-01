@@ -19,6 +19,7 @@ import CustomNoteDocument from './components/CustomNoteDocument.jsx';
 import OnboardingScreen from './components/OnboardingScreen.jsx';
 import NoteConfigurator from './components/NoteConfigurator.jsx';
 import { saveTemplate } from './api';
+import TutorialModal from './components/TutorialModal';
 
 // ── Module-level constants ─────────────────────────────────────────────────
 const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
@@ -166,6 +167,15 @@ function App() {
   const [newlyConfirmedSessionId, setNewlyConfirmedSessionId] = useState(null);
   const [toast, setToast] = useState(null);
   const [dismissedOrphanIds, setDismissedOrphanIds] = useState(new Set());
+  const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Evolución tab state
   const [evolutionMessages, setEvolutionMessages] = useState(new Map()); // Map<patientId, Message[]>
@@ -634,6 +644,9 @@ function App() {
             localStorage.setItem('syquex_onboarding_done', 'true');
             setOnboardingCompleted(true);
             setShowNoteConfigurator(false);
+            if (localStorage.getItem('syquex_tutorial_done') !== 'true') {
+              setTutorialVisible(true);
+            }
           }}
           onCancel={() => {
             setShowNoteConfigurator(false);
@@ -647,6 +660,9 @@ function App() {
             setNoteFormat('soap');
             localStorage.setItem('syquex_onboarding_done', 'true');
             setOnboardingCompleted(true);
+            if (localStorage.getItem('syquex_tutorial_done') !== 'true') {
+              setTutorialVisible(true);
+            }
           }}
           onSelectCustom={() => {
             setShowNoteConfigurator(true);
@@ -724,6 +740,7 @@ function App() {
             onModeChange={hasActivePatient ? setDesktopMode : undefined}
             patientId={selectedPatientId}
             onEditPatient={(id) => setEditingPatientId(id)}
+            onShowTutorial={() => setTutorialVisible(true)}
           />
 
           {/* Content area */}
@@ -955,15 +972,24 @@ function App() {
             </button>
             <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">SyqueX</span>
           </div>
-          <button
-            onClick={() => setIsCreatingPatient(true)}
-            className="flex items-center gap-1.5 text-[#5a9e8a] border border-[#5a9e8a]/30 bg-[#5a9e8a]/[0.06] rounded-full px-3 py-1.5 text-[13px] font-medium"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-            </svg>
-            Nuevo
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTutorialVisible(true)}
+              className="w-8 h-8 rounded-full border border-ink/[0.07] text-ink-muted hover:text-ink hover:bg-ink/[0.05] transition-colors flex items-center justify-center flex-shrink-0"
+              aria-label="Abrir tutorial"
+            >
+              ?
+            </button>
+            <button
+              onClick={() => setIsCreatingPatient(true)}
+              className="flex items-center gap-1.5 text-[#5a9e8a] border border-[#5a9e8a]/30 bg-[#5a9e8a]/[0.06] rounded-full px-3 py-1.5 text-[13px] font-medium"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo
+            </button>
+          </div>
         </header>
 
         {/* No patient selected — empty state */}
@@ -1224,6 +1250,13 @@ function App() {
             handleModalPatientCreated(patient);
           }
         }}
+      />
+
+      <TutorialModal
+        visible={tutorialVisible}
+        onClose={() => setTutorialVisible(false)}
+        isMobile={isMobile}
+        noteFormat={noteFormat}
       />
 
     </div>
