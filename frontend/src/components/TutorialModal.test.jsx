@@ -96,4 +96,79 @@ describe('TutorialModal', () => {
     expect(screen.getByText('Finalizar')).toBeInTheDocument()
     expect(screen.getByText('4 de 4')).toBeInTheDocument()
   })
+
+  describe('slide 5 — PWA install (mobile only)', () => {
+    beforeEach(() => {
+      // jsdom has no userAgent match for mobile, so isMobile=true via prop
+    })
+
+    it('mobile: renders slide 5 after slide 4', () => {
+      render(<TutorialModal {...defaultProps} isMobile={true} />)
+      // advance to slide 5
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      expect(screen.getByText(/Instala la app/i)).toBeInTheDocument()
+      expect(screen.getByText('5 de 5')).toBeInTheDocument()
+    })
+
+    it('mobile: "Finalizar" appears on slide 5', () => {
+      render(<TutorialModal {...defaultProps} isMobile={true} />)
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      expect(screen.getByText('Finalizar')).toBeInTheDocument()
+    })
+
+    it('renders Safari instructions when browser is safari', () => {
+      render(<TutorialModal {...defaultProps} isMobile={true} forceBrowser="safari" />)
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      expect(screen.getByText(/Compartir/i)).toBeInTheDocument()
+      expect(screen.getByText(/Agregar a inicio/i)).toBeInTheDocument()
+    })
+
+    it('renders Chrome install button when browser is chrome and isInstallable', () => {
+      render(<TutorialModal {...defaultProps} isMobile={true} forceBrowser="chrome" forceInstallable={true} onTriggerInstall={vi.fn()} />)
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      expect(screen.getByText('Instalar app')).toBeInTheDocument()
+    })
+
+    it('renders fallback when browser is "other"', () => {
+      render(<TutorialModal {...defaultProps} isMobile={true} forceBrowser="other" />)
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      expect(screen.getByText(/Safari/i)).toBeInTheDocument()
+      expect(screen.getByText(/Chrome/i)).toBeInTheDocument()
+    })
+
+    it('"Ya la instalé ✓" closes and sets tutorial_done', () => {
+      render(<TutorialModal {...defaultProps} isMobile={true} forceBrowser="safari" />)
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Ya la instalé ✓'))
+      expect(defaultProps.onClose).toHaveBeenCalledTimes(1)
+      expect(localStorage.getItem('syquex_tutorial_done')).toBe('true')
+    })
+
+    it('sets syquex_pwa_prompted when slide 5 mounts', () => {
+      render(<TutorialModal {...defaultProps} isMobile={true} forceBrowser="safari" />)
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
+      expect(localStorage.getItem('syquex_pwa_prompted')).toBe('true')
+    })
+  })
 })

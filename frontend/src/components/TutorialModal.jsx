@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import usePWAInstall from '../hooks/usePWAInstall'
 
 const SLIDES_DESKTOP = [
   {
@@ -53,7 +54,124 @@ function ProgressBar({ current, total }) {
   )
 }
 
-export default function TutorialModal({ visible, onClose, isMobile, noteFormat }) {
+function SafariInstructions({ onDone }) {
+  return (
+    <div>
+      <div className="flex flex-col gap-2 mb-4">
+        {[
+          { n: 1, text: <>Toca el ícono <strong>Compartir</strong> ⎙ en la barra inferior</> },
+          { n: 2, text: <>Selecciona <strong>"Agregar a inicio"</strong></> },
+          { n: 3, text: <>Toca <strong>"Agregar"</strong> ✓</> },
+        ].map(({ n, text }) => (
+          <div key={n} className="flex items-start gap-3">
+            <span className="w-5 h-5 rounded-full bg-[#5a9e8a] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+              {n}
+            </span>
+            <p className="text-[13px] text-[#6b7280]">{text}</p>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={onDone}
+        className="w-full py-2 rounded-lg border border-[#5a9e8a] text-[#5a9e8a] text-[13px] font-medium hover:bg-[#f0f8f5] transition-colors"
+      >
+        Ya la instalé ✓
+      </button>
+    </div>
+  )
+}
+
+function ChromeInstructions({ isInstallable, onInstall, onDone }) {
+  return (
+    <div>
+      {isInstallable ? (
+        <button
+          onClick={onInstall}
+          className="w-full py-2 rounded-lg bg-[#5a9e8a] text-white text-[13px] font-medium hover:bg-[#4e8c7a] transition-colors mb-2"
+        >
+          Instalar app
+        </button>
+      ) : (
+        <div className="flex flex-col gap-2 mb-4">
+          {[
+            { n: 1, text: <>Toca el menú <strong>⋮</strong> arriba a la derecha</> },
+            { n: 2, text: <>Selecciona <strong>"Agregar a pantalla de inicio"</strong></> },
+          ].map(({ n, text }) => (
+            <div key={n} className="flex items-start gap-3">
+              <span className="w-5 h-5 rounded-full bg-[#5a9e8a] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                {n}
+              </span>
+              <p className="text-[13px] text-[#6b7280]">{text}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <button onClick={onDone} className="w-full py-2 text-[12px] text-[#9ca3af] hover:text-[#6b7280] transition-colors">
+        Ya la instalé ✓
+      </button>
+    </div>
+  )
+}
+
+function FallbackInstructions({ onDone }) {
+  return (
+    <div>
+      <div className="flex flex-col gap-2 mb-4">
+        <div className="border border-[#e5e7eb] rounded-lg p-3">
+          <p className="text-[11px] font-semibold text-[#18181b] mb-1">🧭 Safari (iPhone)</p>
+          <p className="text-[11px] text-[#6b7280]">Compartir ⎙ → Agregar a inicio → Agregar</p>
+        </div>
+        <div className="border border-[#e5e7eb] rounded-lg p-3">
+          <p className="text-[11px] font-semibold text-[#18181b] mb-1">🌐 Chrome (Android)</p>
+          <p className="text-[11px] text-[#6b7280]">Menú ⋮ → Agregar a pantalla de inicio</p>
+        </div>
+      </div>
+      <button onClick={onDone} className="w-full py-2 text-[12px] text-[#9ca3af] hover:text-[#6b7280] transition-colors">
+        Ya la instalé ✓
+      </button>
+    </div>
+  )
+}
+
+function PWASlide({ forceBrowser, forceInstallable, onTriggerInstall, onDone }) {
+  const pwa = usePWAInstall()
+  const browser = forceBrowser ?? pwa.browser
+  const isInstallable = forceInstallable ?? pwa.isInstallable
+  const triggerInstall = onTriggerInstall ?? pwa.triggerInstall
+
+  useEffect(() => {
+    localStorage.setItem('syquex_pwa_prompted', 'true')
+  }, [])
+
+  const handleInstall = async () => {
+    await triggerInstall()
+    onDone()
+  }
+
+  return (
+    <div>
+      <div className="text-center mb-4">
+        <div className="text-3xl mb-2">📱</div>
+        <p className="text-[15px] font-semibold text-[#18181b] mb-1">Instala la app en tu celular</p>
+        <p className="text-[12px] text-[#9ca3af]">Acceso directo desde tu pantalla de inicio</p>
+      </div>
+      {browser === 'safari' && <SafariInstructions onDone={onDone} />}
+      {browser === 'chrome' && <ChromeInstructions isInstallable={isInstallable} onInstall={handleInstall} onDone={onDone} />}
+      {browser === 'other' && <FallbackInstructions onDone={onDone} />}
+    </div>
+  )
+}
+
+export default function TutorialModal({
+  visible,
+  onClose,
+  isMobile,
+  noteFormat,
+  // test-only escape hatches
+  forceBrowser,
+  forceInstallable,
+  onTriggerInstall,
+}) {
   const [step, setStep] = useState(0)
 
   if (!visible) return null
@@ -80,7 +198,6 @@ export default function TutorialModal({ visible, onClose, isMobile, noteFormat }
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(24,24,27,0.55)' }}>
       <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl">
 
-        {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <span className="text-[11px] text-[#9ca3af] uppercase tracking-wide font-medium">
             {step + 1} de {total}
@@ -96,7 +213,6 @@ export default function TutorialModal({ visible, onClose, isMobile, noteFormat }
 
         <ProgressBar current={step} total={total} />
 
-        {/* Slide content */}
         {!current.pwa && (
           <div className="text-center">
             <div className="text-3xl mb-2">{current.icon}</div>
@@ -106,26 +222,21 @@ export default function TutorialModal({ visible, onClose, isMobile, noteFormat }
           </div>
         )}
 
-        {/* Placeholder for PWA slide — Task 4 */}
         {current.pwa && (
-          <div className="text-center">
-            <div className="text-3xl mb-2">📱</div>
-            <p className="text-[15px] font-semibold text-[#18181b] mb-2">Instala la app en tu celular</p>
-            <p className="text-[13px] text-[#6b7280]">Cargando instrucciones...</p>
-          </div>
+          <PWASlide
+            forceBrowser={forceBrowser}
+            forceInstallable={forceInstallable}
+            onTriggerInstall={onTriggerInstall}
+            onDone={handleClose}
+          />
         )}
 
-        {/* Navigation */}
         <div className="flex items-center justify-between mt-5">
           {!isFirst ? (
-            <button
-              onClick={handlePrev}
-              className="text-[13px] text-[#9ca3af] hover:text-[#6b7280] transition-colors"
-            >
+            <button onClick={handlePrev} className="text-[13px] text-[#9ca3af] hover:text-[#6b7280] transition-colors">
               ← Anterior
             </button>
           ) : <div />}
-
           <button
             onClick={handleNext}
             className="px-4 py-2 rounded-lg bg-[#5a9e8a] text-white text-[13px] font-medium hover:bg-[#4e8c7a] transition-colors"
