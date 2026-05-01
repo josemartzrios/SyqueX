@@ -20,11 +20,25 @@ export default function PatientHeader({
   onModeChange,
   patientId = null,
   onEditPatient = null,
+  onShowTutorial = null,
 }) {
+  const tutorialButton = onShowTutorial && (
+    <button
+      onClick={onShowTutorial}
+      className={`rounded-full border border-ink/[0.07] text-ink-muted hover:text-ink hover:bg-ink/[0.05] transition-colors flex items-center justify-center flex-shrink-0 ${
+        compact ? 'w-7 h-7 text-[12px]' : 'w-8 h-8 text-[14px]'
+      }`}
+      aria-label="Ayuda"
+    >
+      ?
+    </button>
+  );
+
   if (!patientName) {
     return (
-      <header className="px-6 py-3.5 border-b border-black/[0.07] bg-white flex items-center gap-3 flex-shrink-0 min-h-[52px]">
+      <header className="px-6 py-3.5 border-b border-black/[0.07] bg-white flex items-center justify-between gap-3 flex-shrink-0 min-h-[52px]">
         <span className="text-ink-tertiary text-[14px]">Selecciona un paciente</span>
+        {tutorialButton}
       </header>
     );
   }
@@ -88,29 +102,35 @@ export default function PatientHeader({
 
       {/* Segmented control — desktop only, only when onModeChange is provided */}
       {onModeChange && (
-        <div className="ml-auto flex bg-[#f4f4f2] rounded-lg p-0.5 gap-0.5">
-          <button
-            onClick={() => onModeChange('session')}
-            className={`px-3 py-1 rounded-md text-[12px] transition-all ${
-              mode === 'session'
-                ? 'bg-white shadow-sm font-medium text-[#18181b]'
-                : 'text-[#9ca3af] hover:text-[#6b7280]'
-            }`}
-          >
-            Sesión
-          </button>
-          <button
-            onClick={() => onModeChange('review')}
-            className={`px-3 py-1 rounded-md text-[12px] transition-all ${
-              mode === 'review'
-                ? 'bg-white shadow-sm font-medium text-[#18181b]'
-                : 'text-[#9ca3af] hover:text-[#6b7280]'
-            }`}
-          >
-            Revisión
-          </button>
+        <div className="ml-auto flex items-center gap-4">
+          <div className="flex bg-[#f4f4f2] rounded-lg p-0.5 gap-0.5">
+            <button
+              onClick={() => onModeChange('session')}
+              className={`px-3 py-1 rounded-md text-[12px] transition-all ${
+                mode === 'session'
+                  ? 'bg-white shadow-sm font-medium text-[#18181b]'
+                  : 'text-[#9ca3af] hover:text-[#6b7280]'
+              }`}
+            >
+              Sesión
+            </button>
+            <button
+              onClick={() => onModeChange('review')}
+              className={`px-3 py-1 rounded-md text-[12px] transition-all ${
+                mode === 'review'
+                  ? 'bg-white shadow-sm font-medium text-[#18181b]'
+                  : 'text-[#9ca3af] hover:text-[#6b7280]'
+              }`}
+            >
+              Revisión
+            </button>
+          </div>
+          {tutorialButton}
         </div>
       )}
+
+      {/* Fallback for desktop when no onModeChange but tutorial is needed */}
+      {!onModeChange && !compact && <div className="ml-auto">{tutorialButton}</div>}
     </header>
   );
 }
