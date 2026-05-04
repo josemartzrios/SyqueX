@@ -51,3 +51,29 @@ async def send_reset_email(to_email: str, name: str, token: str):
     except Exception as e:
         print(f"Error enviando email reset: {e}")
         return None
+
+async def send_patient_invite(to_email: str, patient_name: str, psychologist_name: str, token: str):
+    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+    invite_url = f"{frontend_url}/patient/invite?token={token}"
+    if not resend.api_key:
+        print(f"Mock email: Invite patient {patient_name} -> {invite_url}")
+        return None
+    try:
+        r = resend.Emails.send({
+            "from": FROM_EMAIL,
+            "to": to_email,
+            "subject": f"{psychologist_name} te ha invitado al Portal del Paciente",
+            "html": f"""
+            <p>Hola {patient_name},</p>
+            <p>Tu psicólogo/a {psychologist_name} te ha invitado a acceder al Portal del Paciente.</p>
+            <p>En este portal podrás ver los resúmenes de tus sesiones y las tareas asignadas.</p>
+            <p>Haz clic en el siguiente enlace para crear tu contraseña y acceder:</p>
+            <p><a href="{invite_url}">Aceptar invitación</a></p>
+            <br>
+            <p>El equipo de SyqueX</p>
+            """
+        })
+        return r
+    except Exception as e:
+        print(f"Error enviando email invite: {e}")
+        return None
