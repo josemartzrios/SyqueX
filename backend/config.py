@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    PATIENT_INVITE_EXPIRE_DAYS: int = 7
     # Orígenes permitidos separados por coma
     ALLOWED_ORIGINS: str = "http://localhost:5173"
     ENVIRONMENT: str = "development"  # development | staging | production
