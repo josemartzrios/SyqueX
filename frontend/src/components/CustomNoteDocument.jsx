@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 function ScaleField({ value, max = 10, onChange, readOnly = false }) {
   return (
@@ -53,13 +53,21 @@ export default function CustomNoteDocument({ templateFields = [], values = {}, o
   const [deleting, setDeleting] = useState(false);
   const [editedValues, setEditedValues] = useState({ ...values });
   const [activeField, setActiveField] = useState(null);
+  // Ref to active textarea so handleConfirm captures its value even if blur fires
+  // concurrently with the click (React 18 batching may not flush blur before confirm reads state).
+  const activeTextareaRef = useRef(null);
 
   const sorted = [...templateFields].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   const handleConfirm = async () => {
+    // Capture any in-progress textarea value that hasn't been flushed via onBlur yet.
+    let finalValues = { ...editedValues };
+    if (activeField && activeTextareaRef.current) {
+      finalValues = { ...finalValues, [activeField]: activeTextareaRef.current.value };
+    }
     setSaving(true);
     try {
-      await onConfirm?.(editedValues);
+      await onConfirm?.(finalValues);
       setConfirmed(true);
     } finally {
       setSaving(false);
@@ -105,11 +113,15 @@ export default function CustomNoteDocument({ templateFields = [], values = {}, o
                     defaultValue={value ?? ''}
                     className="font-serif text-[14px] leading-relaxed w-full resize-none rounded-md p-2 outline-none"
                     style={{ border: '1.5px solid #5a9e8a', background: '#fffef9', color: '#18181b', overflow: 'hidden' }}
-                    ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }}
+                    ref={(el) => {
+                      activeTextareaRef.current = el;
+                      if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' }
+                    }}
                     onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
                     onBlur={(e) => {
                       setEditedValues(prev => ({ ...prev, [field.id]: e.target.value }))
                       setActiveField(null)
+                      activeTextareaRef.current = null;
                     }}
                   />
                 ) : (

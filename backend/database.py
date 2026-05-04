@@ -279,6 +279,9 @@ class ClinicalNote(Base):
     suggested_next_steps: Mapped[List[str]] = mapped_column(ARRAY(Text), default=list)
     evolution_delta: Mapped[dict] = mapped_column(JSONB, default=dict)
     custom_fields: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # Snapshot of template fields at the time of note creation — prevents "Sin información"
+    # when the psychologist later modifies their template (field IDs change).
+    template_snapshot: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 
     embedding = mapped_column(Vector(1024))
 
@@ -331,7 +334,11 @@ async def init_db():
             )
         """))
 
-        # custom_fields on clinical_notes
+        # custom_fields and template_snapshot on clinical_notes
+        await conn.execute(text("""
+            ALTER TABLE clinical_notes
+            ADD COLUMN IF NOT EXISTS template_snapshot JSONB
+        """))
         await conn.execute(text("""
             ALTER TABLE clinical_notes
             ADD COLUMN IF NOT EXISTS custom_fields JSONB

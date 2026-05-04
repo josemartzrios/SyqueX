@@ -859,7 +859,10 @@ function App() {
                         confirmedSessions.map((s, i) => {
                           const isExpanded = reviewExpandedSessionId === String(s.id);
                           const isCustom = s.format === 'custom';
-                          const hasNote = s.status === 'confirmed' && (s.structured_note || s.custom_fields);
+                          const hasNote = s.status === 'confirmed' && (
+                            s.structured_note ||
+                            (s.custom_fields && Object.keys(s.custom_fields).length > 0)
+                          );
                           return (
                             <div
                               key={s.id || i}
@@ -909,7 +912,7 @@ function App() {
                                 <div className="bg-white border-t border-ink/[0.04]">
                                   {isCustom ? (
                                     <CustomNoteDocument
-                                      templateFields={template?.fields || []}
+                                      templateFields={s.template_fields || template?.fields || []}
                                       values={s.custom_fields || {}}
                                       readOnly
                                     />
@@ -1135,7 +1138,10 @@ function App() {
                       {soapSessions.map((s, i) => {
                         const isExpanded = expandedSessionId === String(s.id);
                         const isCustom = s.format === 'custom';
-                        const hasNote = s.status === 'confirmed' && (s.structured_note || s.custom_fields);
+                        const hasNote = s.status === 'confirmed' && (
+                          s.structured_note ||
+                          (s.custom_fields && Object.keys(s.custom_fields).length > 0)
+                        );
                         return (
                           <div
                             key={s.id || i}
@@ -1174,7 +1180,7 @@ function App() {
                               <div className="border-t border-ink/[0.06]">
                                 {isCustom ? (
                                   <CustomNoteDocument
-                                    templateFields={template?.fields || []}
+                                    templateFields={s.template_fields || template?.fields || []}
                                     values={s.custom_fields || {}}
                                     readOnly
                                   />
