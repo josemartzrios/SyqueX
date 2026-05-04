@@ -675,6 +675,7 @@ async def get_patient_sessions(
                 "plan": decrypt_if_set(cn.plan),
             } if cn else None),
             custom_fields=cn.custom_fields if is_custom else None,
+            template_fields=cn.template_snapshot if (is_custom and cn) else None,
             detected_patterns=list(cn.detected_patterns) if cn and cn.detected_patterns is not None else None,
             alerts=list(cn.alerts) if cn and cn.alerts is not None else None,
             suggested_next_steps=list(cn.suggested_next_steps) if cn and cn.suggested_next_steps is not None else None,
@@ -863,10 +864,24 @@ async def confirm_session(
         except Exception:
             embedding = ZERO_VECTOR
 
+        # Snapshot the template at confirm time so history always renders correctly
+        # even if the psychologist later modifies their template (which would change field IDs).
+        tmpl_snapshot = None
+        try:
+            tmpl_res = await db.execute(
+                select(NoteTemplate).where(NoteTemplate.psychologist_id == psychologist.id)
+            )
+            tmpl = tmpl_res.scalar_one_or_none()
+            if tmpl and tmpl.fields:
+                tmpl_snapshot = tmpl.fields
+        except Exception:
+            pass
+
         note = ClinicalNote(
             session_id=sess.id,
             format="custom",
             custom_fields=custom_fields_data,
+            template_snapshot=tmpl_snapshot,
             detected_patterns=note_data.get("detected_patterns", []),
             alerts=note_data.get("alerts", []),
             suggested_next_steps=note_data.get("suggested_next_steps", []),
