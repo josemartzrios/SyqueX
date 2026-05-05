@@ -118,6 +118,7 @@ describe('PatientIntakeModal', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
     await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     await user.type(screen.getByPlaceholderText(/Qué trae al paciente/), 'Ansiedad')
+    await user.type(screen.getByPlaceholderText(/Ej\. 5512345678/), '5512345678')
     await user.click(screen.getByRole('button', { name: /Crear paciente/i }))
 
     await waitFor(() => {
@@ -143,6 +144,7 @@ describe('PatientIntakeModal', () => {
       date_of_birth: '1990-01-01',
       reason_for_consultation: 'Orig',
       occupation: 'Antigua',
+      phone: '5512345678',
       emergency_contact: null,
     })
     updatePatient.mockResolvedValueOnce({ id: 9, name: 'Ana', occupation: '' })
@@ -173,6 +175,7 @@ describe('PatientIntakeModal', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /Mes/i }), '01')
     await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     await user.type(screen.getByPlaceholderText(/Qué trae al paciente/), 'Ansiedad')
+    await user.type(screen.getByPlaceholderText(/Ej\. 5512345678/), '5512345678')
     await user.click(screen.getByRole('button', { name: /Crear paciente/i }))
 
     await waitFor(() => expect(screen.getByText('Nombre duplicado')).toBeInTheDocument())
