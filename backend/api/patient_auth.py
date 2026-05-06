@@ -5,9 +5,17 @@ from pydantic import BaseModel
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 
-from database import get_db, PatientUser
+from database import get_db, PatientUser, PatientPasswordResetToken, Patient
+from services.email import send_patient_reset_email
 from config import settings
+from api.limiter import limiter
+from fastapi import Request
 import jwt
+import hashlib
+import secrets
+import asyncio
+import random
+from collections import defaultdict
 
 router = APIRouter()
 
@@ -34,6 +42,28 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
+_forgot_pw_email_attempts: dict = defaultdict(list)
+
+
+def _hash_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _check_patient_forgot_email_rate(email: str) -> None:
+    now = datetime.now(timezone.utc)
+    window = now - timedelta(minutes=10)
+    _forgot_pw_email_attempts[email] = [
+        t for t in _forgot_pw_email_attempts[email] if t > window
+    ]
+    if len(_forgot_pw_email_attempts[email]) >= 1:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Demasiadas solicitudes. Intenta en 10 minutos.",
+            headers={"Retry-After": "600"},
+        )
+    _forgot_pw_email_attempts[email].append(now)
+
+
 class AcceptInviteRequest(BaseModel):
     token: str
     password: str
@@ -42,6 +72,15 @@ class AcceptInviteRequest(BaseModel):
 class PatientLoginRequest(BaseModel):
     email: str
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 @router.post("/accept-invite")
@@ -76,6 +115,54 @@ async def accept_invite(req: AcceptInviteRequest, db: AsyncSession = Depends(get
         "role": "patient",
         "patient_id": str(patient_user.patient_id)
     }
+
+
+_FORGOT_GENERIC_MSG = (
+    "Si esa dirección tiene una cuenta activa, recibirás un link en los próximos minutos."
+)
+
+
+@router.post("/forgot-password")
+@limiter.limit("3/hour")
+async def patient_forgot_password(
+    request: Request,
+    req: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    _check_patient_forgot_email_rate(req.email)
+    await asyncio.sleep(random.uniform(0.1, 0.3))
+
+    result = await db.execute(
+        select(PatientUser).where(
+            PatientUser.email == req.email,
+            PatientUser.is_active == True,
+        )
+    )
+    patient_user = result.scalar_one_or_none()
+
+    if patient_user:
+        raw_token = secrets.token_urlsafe(32)
+        reset_record = PatientPasswordResetToken(
+            patient_user_id=patient_user.id,
+            token_hash=_hash_token(raw_token),
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=60),
+            ip_address=request.client.host if request.client else None,
+        )
+        db.add(reset_record)
+        await db.commit()
+
+        patient_result = await db.execute(
+            select(Patient).where(Patient.id == patient_user.patient_id)
+        )
+        patient = patient_result.scalar_one_or_none()
+        patient_name = patient.name if patient else "Paciente"
+
+        try:
+            await send_patient_reset_email(patient_user.email, patient_name, raw_token)
+        except Exception:
+            pass
+
+    return {"message": _FORGOT_GENERIC_MSG}
 
 
 @router.post("/login")
