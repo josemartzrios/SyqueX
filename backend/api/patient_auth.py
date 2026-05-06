@@ -165,6 +165,57 @@ async def patient_forgot_password(
     return {"message": _FORGOT_GENERIC_MSG}
 
 
+_INVALID_TOKEN_MSG = "El link de recuperación no es válido o ha expirado."
+
+
+@router.post("/reset-password")
+@limiter.limit("5/hour")
+async def patient_reset_password(
+    request: Request,
+    req: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres.")
+
+    token_hash = _hash_token(req.token)
+    result = await db.execute(
+        select(PatientPasswordResetToken).where(
+            PatientPasswordResetToken.token_hash == token_hash
+        )
+    )
+    reset_record = result.scalar_one_or_none()
+
+    if not reset_record:
+        raise HTTPException(status_code=400, detail=_INVALID_TOKEN_MSG)
+
+    if reset_record.failed_attempts >= 3:
+        raise HTTPException(status_code=400, detail=_INVALID_TOKEN_MSG)
+
+    now = datetime.now(timezone.utc)
+
+    if reset_record.used_at is not None or reset_record.expires_at < now:
+        reset_record.failed_attempts += 1
+        await db.commit()
+        raise HTTPException(status_code=400, detail=_INVALID_TOKEN_MSG)
+
+    user_result = await db.execute(
+        select(PatientUser).where(PatientUser.id == reset_record.patient_user_id)
+    )
+    patient_user = user_result.scalar_one_or_none()
+
+    if not patient_user:
+        raise HTTPException(status_code=400, detail=_INVALID_TOKEN_MSG)
+
+    patient_user.password_hash = hash_password(req.new_password)
+    reset_record.used_at = now
+    await db.commit()
+    await db.refresh(patient_user)
+
+    access_token = create_patient_access_token(patient_user)
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
 @router.post("/login")
 async def patient_login(req: PatientLoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PatientUser).where(PatientUser.email == req.email))
