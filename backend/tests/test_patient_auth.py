@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient, ASGITransport
 import uuid
+from datetime import datetime, timezone, timedelta
 
 ACCEPT_URL = "/api/v1/auth/patient/accept-invite"
 LOGIN_URL = "/api/v1/auth/patient/login"
@@ -236,3 +237,172 @@ async def test_forgot_password_per_email_rate_limit():
     finally:
         app.dependency_overrides.clear()
         patient_auth_module._forgot_pw_email_attempts.pop("ratelimited@example.com", None)
+
+
+# ── Reset Password Tests ───────────────────────────────────────────────────
+
+RESET_URL = "/api/v1/auth/patient/reset-password"
+VALID_RAW_TOKEN = "valid-raw-token-abc123xyz"
+
+
+@pytest.fixture
+def reset_token_valid(patient_user_active):
+    from datetime import datetime, timezone, timedelta
+    import hashlib
+    t = MagicMock()
+    t.id = uuid.uuid4()
+    t.patient_user_id = patient_user_active.id
+    t.token_hash = hashlib.sha256(VALID_RAW_TOKEN.encode()).hexdigest()
+    t.expires_at = datetime.now(timezone.utc) + timedelta(minutes=60)
+    t.used_at = None
+    t.failed_attempts = 0
+    return t
+
+
+@pytest.mark.asyncio
+async def test_reset_password_valid_token(patient_user_active, reset_token_valid):
+    """Token válido → 200 + JWT, password_hash actualizado, used_at seteado."""
+    from main import app
+    from database import get_db
+
+    result_token = MagicMock()
+    result_token.scalar_one_or_none.return_value = reset_token_valid
+    result_user = MagicMock()
+    result_user.scalar_one_or_none.return_value = patient_user_active
+
+    mock_db = AsyncMock()
+    mock_db.execute.side_effect = [result_token, result_user]
+
+    async def override_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(RESET_URL, json={
+                "token": VALID_RAW_TOKEN,
+                "new_password": "NewPassword1"
+            })
+        assert res.status_code == 200
+        data = res.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+        assert reset_token_valid.used_at is not None
+        assert patient_user_active.password_hash is not None
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_expired_token(reset_token_valid):
+    """Token expirado → 400, failed_attempts incrementado."""
+    from main import app
+    from database import get_db
+
+    reset_token_valid.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+
+    result_token = MagicMock()
+    result_token.scalar_one_or_none.return_value = reset_token_valid
+
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = result_token
+
+    async def override_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(RESET_URL, json={
+                "token": VALID_RAW_TOKEN,
+                "new_password": "NewPassword1"
+            })
+        assert res.status_code == 400
+        assert reset_token_valid.failed_attempts == 1
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_already_used(reset_token_valid):
+    """Token ya usado → 400."""
+    from main import app
+    from database import get_db
+
+    reset_token_valid.used_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+
+    result_token = MagicMock()
+    result_token.scalar_one_or_none.return_value = reset_token_valid
+
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = result_token
+
+    async def override_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(RESET_URL, json={
+                "token": VALID_RAW_TOKEN,
+                "new_password": "NewPassword1"
+            })
+        assert res.status_code == 400
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_max_failed_attempts(reset_token_valid):
+    """Token con 3+ intentos fallidos → 400."""
+    from main import app
+    from database import get_db
+
+    reset_token_valid.failed_attempts = 3
+
+    result_token = MagicMock()
+    result_token.scalar_one_or_none.return_value = reset_token_valid
+
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = result_token
+
+    async def override_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(RESET_URL, json={
+                "token": VALID_RAW_TOKEN,
+                "new_password": "NewPassword1"
+            })
+        assert res.status_code == 400
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_invalid_token():
+    """Token no encontrado → 400."""
+    from main import app
+    from database import get_db
+
+    result_none = MagicMock()
+    result_none.scalar_one_or_none.return_value = None
+
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = result_none
+
+    async def override_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(RESET_URL, json={
+                "token": "wrong-token-xyz",
+                "new_password": "NewPassword1"
+            })
+        assert res.status_code == 400
+    finally:
+        app.dependency_overrides.clear()
