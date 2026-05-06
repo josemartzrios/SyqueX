@@ -40,6 +40,7 @@ const EMPTY_FORM = {
   gender_identity: '',
   marital_status: '',
   phone: '',
+  email: '',
   occupation: '',
   address: '',
   ec_name: '',
@@ -59,6 +60,7 @@ function toForm(patient) {
     gender_identity: patient.gender_identity || '',
     marital_status: patient.marital_status || '',
     phone: patient.phone || '',
+    email: patient.email || '',
     occupation: patient.occupation || '',
     address: patient.address || '',
     ec_name: ec.name || '',
@@ -82,6 +84,7 @@ function buildPayload(form, { patchMode }) {
     gender_identity: form.gender_identity || null,
     marital_status: form.marital_status || null,
     phone: form.phone.trim() || null,
+    email: form.email.trim() || null,
     occupation: form.occupation.trim() || null,
     address: form.address.trim() || null,
     emergency_contact,
@@ -135,6 +138,9 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
   const phoneHasInvalidChars = form.phone.trim().length > 0 && !/^[0-9\s+\-().]+$/.test(form.phone);
   const phoneDigits = form.phone.replace(/\D/g, '');
   const phoneInvalid = phoneHasInvalidChars || (form.phone.trim().length > 0 && phoneDigits.length < 10);
+  
+  // Email: opcional, pero si está presente debe ser válido
+  const emailInvalid = form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
 
   const canSubmit =
     form.name.trim() &&
@@ -144,6 +150,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
     !ecInvalid &&
     form.phone.trim() &&
     !phoneInvalid &&
+    !emailInvalid &&
     !saving &&
     !loading;
 
@@ -300,22 +307,40 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
           <section className="flex flex-col gap-3 pt-4 border-t border-ink/[0.06]">
             <h3 className="text-[10px] uppercase tracking-[0.15em] text-[#5a9e8a] font-bold">Contacto</h3>
 
-            <Field
-              label="Teléfono de contacto"
-              required
-              error={form.phone && phoneInvalid ? 'Número inválido: solo dígitos, mínimo 10' : null}
-            >
-              <input
-                type="tel"
-                value={form.phone}
-                onChange={setField('phone')}
-                maxLength={20}
-                disabled={saving || loading}
-                placeholder="Ej. 5512345678"
-                className={inputClass}
-                aria-label="Teléfono del paciente"
-              />
-            </Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field
+                label="Teléfono de contacto"
+                required
+                error={form.phone && phoneInvalid ? 'Número inválido: solo dígitos, mínimo 10' : null}
+              >
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={setField('phone')}
+                  maxLength={20}
+                  disabled={saving || loading}
+                  placeholder="Ej. 5512345678"
+                  className={inputClass}
+                  aria-label="Teléfono del paciente"
+                />
+              </Field>
+
+              <Field
+                label="Correo electrónico"
+                error={form.email && emailInvalid ? 'Correo electrónico inválido' : null}
+              >
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={setField('email')}
+                  maxLength={255}
+                  disabled={saving || loading}
+                  placeholder="Ej. paciente@email.com"
+                  className={inputClass}
+                  aria-label="Correo electrónico del paciente"
+                />
+              </Field>
+            </div>
 
             <Field label="Domicilio">
               <textarea
