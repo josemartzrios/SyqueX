@@ -20,6 +20,13 @@ import OnboardingScreen from './components/OnboardingScreen.jsx';
 import NoteConfigurator from './components/NoteConfigurator.jsx';
 import { saveTemplate } from './api';
 import TutorialModal from './components/TutorialModal';
+import PatientInviteModal from './components/PatientInviteModal';
+import PatientSummarySection from './components/PatientSummarySection';
+import PatientLogin from './pages/PatientLogin';
+import PatientInviteAccept from './pages/PatientInviteAccept';
+import PatientPortal from './pages/PatientPortal';
+import PatientResetPassword from './pages/PatientResetPassword';
+import { getPatientToken } from './patientApi';
 
 // ── Module-level constants ─────────────────────────────────────────────────
 const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
@@ -143,6 +150,7 @@ function App() {
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [selectedPatientName, setSelectedPatientName] = useState(null);
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
+  const [invitingPatientId, setInvitingPatientId] = useState(null);
   const [editingPatientId, setEditingPatientId] = useState(null);
   const [newPatientName, setNewPatientName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -208,6 +216,11 @@ function App() {
     setMobileTab('dictar');
     setDesktopMode('session');
     setBillingStatus(null);
+    // Onboarding state is per-user — clear on logout so the next user sees the selector
+    localStorage.removeItem('syquex_onboarding_done');
+    localStorage.removeItem('syquex_note_format');
+    setOnboardingCompleted(false);
+    setNoteFormat('soap');
   }, []);
 
   const checkBillingAndRoute = useCallback(async () => {
@@ -249,9 +262,21 @@ function App() {
     });
 
     async function initAuth() {
-      const { screen } = authScreen;
-      // Si es register o reset-password, no intentar refresh
-      if (screen === 'register' || screen === 'reset-password') return;
+      const { screen, resetToken, inviteToken } = authScreen;
+      
+      // Patient portal check
+      if (screen === 'patient-portal' || screen === 'patient-login') {
+        const ptoken = getPatientToken();
+        if (ptoken) {
+          setAuthScreen({ screen: 'patient-portal' });
+        } else {
+          setAuthScreen({ screen: 'patient-login' });
+        }
+        return;
+      }
+
+      // Si es register, forgot-password, reset-password o invite, no intentar refresh
+      if (screen === 'register' || screen === 'forgot-password' || screen === 'reset-password' || screen === 'patient-invite' || screen === 'patient-reset') return;
 
       // Intentar refresh silencioso
       const token = await refreshAccessToken(
@@ -586,39 +611,50 @@ function App() {
   })();
 
   // Screen manager — antes del return principal
-  if (authScreen.screen === 'loading') {
+  const { screen, resetToken, inviteToken } = authScreen;
+
+  if (screen === 'loading') {
     return (
       <div className="min-h-screen bg-parchment flex items-center justify-center">
         <div className="text-ink-tertiary text-sm">Cargando…</div>
       </div>
     );
   }
-  if (authScreen.screen === 'login') {
+  
+  if (screen === 'reset-password') {
+    return <ResetPasswordScreen token={resetToken} setScreen={(s) => setAuthScreen({ screen: s })} />;
+  }
+  if (screen === 'patient-reset') {
+    return <PatientResetPassword resetToken={authScreen.resetToken} setScreen={(s) => setAuthScreen({ screen: s })} />;
+  }
+  if (screen === 'patient-login') {
+    return <PatientLogin setScreen={(s) => setAuthScreen({ screen: s })} />;
+  }
+  if (screen === 'patient-invite') {
+    return <PatientInviteAccept inviteToken={inviteToken} setScreen={(s) => setAuthScreen({ screen: s })} />;
+  }
+  if (screen === 'patient-portal') {
+    return <PatientPortal />;
+  }
+  if (screen === 'login') {
     return <LoginScreen
       onSuccess={() => checkBillingAndRoute()}
       onRegister={() => { navigateTo('/registro'); setAuthScreen({ screen: 'register' }); }}
       onForgotPassword={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
     />;
   }
-  if (authScreen.screen === 'register') {
+  if (screen === 'register') {
     return <RegisterScreen
       onSuccess={() => checkBillingAndRoute()}
       onLogin={() => { navigateTo('/'); setAuthScreen({ screen: 'login' }); }}
     />;
   }
-  if (authScreen.screen === 'forgot-password') {
+  if (screen === 'forgot-password') {
     return <ForgotPasswordScreen
       onBack={() => { navigateTo('/'); setAuthScreen({ screen: 'login' }); }}
     />;
   }
-  if (authScreen.screen === 'reset-password') {
-    return <ResetPasswordScreen
-      resetToken={authScreen.resetToken}
-      onSuccess={() => checkBillingAndRoute()}
-      onInvalidToken={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
-    />;
-  }
-  if (authScreen.screen === 'billing') {
+  if (screen === 'billing') {
     return <BillingScreen
       onActivated={() => checkBillingAndRoute()}
     />;
@@ -689,6 +725,13 @@ function App() {
           }}
         />
       )}
+      
+      <PatientInviteModal
+        open={!!invitingPatientId}
+        patient={invitingPatientId ? { id: invitingPatientId, name: selectedPatientName } : null}
+        onClose={() => setInvitingPatientId(null)}
+      />
+
       {billingStatus?.status === 'trialing' && billingStatus?.days_remaining != null && (
         <TrialBanner
           daysRemaining={billingStatus.days_remaining}
@@ -740,6 +783,7 @@ function App() {
             onModeChange={hasActivePatient ? setDesktopMode : undefined}
             patientId={selectedPatientId}
             onEditPatient={(id) => setEditingPatientId(id)}
+            onInvitePatient={(id) => setInvitingPatientId(id)}
             onShowTutorial={() => setTutorialVisible(true)}
           />
 
@@ -931,6 +975,10 @@ function App() {
                                       compact
                                     />
                                   )}
+                                  <PatientSummarySection
+                                    sessionId={String(s.id)}
+                                    patientName={selectedPatientName}
+                                  />
                                 </div>
                               )}
                             </div>
@@ -1009,6 +1057,7 @@ function App() {
               compact
               patientId={selectedPatientId}
               onEditPatient={(id) => setEditingPatientId(id)}
+              onInvitePatient={(id) => setInvitingPatientId(id)}
             />
 
             {/* Tab nav */}
@@ -1177,29 +1226,33 @@ function App() {
                               )}
                             </div>
                             {isExpanded && hasNote && (
-                              <div className="border-t border-ink/[0.06]">
-                                {isCustom ? (
-                                  <CustomNoteDocument
-                                    templateFields={s.template_fields || template?.fields || []}
-                                    values={s.custom_fields || {}}
-                                    readOnly
-                                  />
-                                ) : (
-                                  <SoapNoteDocument
-                                    noteData={{
-                                      clinical_note: {
-                                        structured_note: s.structured_note,
-                                        detected_patterns: s.detected_patterns || [],
-                                        alerts: s.alerts || [],
-                                        session_id: String(s.id),
-                                      },
-                                      text_fallback: s.ai_response,
-                                    }}
-                                    readOnly
-                                    compact
-                                  />
-                                )}
-                              </div>
+                                  <div className="border-t border-ink/[0.06]">
+                                    {isCustom ? (
+                                      <CustomNoteDocument
+                                        templateFields={s.template_fields || template?.fields || []}
+                                        values={s.custom_fields || {}}
+                                        readOnly
+                                      />
+                                    ) : (
+                                      <SoapNoteDocument
+                                        noteData={{
+                                          clinical_note: {
+                                            structured_note: s.structured_note,
+                                            detected_patterns: s.detected_patterns || [],
+                                            alerts: s.alerts || [],
+                                            session_id: String(s.id),
+                                          },
+                                          text_fallback: s.ai_response,
+                                        }}
+                                        readOnly
+                                        compact
+                                      />
+                                    )}
+                                    <PatientSummarySection
+                                      sessionId={String(s.id)}
+                                      patientName={selectedPatientName}
+                                    />
+                                  </div>
                             )}
                           </div>
                         );
