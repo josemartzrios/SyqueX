@@ -178,6 +178,29 @@ class PasswordResetToken(Base):
     )
 
 
+class PatientPasswordResetToken(Base):
+    __tablename__ = 'patient_password_reset_tokens'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey('patient_users.id', ondelete='CASCADE'), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    __table_args__ = (
+        Index('idx_patient_password_reset_tokens_hash', 'token_hash'),
+    )
+
+
+
+
 class ProcessedStripeEvent(Base):
     __tablename__ = 'processed_stripe_events'
 
