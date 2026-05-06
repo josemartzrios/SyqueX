@@ -331,6 +331,7 @@ class PatientUpdate(BaseModel):
     marital_status: Optional[MaritalStatus] = None
     gender_identity: Optional[GenderIdentity] = None
     phone: Optional[str] = Field(None, max_length=20)
+    email: Optional[str] = Field(None, max_length=255)
     occupation: Optional[str] = Field(None, max_length=120)
     address: Optional[str] = Field(None, max_length=500)
     emergency_contact: Optional[EmergencyContact] = None
@@ -378,6 +379,7 @@ class PatientOut(BaseModel):
     marital_status: Optional[str] = None
     gender_identity: Optional[str] = None
     phone: Optional[str] = None
+    email: Optional[str] = None
     occupation: Optional[str] = None
     address: Optional[str] = None
     emergency_contact: Optional[Dict[str, Any]] = None

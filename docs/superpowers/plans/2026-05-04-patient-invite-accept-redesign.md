@@ -1,3 +1,33 @@
+# PatientInviteAccept — Rediseño UI — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Reemplazar el diseño beige/experimental de `PatientInviteAccept` por un layout mobile-first con header sage + formulario blanco; en desktop un split screen sage/blanco.
+
+**Architecture:** Un solo archivo JSX reescrito. Toda la lógica (validación, API call, redirección) permanece igual — solo cambia el JSX/Tailwind. Mobile-first con breakpoint `md:` para el split screen.
+
+**Tech Stack:** React 18, Tailwind CSS (CDN), diseño system SyqueX (sage `#5a9e8a`, ink `#18181b`, surface `#f4f4f2`).
+
+---
+
+## File Map
+
+| Archivo | Acción |
+|---------|--------|
+| `frontend/src/pages/PatientInviteAccept.jsx` | Reescritura completa del JSX — lógica intacta |
+
+---
+
+### Task 1: Reescribir PatientInviteAccept.jsx con el nuevo diseño
+
+**Files:**
+- Modify: `frontend/src/pages/PatientInviteAccept.jsx`
+
+- [ ] **Step 1: Reemplazar el contenido completo del archivo**
+
+Conserva las importaciones y toda la lógica del componente (`useState`, `handleSubmit`, validaciones, API call). Solo reescribe el JSX retornado:
+
+```jsx
 import { useState } from 'react';
 import { navigateTo } from '../auth';
 import { acceptPatientInvite } from '../patientApi';
@@ -145,3 +175,43 @@ export default function PatientInviteAccept({ inviteToken, setScreen }) {
     </div>
   );
 }
+```
+
+- [ ] **Step 2: Verificar visualmente en móvil**
+
+Con el dev server corriendo (`.\start-frontend.ps1`), navega a:
+```
+http://localhost:5173/portal/invite?token=test
+```
+Abre DevTools → Toggle Device Toolbar (Ctrl+Shift+M) → selecciona iPhone 12 Pro (390px).
+
+Verificar:
+- Fondo `#f4f4f2` (gris neutro, sin beige)
+- Header sage visible con logo + título serif + subtítulo
+- Formulario blanco debajo con labels sage uppercase
+- Nota de privacidad al fondo del formulario
+- Sin sombras ni tarjetas flotantes sobre fondo beige
+
+- [ ] **Step 3: Verificar visualmente en desktop**
+
+En el mismo DevTools, cambia a vista desktop (≥768px).
+
+Verificar:
+- Split screen: panel sage a la izquierda (≈42%), formulario blanco a la derecha
+- Badge de privacidad visible al fondo del panel sage
+- Privacy note del móvil NO visible en desktop
+- Formulario centrado verticalmente en el panel derecho
+
+- [ ] **Step 4: Verificar estados interactivos**
+
+En la misma URL de prueba:
+1. Escribe contraseñas distintas → clic "Activar cuenta" → banner rojo `bg-[#fef2f2]` con `!` circular y mensaje de error
+2. Contraseñas menores a 8 chars → banner rojo con "La contraseña debe tener al menos 8 caracteres"
+3. (Opcional, con token válido) Activar cuenta correctamente → banner sage `bg-white border-[#5a9e8a]` con checkmark y "¡Cuenta activada!"
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add frontend/src/pages/PatientInviteAccept.jsx
+git commit -m "feat: redesign PatientInviteAccept — sage header, mobile-first split screen"
+```

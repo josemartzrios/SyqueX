@@ -437,28 +437,28 @@ async def generate_patient_summary(note_data: dict) -> dict:
     """
     Genera un resumen para el paciente a partir de una nota SOAP o custom.
     Retorna dict con keys: topics_worked, homework, next_session_date.
-    En caso de error de parseo devuelve campos vacíos — el psicólogo puede editar.
+    Propaga excepciones para que el endpoint devuelva 500 en lugar de campos vacíos silenciosos.
     """
     import json as _json
+    import re as _re
+
     note_content = _build_note_content(note_data)
     user_message = f"Nota clínica:\n{note_content}"
 
-    try:
-        client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=512,
-            temperature=0,
-            system=_PATIENT_SUMMARY_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
-        )
-        raw = "\n".join(b.text for b in response.content if b.type == "text").strip()
-        parsed = _json.loads(raw)
-        return {
-            "topics_worked": parsed.get("topics_worked") or "",
-            "homework": parsed.get("homework") or "",
-            "next_session_date": parsed.get("next_session_date") or None,
-        }
-    except Exception as exc:
-        logger.warning("generate_patient_summary failed: %s", exc)
-        return {"topics_worked": "", "homework": "", "next_session_date": None}
+    client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    response = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=512,
+        temperature=0,
+        system=_PATIENT_SUMMARY_PROMPT,
+        messages=[{"role": "user", "content": user_message}],
+    )
+    raw = "\n".join(b.text for b in response.content if b.type == "text").strip()
+    # Strip markdown code fences que Claude agrega a veces pese al prompt
+    cleaned = _re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=_re.MULTILINE).strip()
+    parsed = _json.loads(cleaned)
+    return {
+        "topics_worked": parsed.get("topics_worked") or "",
+        "homework": parsed.get("homework") or "",
+        "next_session_date": parsed.get("next_session_date") or None,
+    }

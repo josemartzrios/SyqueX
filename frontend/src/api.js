@@ -236,3 +236,32 @@ export async function getBillingStatus() {
 export async function createCheckout() {
   return _authFetch(`${API_BASE}/billing/create-checkout`, { method: 'POST' });
 }
+
+// --- Patient Summaries (psychologist side) ---
+export async function getSummary(sessionId) {
+  return _authFetch(`${API_BASE}/sessions/${sessionId}/summary`);
+}
+
+export async function generateSummary(sessionId) {
+  return _authFetch(`${API_BASE}/sessions/${sessionId}/summary/generate`, { method: 'POST' });
+}
+
+export async function saveSummary(sessionId, data) {
+  return _authFetch(`${API_BASE}/sessions/${sessionId}/summary`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+// --- Patient Portal ---
+export async function invitePatient(patientId) {
+  return await _authFetch(`${API_BASE}/patients/${patientId}/portal/invite`, {
+    method: 'POST',
+  });
+}
+
+export async function sendSummaryToPortal(sessionId) {
+  return await _authFetch(`${API_BASE}/sessions/${sessionId}/summary/send`, {
+    method: 'POST',
+  });
+}
