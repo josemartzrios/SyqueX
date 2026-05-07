@@ -2,16 +2,26 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for building python packages if needed
 RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# LOW-02: Run as non-root user to limit blast radius of potential RCE.
+# --gecos "" keeps it silent; home directory IS created (no --no-create-home)
+# so /home/appuser/.cache/huggingface is writable for the xet log and model cache.
+RUN adduser --disabled-password --gecos "" appuser
 
-# LOW-02: Run as non-root user to limit blast radius of potential RCE
-RUN adduser --disabled-password --no-create-home appuser
+# Pre-download the 1.31 GB embedding model at build time as appuser.
+# Docker caches this layer: cold starts skip the runtime download entirely.
+# Layer is only re-run when requirements.txt changes (new fastembed version).
+USER appuser
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('intfloat/multilingual-e5-large')"
+USER root
+
+COPY . .
+RUN chown -R appuser:appuser /app
+
 USER appuser
 
 ENV PORT=8000
