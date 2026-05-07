@@ -8,6 +8,7 @@ export default function PatientPortal() {
   const [error, setError] = useState(null);
   const [selectedSummary, setSelectedSummary] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState(null);
 
   useEffect(() => {
     // El body global tiene overflow:hidden para el app del psicólogo — lo sobreescribimos aquí
@@ -33,13 +34,13 @@ export default function PatientPortal() {
 
   const handleViewDetail = async (summaryId) => {
     setLoadingDetail(true);
+    setDetailError(null);
     try {
       const detail = await getPatientSummaryDetail(summaryId);
       setSelectedSummary(detail);
-      // Update list to show as viewed if it wasn't
       setSummaries(prev => prev.map(s => s.id === summaryId ? { ...s, viewed_at: detail.viewed_at } : s));
     } catch (err) {
-      alert('Error al cargar el detalle: ' + err.message);
+      setDetailError(err.message);
     } finally {
       setLoadingDetail(false);
     }
@@ -87,6 +88,14 @@ export default function PatientPortal() {
           {/* List Section */}
           <div className="md:col-span-1 md:sticky md:top-[88px] md:max-h-[calc(100vh-104px)] md:overflow-y-auto md:pr-1">
             <h1 className="text-2xl font-serif text-[#18181b] mb-6">Mis Sesiones</h1>
+            {error && (
+              <div className="mb-4 flex items-center gap-2 bg-[#fef2f2] border border-red-200 rounded-xl px-3 py-2.5">
+                <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-[9px] font-bold">!</span>
+                </div>
+                <p className="text-[12px] text-red-600">{error}</p>
+              </div>
+            )}
             <div className="space-y-3">
               {summaries.length === 0 ? (
                 <div className="bg-white p-6 rounded-2xl border border-dashed border-[#18181b]/[0.1] text-center">
@@ -121,6 +130,14 @@ export default function PatientPortal() {
 
           {/* Detail Section */}
           <div className="md:col-span-2">
+            {detailError && (
+              <div className="mb-4 flex items-center gap-2 bg-[#fef2f2] border border-red-200 rounded-xl px-3 py-2.5">
+                <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-[9px] font-bold">!</span>
+                </div>
+                <p className="text-[12px] text-red-600">{detailError}</p>
+              </div>
+            )}
             {loadingDetail ? (
               <div className="bg-white rounded-3xl border border-[#18181b]/[0.06] p-12 flex items-center justify-center h-[400px]">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5a9e8a]"></div>
