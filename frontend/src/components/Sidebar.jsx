@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function Sidebar({ open, onClose, conversations, onSelectConversation, onDeleteConversation, onLogout, draftPatientIds = new Set() }) {
+export default function Sidebar({ open, onClose, conversations, onSelectConversation, onDeleteConversation, onLogout, draftPatientIds = new Set(), canCancelSubscription = false, onCancelSubscription }) {
   return (
     <>
       {open && (
@@ -60,6 +60,14 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
         
         {/* Logout — pinned to bottom of drawer */}
         <div className="border-t border-ink/[0.07] flex-shrink-0">
+          {canCancelSubscription && (
+            <button
+              onClick={onCancelSubscription}
+              className="w-full text-left px-5 py-[10px] text-[12px] text-ink-tertiary hover:text-ink-secondary hover:bg-parchment transition-colors border-b border-ink/[0.04]"
+            >
+              Cancelar suscripción
+            </button>
+          )}
           <button
             onClick={onLogout}
             className="w-full text-left px-5 py-3 text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
