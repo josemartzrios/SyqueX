@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import Optional, List, Dict, Any, Literal
 from datetime import date, datetime, timezone
 
-from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal, NoteTemplate
+from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal, NoteTemplate, PatientUser, PatientSummary
 from config import settings
 import json as _json
 from crypto import encrypt_if_set, decrypt_if_set
@@ -145,6 +145,9 @@ class PatientCreate(BaseModel):
 
     # Obligatorios adicionales
     phone: str = Field(..., max_length=20)
+
+    # Obligatorio (requerido para portal del paciente)
+    email: str = Field(..., max_length=255)
 
     # Opcionales
     marital_status: Optional[MaritalStatus] = None
@@ -331,6 +334,7 @@ class PatientUpdate(BaseModel):
     marital_status: Optional[MaritalStatus] = None
     gender_identity: Optional[GenderIdentity] = None
     phone: Optional[str] = Field(None, max_length=20)
+    email: Optional[str] = Field(None, max_length=255)
     occupation: Optional[str] = Field(None, max_length=120)
     address: Optional[str] = Field(None, max_length=500)
     emergency_contact: Optional[EmergencyContact] = None
@@ -378,6 +382,7 @@ class PatientOut(BaseModel):
     marital_status: Optional[str] = None
     gender_identity: Optional[str] = None
     phone: Optional[str] = None
+    email: Optional[str] = None
     occupation: Optional[str] = None
     address: Optional[str] = None
     emergency_contact: Optional[Dict[str, Any]] = None
@@ -500,6 +505,7 @@ async def create_patient(
         psychological_history=encrypt_if_set(payload.psychological_history),
         gender_identity=encrypt_if_set(payload.gender_identity),
         phone=encrypt_if_set(payload.phone),
+        email=payload.email,
     )
     db.add(patient)
     await db.flush()  # populate patient.id
@@ -1110,3 +1116,126 @@ async def list_conversations(
     return PaginatedConversations(
         items=paged, total=total, page=page, page_size=page_size, pages=pages
     )
+
+
+# ---------------------------------------------------------------------------
+# Patient Portal Endpoints (Psychologist side)
+# ---------------------------------------------------------------------------
+
+@router.post("/patients/{patient_id}/portal/invite", tags=["portal"])
+async def invite_patient(
+    patient_id: str,
+    request: Request,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db_with_user),
+):
+    import secrets
+    from services.email import send_patient_invite
+    from datetime import timedelta
+    patient = await _get_owned_patient(db, psychologist.id, patient_id)
+    
+    # 1. El paciente debe tener email
+    patient_email = patient.email
+    if not patient_email:
+        raise HTTPException(status_code=400, detail="El paciente debe tener un correo electrónico registrado para invitarlo al portal.")
+
+    # 2. Verificar o crear PatientUser
+    res = await db.execute(select(PatientUser).where(PatientUser.patient_id == patient.id))
+    patient_user = res.scalar_one_or_none()
+    
+    if not patient_user:
+        patient_user = PatientUser(
+            patient_id=patient.id,
+            psychologist_id=psychologist.id,
+            email=patient_email,
+        )
+        db.add(patient_user)
+
+    # 3. Generar token
+    token = secrets.token_urlsafe(32)
+    patient_user.invite_token = token
+    patient_user.invite_token_expires_at = datetime.now(timezone.utc) + timedelta(days=settings.PATIENT_INVITE_EXPIRE_DAYS)
+    patient_user.invited_at = datetime.now(timezone.utc)
+
+    await db.commit()
+
+    # 4. Enviar email
+    try:
+        await send_patient_invite(patient_email, patient.name, psychologist.name, token)
+    except Exception as e:
+        logger.error(f"Error enviando invitacion a paciente {patient_email}: {e}")
+
+    return {"message": "Invitación enviada", "expires_in_days": settings.PATIENT_INVITE_EXPIRE_DAYS}
+
+
+@router.post("/sessions/{session_id}/summary/send", tags=["portal"])
+async def send_session_summary(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db_with_user),
+):
+    from agent.agent import generate_patient_summary
+    session_uuid = _parse_uuid(session_id, "session_id")
+    res = await db.execute(
+        select(Session).join(Patient).where(
+            Session.id == session_uuid,
+            Patient.psychologist_id == psychologist.id,
+        )
+    )
+    sess = res.scalar_one_or_none()
+    
+    if not sess:
+        raise SessionNotFoundError("Sesión no encontrada.", code="SESSION_NOT_FOUND", details={"session_id": session_id})
+    if sess.status != "confirmed":
+        raise HTTPException(status_code=400, detail="La sesión debe estar confirmada para enviar el resumen.")
+
+    # Get ClinicalNote
+    cn_res = await db.execute(select(ClinicalNote).where(ClinicalNote.session_id == sess.id))
+    clinical_note = cn_res.scalar_one_or_none()
+    if not clinical_note:
+        raise HTTPException(status_code=400, detail="No se encontró nota clínica para esta sesión.")
+
+    # Get or create PatientSummary
+    summary_res = await db.execute(select(PatientSummary).where(PatientSummary.session_id == sess.id))
+    patient_summary = summary_res.scalar_one_or_none()
+
+    if not patient_summary:
+        # Check format
+        is_custom = clinical_note.format == "custom"
+        note_data = {}
+        if is_custom:
+            note_data["format"] = "custom"
+            note_data["custom_fields"] = clinical_note.custom_fields
+        else:
+            note_data["format"] = "SOAP"
+            note_data["subjective"] = decrypt_if_set(clinical_note.subjective)
+            note_data["objective"] = decrypt_if_set(clinical_note.objective)
+            note_data["assessment"] = decrypt_if_set(clinical_note.assessment)
+            note_data["plan"] = decrypt_if_set(clinical_note.plan)
+
+        # Generate draft
+        generated = await generate_patient_summary(note_data)
+        
+        nxt_date_str = generated.get("next_session_date")
+        nxt_date = None
+        if nxt_date_str:
+            try:
+                from datetime import datetime as dt
+                nxt_date = dt.strptime(nxt_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                pass
+                
+        patient_summary = PatientSummary(
+            session_id=sess.id,
+            patient_id=sess.patient_id,
+            topics_worked=encrypt_if_set(generated.get("topics_worked")),
+            homework=encrypt_if_set(generated.get("homework")),
+            next_session_date=nxt_date,
+        )
+        db.add(patient_summary)
+
+    patient_summary.sent_at = datetime.now(timezone.utc)
+    await db.commit()
+    
+    return {"message": "Resumen enviado al portal del paciente."}

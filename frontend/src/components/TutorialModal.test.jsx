@@ -23,14 +23,14 @@ describe('TutorialModal', () => {
   it('renders slide 1 content on open', () => {
     render(<TutorialModal {...defaultProps} />)
     expect(screen.getByText(/Bienvenido a SyqueX/i)).toBeInTheDocument()
-    expect(screen.getByText('1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('1 de 5')).toBeInTheDocument()
   })
 
   it('"Siguiente" advances to slide 2', () => {
     render(<TutorialModal {...defaultProps} />)
     fireEvent.click(screen.getByText('Siguiente →'))
     expect(screen.getByText(/Crea tu primer paciente/i)).toBeInTheDocument()
-    expect(screen.getByText('2 de 4')).toBeInTheDocument()
+    expect(screen.getByText('2 de 5')).toBeInTheDocument()
   })
 
   it('"Anterior" on slide 2 goes back to slide 1', () => {
@@ -45,9 +45,9 @@ describe('TutorialModal', () => {
     expect(screen.queryByText('← Anterior')).not.toBeInTheDocument()
   })
 
-  it('shows "Finalizar" instead of "Siguiente" on last slide (desktop = slide 4)', () => {
+  it('shows "Finalizar" instead of "Siguiente" on last slide (desktop = slide 5)', () => {
     render(<TutorialModal {...defaultProps} isMobile={false} />)
-    // advance to slide 4
+    fireEvent.click(screen.getByText('Siguiente →'))
     fireEvent.click(screen.getByText('Siguiente →'))
     fireEvent.click(screen.getByText('Siguiente →'))
     fireEvent.click(screen.getByText('Siguiente →'))
@@ -64,6 +64,7 @@ describe('TutorialModal', () => {
 
   it('closes and sets syquex_tutorial_done when "Finalizar" is clicked', () => {
     render(<TutorialModal {...defaultProps} isMobile={false} />)
+    fireEvent.click(screen.getByText('Siguiente →'))
     fireEvent.click(screen.getByText('Siguiente →'))
     fireEvent.click(screen.getByText('Siguiente →'))
     fireEvent.click(screen.getByText('Siguiente →'))
@@ -87,34 +88,43 @@ describe('TutorialModal', () => {
     expect(screen.getByText(/Revisa y confirma/i)).toBeInTheDocument()
   })
 
-  it('desktop: does NOT render slide 5 (only 4 slides)', () => {
+  it('desktop: renders 5 slides, slide 5 is patient portal', () => {
     render(<TutorialModal {...defaultProps} isMobile={false} />)
-    // On last slide (slide 4), "Finalizar" appears — not "Siguiente"
     fireEvent.click(screen.getByText('Siguiente →'))
     fireEvent.click(screen.getByText('Siguiente →'))
     fireEvent.click(screen.getByText('Siguiente →'))
+    fireEvent.click(screen.getByText('Siguiente →'))
+    expect(screen.getByText(/Comparte el seguimiento/i)).toBeInTheDocument()
     expect(screen.getByText('Finalizar')).toBeInTheDocument()
-    expect(screen.getByText('4 de 4')).toBeInTheDocument()
+    expect(screen.getByText('5 de 5')).toBeInTheDocument()
   })
 
-  describe('slide 5 — PWA install (mobile only)', () => {
-    beforeEach(() => {
-      // jsdom has no userAgent match for mobile, so isMobile=true via prop
-    })
+  it('renders slide 5 — patient portal sharing', () => {
+    render(<TutorialModal {...defaultProps} isMobile={false} />)
+    fireEvent.click(screen.getByText('Siguiente →'))
+    fireEvent.click(screen.getByText('Siguiente →'))
+    fireEvent.click(screen.getByText('Siguiente →'))
+    fireEvent.click(screen.getByText('Siguiente →'))
+    expect(screen.getByText(/Comparte el seguimiento con tu paciente/i)).toBeInTheDocument()
+    expect(screen.getByText(/Después de confirmar la nota/i)).toBeInTheDocument()
+    expect(screen.getByText('5 de 5')).toBeInTheDocument()
+  })
 
-    it('mobile: renders slide 5 after slide 4', () => {
+  describe('slide 6 — PWA install (mobile only)', () => {
+    it('mobile: renders slide 6 after slide 5', () => {
       render(<TutorialModal {...defaultProps} isMobile={true} />)
-      // advance to slide 5
+      fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       expect(screen.getByText(/Instala la app/i)).toBeInTheDocument()
-      expect(screen.getByText('5 de 5')).toBeInTheDocument()
+      expect(screen.getByText('6 de 6')).toBeInTheDocument()
     })
 
-    it('mobile: "Finalizar" appears on slide 5', () => {
+    it('mobile: "Finalizar" appears on slide 6', () => {
       render(<TutorialModal {...defaultProps} isMobile={true} />)
+      fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
@@ -128,12 +138,22 @@ describe('TutorialModal', () => {
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
       expect(screen.getByText(/Compartir/i)).toBeInTheDocument()
       expect(screen.getByText(/Agregar a inicio/i)).toBeInTheDocument()
     })
 
     it('renders Chrome install button when browser is chrome and isInstallable', () => {
-      render(<TutorialModal {...defaultProps} isMobile={true} forceBrowser="chrome" forceInstallable={true} onTriggerInstall={vi.fn()} />)
+      render(
+        <TutorialModal
+          {...defaultProps}
+          isMobile={true}
+          forceBrowser="chrome"
+          forceInstallable={true}
+          onTriggerInstall={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
@@ -143,6 +163,7 @@ describe('TutorialModal', () => {
 
     it('renders fallback when browser is "other"', () => {
       render(<TutorialModal {...defaultProps} isMobile={true} forceBrowser="other" />)
+      fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
@@ -157,13 +178,15 @@ describe('TutorialModal', () => {
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
+      fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Ya la instalé ✓'))
       expect(defaultProps.onClose).toHaveBeenCalledTimes(1)
       expect(localStorage.getItem('syquex_tutorial_done')).toBe('true')
     })
 
-    it('sets syquex_pwa_prompted when slide 5 mounts', () => {
+    it('sets syquex_pwa_prompted when PWA slide mounts', () => {
       render(<TutorialModal {...defaultProps} isMobile={true} forceBrowser="safari" />)
+      fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))
       fireEvent.click(screen.getByText('Siguiente →'))

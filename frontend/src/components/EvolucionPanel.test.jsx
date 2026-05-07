@@ -36,6 +36,14 @@ describe('EvolucionPanel — chat bubbles', () => {
     render(<EvolucionPanel patient={patient} messages={messages} profile={null} loading={false} onSend={noop} sending={false} error={null} />)
     expect(screen.getByText('Hola doctor')).toBeInTheDocument()
   })
+
+  it('aplica whitespace-pre-wrap a burbujas del agente para preservar saltos de línea', () => {
+    const multilineMsg = [{ role: 'assistant', content: 'Línea uno\nLínea dos\nLínea tres' }]
+    const { container } = render(<EvolucionPanel patient={patient} messages={multilineMsg} profile={null} loading={false} onSend={noop} sending={false} error={null} />)
+    const bubble = container.querySelector('.whitespace-pre-wrap')
+    expect(bubble).toBeInTheDocument()
+    expect(bubble).toHaveTextContent('Línea uno')
+  })
 })
 
 describe('EvolucionPanel — chips', () => {

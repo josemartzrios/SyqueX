@@ -28,18 +28,20 @@ function parseSoapText(text) {
 }
 
 const SECTIONS = [
-  { key: 'subjective', letter: 'S', label: 'Subjetivo'  },
-  { key: 'objective',  letter: 'O', label: 'Objetivo'   },
-  { key: 'assessment', letter: 'A', label: 'Análisis'   },
-  { key: 'plan',       letter: 'P', label: 'Plan'       },
+  { key: 'subjective', letter: 'S', label: 'Subjetivo' },
+  { key: 'objective', letter: 'O', label: 'Objetivo' },
+  { key: 'assessment', letter: 'A', label: 'Análisis' },
+  { key: 'plan', letter: 'P', label: 'Plan' },
 ]
 
-export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOnly = false, compact = false }) {
+export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOnly = false, compact = false, onSendToPortal = null }) {
   const [saving, setSaving] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [sendingToPortal, setSendingToPortal] = useState(false)
+  const [portalSuccess, setPortalSuccess] = useState(false)
 
   // Parse note data
   const parsedNote = !noteData.clinical_note && noteData.text_fallback
@@ -100,6 +102,20 @@ export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOn
     const timer = setTimeout(() => { onConfirm?.() }, 2000)
     return () => clearTimeout(timer)
   }, [confirmed, onConfirm])
+
+  const handleSendToPortal = async () => {
+    if (!onSendToPortal) return
+    setSendingToPortal(true)
+    try {
+      await onSendToPortal()
+      setPortalSuccess(true)
+      setTimeout(() => setPortalSuccess(false), 3000)
+    } catch (err) {
+      alert(err.message || 'Error al enviar al paciente')
+    } finally {
+      setSendingToPortal(false)
+    }
+  }
 
   return (
     <div className={`font-serif max-w-prose ${compact ? 'px-5 py-4' : 'px-6 py-6'}`}>
@@ -337,9 +353,8 @@ export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOn
               <button
                 onClick={handleConfirm}
                 disabled={saving || showDeleteConfirm}
-                className={`w-full sm:w-auto sm:ml-auto bg-[#5a9e8a] text-white text-[13px] font-medium rounded-xl px-4 py-2.5 transition-colors ${
-                  saving || showDeleteConfirm ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#4a8a78]'
-                }`}
+                className={`w-full sm:w-auto sm:ml-auto bg-[#5a9e8a] text-white text-[13px] font-medium rounded-xl px-4 py-2.5 transition-colors ${saving || showDeleteConfirm ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#4a8a78]'
+                  }`}
               >
                 {saving ? 'Registrando...' : '✓ Confirmar en Expediente'}
               </button>
@@ -356,6 +371,34 @@ export default function SoapNoteDocument({ noteData, onConfirm, onDelete, readOn
         </div>
       )}
 
+      {readOnly && onSendToPortal && (
+        <div className="flex justify-end border-t border-ink/[0.06] pt-4 mt-4">
+          <button
+            onClick={handleSendToPortal}
+            disabled={sendingToPortal || portalSuccess}
+            className={`text-[13px] font-medium rounded-xl px-4 py-2 flex items-center gap-2 transition-colors ${portalSuccess
+              ? 'bg-green-100 text-green-700'
+              : 'text-[#5a9e8a] border border-[#5a9e8a]/30 hover:bg-[#5a9e8a]/10 disabled:opacity-50'
+              }`}
+          >
+            {portalSuccess ? (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+                Enviado al Portal
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                {sendingToPortal ? 'Enviando...' : 'Enviar al paciente'}
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
