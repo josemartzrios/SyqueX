@@ -66,4 +66,74 @@ Restyle the patient portal (`/portal`) to match the visual language of `MockPort
 
 ## Files Changed
 
-- `frontend/src/pages/PatientPortal.jsx` — styles only, no logic changes
+- `frontend/src/pages/PatientPortal.jsx` — styles only, no logic changes (UI restyle)
+- `frontend/src/patientApi.js` — add login redirect on 401 (auth bug fix)
+- `frontend/src/App.jsx` — enforce login on fresh `/portal` link visit (auth bug fix)
+- `frontend/src/pages/PatientLogin.jsx` — receive `next` param if needed (minor)
+
+---
+
+## Auth Bug Fixes
+
+> Scope additions: two security bugs found during debugging that affect the portal.
+
+### Root Causes
+
+**RC-1 — Portal renderiza con 401 en lugar de redirigir al login**
+
+Flujo actual roto:
+1. `App.jsx:306` — `getPatientToken()` encuentra cualquier string en localStorage
+2. `App.jsx:308` — renderiza `PatientPortal` sin validar el token contra el servidor
+3. `PatientPortal:34` — `loadSummaries()` llama la API → devuelve 401
+4. `patientApi.js:40` — `patientFetch` detecta 401, limpia el token, lanza `Error`
+5. `PatientPortal:37` — `catch` ejecuta `setError(msg)` → muestra banner de error
+6. **Portal queda visible.** Nunca redirige a `/portal/login`
+
+**RC-2 — Presencia de token ≠ validez del token**
+
+`App.jsx:306-312` solo hace `if (ptoken)`. Cualquier string en `localStorage['patient_token']`
+(expirado, inválido, de otra sesión anterior) pasa el guard y renderiza el portal.
+No hay verificación server-side antes del primer render.
+
+**RC-3 — El enlace de email no tiene frontera de autenticación**
+
+`auth.js:35` mapea `/portal` → `patient-portal` sin condición de autenticidad.
+El enlace enviado por Resend es solo `/portal`. Si existe cualquier `patient_token`
+en localStorage de cualquier sesión anterior (de cualquier paciente en ese navegador),
+ese token es usado como identidad del visitante — posible cross-patient data exposure.
+
+### Fixes
+
+**Fix A — Redirigir a login en cualquier 401 (`patientApi.js`)**
+
+En `patientFetch`, al recibir 401:
+```js
+clearPatientToken()
+navigateTo('/portal/login')
+window.location.reload()
+```
+Esto resuelve RC-1: el usuario nunca ve el portal con un error 401.
+
+**Fix B — Usar `sessionStorage` como frontera de sesión (`App.jsx` + `PatientLogin.jsx`)**
+
+En lugar de depender únicamente de `localStorage` para decidir si mostrar el portal,
+usar `sessionStorage` como flag de sesión activa:
+
+- Al hacer login exitoso en `PatientLogin`: `sessionStorage.setItem('portal_session', '1')`
+- Al hacer logout en `PatientPortal`: `sessionStorage.removeItem('portal_session')`
+- En `App.jsx initAuth` (guard de `/portal`): requerir **ambos** — `getPatientToken()` Y `sessionStorage.getItem('portal_session')`. Si falta cualquiera → redirigir a login.
+
+Esto resuelve RC-2 y RC-3:
+- Abrir un nuevo link (nueva pestaña/ventana) → sessionStorage vacío → login requerido aunque haya token en localStorage
+- Refrescar la página → sessionStorage persiste → no se pide login de nuevo (UX correcto)
+- Cerrar y volver a abrir → sessionStorage limpio → login requerido
+
+**Comportamiento resultante esperado:**
+
+| Escenario | Comportamiento anterior | Comportamiento nuevo |
+|-----------|------------------------|---------------------|
+| Link de email, sin sesión activa | Muestra portal + 401 | Redirige a login |
+| Link de email, con token de otro paciente | Muestra datos del paciente equivocado | Redirige a login |
+| Link de email, misma sesión (refresh) | Muestra portal ✓ | Muestra portal ✓ |
+| Token expirado, cualquier caso | Muestra portal + 401 | Redirige a login |
+| Logout correcto | Limpia token | Limpia token + sessionStorage |
