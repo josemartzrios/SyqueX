@@ -35,9 +35,15 @@ async def get_billing_status(
         days = (trial_end - datetime.now(timezone.utc)).days
         return {"status": "trialing", "days_remaining": max(0, days)}
         
+    if sub.status == "active":
+        return {
+            "status": "active",
+            "current_period_end": sub.current_period_end,
+            "cancel_at_period_end": sub.cancel_at_period_end,
+        }
     return {
         "status": sub.status,
-        "current_period_end": sub.current_period_end
+        "current_period_end": sub.current_period_end,
     }
 
 @router.post("/create-checkout")
