@@ -22,6 +22,7 @@ export default function PatientHeader({
   onEditPatient = null,
   onShowTutorial = null,
   onInvitePatient = null,
+  portalStatus = null,
 }) {
   const tutorialButton = onShowTutorial && (
     <button
@@ -59,16 +60,31 @@ export default function PatientHeader({
           </p>
         </div>
         {onInvitePatient && patientId && (
-          <button
-            onClick={() => onInvitePatient(patientId)}
-            className="p-2 rounded-lg text-[#9ca3af] hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors flex-shrink-0"
-            aria-label="Invitar al portal"
-            title="Invitar al portal"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </button>
+          portalStatus === 'active' ? (
+            <div
+              className="p-2 rounded-lg text-[#5a9e8a] flex-shrink-0 cursor-default"
+              title="Paciente activo en el portal"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          ) : portalStatus === 'invited' ? (
+            <span className="text-[11px] font-medium text-[#c4935a] bg-[#c4935a]/10 px-2 py-1 rounded-lg flex-shrink-0 text-center leading-tight">
+              Invitación<br />enviada
+            </span>
+          ) : (
+            <button
+              onClick={() => onInvitePatient(patientId)}
+              className="p-2 rounded-lg text-[#9ca3af] hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors flex-shrink-0"
+              aria-label="Invitar al portal"
+              title="Invitar al portal"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </button>
+          )
         )}
         {onEditPatient && patientId && (
           <button
@@ -99,16 +115,31 @@ export default function PatientHeader({
 
       {/* Invite patient to portal — desktop only */}
       {onInvitePatient && patientId && (
-        <button
-          onClick={() => onInvitePatient(patientId)}
-          className="ml-2 p-1.5 rounded-lg text-ink-tertiary hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors"
-          aria-label="Invitar al portal"
-          title="Invitar al portal"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-        </button>
+        portalStatus === 'active' ? (
+          <div
+            className="ml-2 p-1.5 rounded-lg text-[#5a9e8a] cursor-default"
+            title="Paciente activo en el portal"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        ) : portalStatus === 'invited' ? (
+          <span className="ml-2 text-[11px] font-medium text-[#c4935a] bg-[#c4935a]/10 px-2 py-1 rounded-lg text-center leading-tight">
+            Invitación<br />enviada
+          </span>
+        ) : (
+          <button
+            onClick={() => onInvitePatient(patientId)}
+            className="ml-2 p-1.5 rounded-lg text-ink-tertiary hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors"
+            aria-label="Invitar al portal"
+            title="Invitar al portal"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </button>
+        )
       )}
 
       {/* Edit expediente — desktop only, requires patientId + handler */}

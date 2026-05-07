@@ -34,7 +34,7 @@ export default function TemplateWizard({ onSave, onCancel }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-[13px] text-ink-secondary">
-        Define los campos de tu nota. El agente los llenará automáticamente desde el dictado.
+        Define los campos de tu nota. El agente los llenará automáticamente desde tu texto.
       </p>
 
       <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto pr-1">

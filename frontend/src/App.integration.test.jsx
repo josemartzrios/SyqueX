@@ -280,10 +280,10 @@ describe('App - Nota panel empty state', () => {
     const patients = await screen.findAllByText('Ana López')
     await user.click(patients[0])
 
-    // Type in Dictar tab and click generate
-    const dictarTab = (await screen.findAllByRole('button', { name: /dictar/i }))[0]
+    // Type in Escribir tab and click generate
+    const dictarTab = (await screen.findAllByRole('button', { name: /escribir/i }))[0]
     await user.click(dictarTab)
-    const textarea = (await screen.findAllByPlaceholderText(/Dicta los puntos clave/i))[0]
+    const textarea = (await screen.findAllByPlaceholderText(/Escribe los puntos clave/i))[0]
     await user.type(textarea, 'Paciente presenta mejoría.')
     await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
 
@@ -300,9 +300,9 @@ describe('App - Nota panel empty state', () => {
     const patients = await screen.findAllByText('Ana López')
     await user.click(patients[0])
 
-    const dictarTab = (await screen.findAllByRole('button', { name: /dictar/i }))[0]
+    const dictarTab = (await screen.findAllByRole('button', { name: /escribir/i }))[0]
     await user.click(dictarTab)
-    const textarea = (await screen.findAllByPlaceholderText(/Dicta los puntos clave/i))[0]
+    const textarea = (await screen.findAllByPlaceholderText(/Escribe los puntos clave/i))[0]
     await user.type(textarea, 'Paciente presenta mejoría.')
     await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
 
@@ -326,9 +326,9 @@ describe('App - Nota panel empty state', () => {
     const patients = await screen.findAllByText('Ana López')
     await user.click(patients[0])
 
-    const dictarTab = (await screen.findAllByRole('button', { name: /dictar/i }))[0]
+    const dictarTab = (await screen.findAllByRole('button', { name: /escribir/i }))[0]
     await user.click(dictarTab)
-    const textarea = (await screen.findAllByPlaceholderText(/Dicta los puntos clave/i))[0]
+    const textarea = (await screen.findAllByPlaceholderText(/Escribe los puntos clave/i))[0]
     await user.type(textarea, 'Paciente presenta mejoría.')
     await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
 
@@ -359,9 +359,9 @@ describe('App - Nota panel empty state', () => {
     // Select Ana and generate a note
     const anas = await screen.findAllByText('Ana López')
     await user.click(anas[0])
-    const dictarTab = (await screen.findAllByRole('button', { name: /dictar/i }))[0]
+    const dictarTab = (await screen.findAllByRole('button', { name: /escribir/i }))[0]
     await user.click(dictarTab)
-    const textarea = (await screen.findAllByPlaceholderText(/Dicta los puntos clave/i))[0]
+    const textarea = (await screen.findAllByPlaceholderText(/Escribe los puntos clave/i))[0]
     await user.type(textarea, 'Sesión de Ana.')
     await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
     await waitFor(() => expect(api.processSession).toHaveBeenCalled())

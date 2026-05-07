@@ -428,6 +428,7 @@ class ConversationOut(BaseModel):
     dictation_preview: Optional[str]
     status: Optional[str]
     message_count: Optional[int]
+    portal_status: Optional[str] = None  # None | "invited" | "active"
 
     class Config:
         from_attributes = True
@@ -1071,13 +1072,16 @@ async def list_conversations(
             s.raw_dictation AS dictation_preview,
             s.status,
             s.messages,
-            s.created_at    AS last_activity
+            s.created_at    AS last_activity,
+            pu.is_active    AS portal_is_active,
+            pu.invited_at   AS portal_invited_at
         FROM patients p
         JOIN sessions s
             ON s.patient_id = p.id
             AND s.is_archived = FALSE
             AND s.raw_dictation IS NOT NULL
             AND (s.format IS NULL OR s.format != 'chat')
+        LEFT JOIN patient_users pu ON pu.patient_id = p.id
         WHERE p.deleted_at IS NULL
           AND p.psychologist_id = :psy_id
         ORDER BY p.id, s.created_at DESC NULLS LAST
@@ -1097,6 +1101,15 @@ async def list_conversations(
         except (_json.JSONDecodeError, TypeError):
             messages = []
 
+        portal_is_active = row.get("portal_is_active")
+        portal_invited_at = row.get("portal_invited_at")
+        if portal_is_active:
+            portal_status = "active"
+        elif portal_invited_at:
+            portal_status = "invited"
+        else:
+            portal_status = None
+
         items.append(ConversationOut(
             id=str(row["session_id"]) if row["session_id"] else None,
             patient_id=str(row["patient_id"]),
@@ -1106,6 +1119,7 @@ async def list_conversations(
             dictation_preview=preview,
             status=row.get("status"),
             message_count=len(messages) if isinstance(messages, list) else 0,
+            portal_status=portal_status,
         ))
 
     total = len(items)
@@ -1142,14 +1156,18 @@ async def invite_patient(
     # 2. Verificar o crear PatientUser
     res = await db.execute(select(PatientUser).where(PatientUser.patient_id == patient.id))
     patient_user = res.scalar_one_or_none()
-    
-    if not patient_user:
-        patient_user = PatientUser(
-            patient_id=patient.id,
-            psychologist_id=psychologist.id,
-            email=patient_email,
-        )
-        db.add(patient_user)
+
+    if patient_user:
+        if patient_user.is_active:
+            raise HTTPException(status_code=409, detail="Este paciente ya activó su cuenta en el portal. No se puede volver a invitar.")
+        raise HTTPException(status_code=409, detail="Ya se envió una invitación a este paciente. Solo se permite una invitación por paciente.")
+
+    patient_user = PatientUser(
+        patient_id=patient.id,
+        psychologist_id=psychologist.id,
+        email=patient_email,
+    )
+    db.add(patient_user)
 
     # 3. Generar token
     token = secrets.token_urlsafe(32)

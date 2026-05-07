@@ -106,4 +106,30 @@ describe('Sidebar', () => {
     render(<Sidebar open={true} onClose={noop} conversations={[]} onSelectConversation={noop} onDeleteConversation={noop} />)
     expect(screen.getByRole('button', { name: /cerrar sesión/i })).toBeInTheDocument()
   })
+
+  it('no muestra "Cancelar suscripción" cuando canCancelSubscription=false', () => {
+    render(<Sidebar open={true} onClose={noop} conversations={[]} onSelectConversation={noop} onDeleteConversation={noop} canCancelSubscription={false} />)
+    expect(screen.queryByRole('button', { name: /cancelar suscripción/i })).not.toBeInTheDocument()
+  })
+
+  it('muestra "Cancelar suscripción" cuando canCancelSubscription=true', () => {
+    render(<Sidebar open={true} onClose={noop} conversations={[]} onSelectConversation={noop} onDeleteConversation={noop} canCancelSubscription={true} onCancelSubscription={noop} />)
+    expect(screen.getByRole('button', { name: /cancelar suscripción/i })).toBeInTheDocument()
+  })
+
+  it('click en "Cancelar suscripción" llama onCancelSubscription', async () => {
+    const user = userEvent.setup()
+    const onCancelSubscription = vi.fn()
+    render(<Sidebar open={true} onClose={noop} conversations={[]} onSelectConversation={noop} onDeleteConversation={noop} canCancelSubscription={true} onCancelSubscription={onCancelSubscription} />)
+    await user.click(screen.getByRole('button', { name: /cancelar suscripción/i }))
+    expect(onCancelSubscription).toHaveBeenCalledOnce()
+  })
+
+  it('"Cancelar suscripción" aparece antes de "Cerrar sesión" en el DOM', () => {
+    render(<Sidebar open={true} onClose={noop} conversations={[]} onSelectConversation={noop} onDeleteConversation={noop} canCancelSubscription={true} onCancelSubscription={noop} onLogout={noop} />)
+    const buttons = screen.getAllByRole('button')
+    const cancelIdx = buttons.findIndex(b => /cancelar suscripción/i.test(b.textContent))
+    const logoutIdx = buttons.findIndex(b => /cerrar sesión/i.test(b.textContent))
+    expect(cancelIdx).toBeLessThan(logoutIdx)
+  })
 })

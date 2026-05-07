@@ -6,7 +6,7 @@ import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import PatientIntakeModal from './components/PatientIntakeModal'
 import EvolucionPanel from './components/EvolucionPanel'
-import { processSession, confirmNote, getTemplate, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout, deleteSession } from './api'
+import { processSession, confirmNote, getTemplate, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout, deleteSession, cancelSubscription } from './api'
 import useDraft from './hooks/useDraft';
 import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
 import LoginScreen from './components/LoginScreen.jsx';
@@ -20,6 +20,7 @@ import OnboardingScreen from './components/OnboardingScreen.jsx';
 import NoteConfigurator from './components/NoteConfigurator.jsx';
 import { saveTemplate } from './api';
 import TutorialModal from './components/TutorialModal';
+import CancelSubscriptionModal from './components/CancelSubscriptionModal';
 import PatientInviteModal from './components/PatientInviteModal';
 import PatientSummarySection from './components/PatientSummarySection';
 import PatientLogin from './pages/PatientLogin';
@@ -151,12 +152,13 @@ function App() {
   const [selectedPatientName, setSelectedPatientName] = useState(null);
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
   const [invitingPatientId, setInvitingPatientId] = useState(null);
+  const [selectedPatientPortalStatus, setSelectedPatientPortalStatus] = useState(null);
   const [editingPatientId, setEditingPatientId] = useState(null);
   const [newPatientName, setNewPatientName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { draft, setDraft, clearDraft } = useDraft(selectedPatientId);
   const [conversations, setConversations] = useState([]);
-  const [mobileTab, setMobileTab] = useState('dictar');
+  const [mobileTab, setMobileTab] = useState('escribir');
   const [currentSessionNote, setCurrentSessionNote] = useState(null);
   const [sessionHistory, setSessionHistory] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -177,6 +179,11 @@ function App() {
   const [dismissedOrphanIds, setDismissedOrphanIds] = useState(new Set());
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  
+  // Cancel subscription modal state
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState('');
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -213,7 +220,7 @@ function App() {
     setReviewExpandedSessionId(null);
     setDismissedOrphanIds(new Set());
     setNewlyConfirmedSessionId(null);
-    setMobileTab('dictar');
+    setMobileTab('escribir');
     setDesktopMode('session');
     setBillingStatus(null);
     // Onboarding state is per-user — clear on logout so the next user sees the selector
@@ -248,6 +255,36 @@ function App() {
       setAuthScreen({ screen: 'login' });
     }
   }
+
+  async function handleCancelSubscription() {
+    console.log('Attempting to cancel subscription. Current status:', billingStatus);
+    setIsCancelling(true);
+    setCancelError('');
+    try {
+      await cancelSubscription();
+      // Refrescar estado de facturación para actualizar UI
+      const status = await getBillingStatus();
+      setBillingStatus(status);
+      setIsCancelModalOpen(false);
+      setToast('Suscripción cancelada exitosamente');
+      setTimeout(() => setToast(null), 4000);
+    } catch (err) {
+      setCancelError(err.message || 'Error al cancelar la suscripción');
+    } finally {
+      setIsCancelling(false);
+    }
+  }
+
+  // Diagnostic log
+  useEffect(() => {
+    if (billingStatus) {
+      console.log('DEBUG Billing Status:', {
+        status: billingStatus.status,
+        cancel_at_period_end: billingStatus.cancel_at_period_end,
+        canCancel: billingStatus.status === 'active' && !billingStatus.cancel_at_period_end
+      });
+    }
+  }, [billingStatus]);
 
   // Inicializar auth al montar
   useEffect(() => {
@@ -319,11 +356,12 @@ function App() {
   const loadPatientChat = (patientId, patientName, history = []) => {
     setSelectedPatientId(patientId);
     setSelectedPatientName(patientName);
-    setMobileTab('dictar');
+    setMobileTab('escribir');
     setSessionHistory(history);
     setExpandedSessionId(null);
     setDesktopMode('session');
     setReviewExpandedSessionId(null);
+    setSelectedPatientPortalStatus(null);
     // Reset evolution state for new patient (evolutionMessages Map se conserva)
     setPatientProfile(null);
     setEvolutionError(null);
@@ -331,7 +369,7 @@ function App() {
     setCurrentSessionNote(null);
 
     if (history.length === 0) {
-      setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea dictar para ${patientName} hoy?` }]);
+      setMessages([{ role: 'assistant', type: 'welcome', text: `Hola Doctor. ¿Sobre qué desea escribir para ${patientName} hoy?` }]);
       return;
     }
 
@@ -445,6 +483,7 @@ function App() {
   const handleSelectConversation = async (conv) => {
     setSelectedPatientId(conv.patient_id);
     setSelectedPatientName(conv.patient_name);
+    setSelectedPatientPortalStatus(conv.portal_status ?? null);
     fetchPatientSessions(conv.patient_id, conv.patient_name);
   };
 
@@ -730,6 +769,18 @@ function App() {
         open={!!invitingPatientId}
         patient={invitingPatientId ? { id: invitingPatientId, name: selectedPatientName } : null}
         onClose={() => setInvitingPatientId(null)}
+        onSuccess={() => {
+          setSelectedPatientPortalStatus('invited');
+          setConversations(prev => prev.map(c =>
+            c.patient_id === String(invitingPatientId) ? { ...c, portal_status: 'invited' } : c
+          ));
+        }}
+        onStatusUpdate={(status) => {
+          setSelectedPatientPortalStatus(status);
+          setConversations(prev => prev.map(c =>
+            c.patient_id === String(invitingPatientId) ? { ...c, portal_status: status } : c
+          ));
+        }}
       />
 
       {billingStatus?.status === 'trialing' && billingStatus?.days_remaining != null && (
@@ -751,6 +802,11 @@ function App() {
         onDeleteConversation={handleDeleteConversation}
         onLogout={handleLogout}
         draftPatientIds={draftPatientIds}
+        canCancelSubscription={billingStatus?.status === 'active' && !billingStatus?.cancel_at_period_end}
+        onCancelSubscription={() => {
+          setSidebarOpen(false); // Cerrar sidebar móvil antes de abrir modal
+          setIsCancelModalOpen(true);
+        }}
       />
 
       {/* ── DESKTOP LAYOUT (md+) ── */}
@@ -770,6 +826,8 @@ function App() {
           onCancelNewPatient={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
           onLogout={handleLogout}
           draftPatientIds={draftPatientIds}
+          canCancelSubscription={billingStatus?.status === 'active' && !billingStatus?.cancel_at_period_end}
+          onCancelSubscription={() => setIsCancelModalOpen(true)}
         />
 
         {/* Right work area */}
@@ -785,6 +843,7 @@ function App() {
             onEditPatient={(id) => setEditingPatientId(id)}
             onInvitePatient={(id) => setInvitingPatientId(id)}
             onShowTutorial={() => setTutorialVisible(true)}
+            portalStatus={selectedPatientPortalStatus}
           />
 
           {/* Content area */}
@@ -1056,29 +1115,32 @@ function App() {
               patientId={selectedPatientId}
               onEditPatient={(id) => setEditingPatientId(id)}
               onInvitePatient={(id) => setInvitingPatientId(id)}
+              portalStatus={selectedPatientPortalStatus}
             />
 
             {/* Tab nav */}
             <div className="flex border-b border-ink/[0.07] bg-white flex-shrink-0">
-              {['dictar', 'nota', 'historial', 'evolucion'].map((tab) => (
+              {[
+                { id: 'escribir', label: 'Escribir' },
+                { id: 'nota', label: 'Nota' },
+                { id: 'historial', label: 'Historial' },
+                { id: 'evolucion', label: 'Evolución' },
+              ].map(({ id, label }) => (
                 <button
-                  key={tab}
-                  onClick={() => setMobileTab(tab)}
-                  className={`flex-1 py-3 text-[12px] font-medium capitalize transition-colors border-b-2 ${mobileTab === tab
-                      ? 'border-[#5a9e8a] text-[#5a9e8a]'
-                      : 'border-transparent text-ink-secondary hover:text-ink'
+                  key={id}
+                  onClick={() => setMobileTab(id)}
+                  className={`flex-1 py-3 text-[12px] font-medium transition-colors border-b-2 ${mobileTab === id
+                    ? 'border-[#5a9e8a] text-[#5a9e8a]'
+                    : 'border-transparent text-ink-secondary hover:text-ink'
                     }`}
                 >
-                  {tab === 'dictar' ? 'Dictar'
-                    : tab === 'nota' ? 'Nota'
-                      : tab === 'historial' ? 'Historial'
-                        : 'Evolución'}
+                  {label}
                 </button>
               ))}
             </div>
 
-            {/* Tab: Dictar */}
-            {mobileTab === 'dictar' && (
+            {/* Tab: Escribir */}
+            {mobileTab === 'escribir' && (
               <div className="flex flex-col flex-1 min-h-0 bg-[#f4f4f2]">
                 <DictationPanel
                   value={draft}
@@ -1192,8 +1254,8 @@ function App() {
                         <div
                           key={s.id || i}
                           className={`rounded-xl overflow-hidden transition-all ${isExpanded
-                              ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25'
-                              : 'bg-[#f4f4f2]'
+                            ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25'
+                            : 'bg-[#f4f4f2]'
                             }`}
                         >
                           <div
@@ -1312,6 +1374,15 @@ function App() {
         onClose={() => setTutorialVisible(false)}
         isMobile={isMobile}
         noteFormat={noteFormat}
+      />
+
+      <CancelSubscriptionModal
+        open={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        onConfirm={handleCancelSubscription}
+        loading={isCancelling}
+        error={cancelError}
+        periodEnd={billingStatus?.period_end}
       />
 
     </div>

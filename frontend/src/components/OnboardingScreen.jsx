@@ -36,7 +36,7 @@ export default function OnboardingScreen({ onSelectSoap, onSelectCustom }) {
               </span>
             </div>
             <p className="hidden md:block text-[13px] text-[#6b7280] mt-2 mb-3">
-              Estructura clásica de documentación usada en psicología y medicina. El agente organiza tu dictado en cuatro secciones automáticamente.
+              Estructura clásica de documentación usada en psicología y medicina. El agente organiza tu texto en cuatro secciones automáticamente.
             </p>
             <div className="flex flex-wrap gap-1.5">
               {[
@@ -70,7 +70,7 @@ export default function OnboardingScreen({ onSelectSoap, onSelectCustom }) {
               </span>
             </div>
             <p className="hidden md:block text-[13px] text-[#6b7280] mt-2 mb-3">
-              Diseña los campos que tú ya usas en tu práctica. El agente aprende tu formato y lo llena desde el dictado.
+              Diseña los campos que tú ya usas en tu práctica. El agente aprende tu formato y lo llena desde tu texto.
             </p>
             <div className="flex flex-wrap gap-1.5">
               {['Motivo', 'Estado', 'Intervenciones'].map((label) => (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { clearPatientToken, getPatientSummaries, getPatientSummaryDetail } from '../patientApi';
 import { navigateTo } from '../auth';
+import TutorialModal from '../components/TutorialModal';
 
 export default function PatientPortal() {
   const [summaries, setSummaries] = useState([]);
@@ -9,11 +10,18 @@ export default function PatientPortal() {
   const [selectedSummary, setSelectedSummary] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState(null);
+  const [tutorialVisible, setTutorialVisible] = useState(false);
 
   useEffect(() => {
     // El body global tiene overflow:hidden para el app del psicólogo — lo sobreescribimos aquí
     document.body.style.overflow = 'auto';
     return () => { document.body.style.overflow = 'hidden'; };
+  }, []);
+
+  useEffect(() => {
+    if (localStorage.getItem('patient_tutorial_done') !== 'true') {
+      setTutorialVisible(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -72,12 +80,21 @@ export default function PatientPortal() {
               </div>
               <span className="font-serif text-xl text-[#18181b] hidden sm:block">SyqueX</span>
             </div>
-            <button
-              onClick={handleLogout}
-              className="text-sm font-medium text-[#9ca3af] hover:text-[#18181b] transition-colors"
-            >
-              Cerrar sesión
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setTutorialVisible(true)}
+                className="w-8 h-8 rounded-full border border-[#18181b]/[0.07] text-[#9ca3af] hover:text-[#18181b] hover:bg-[#18181b]/[0.05] transition-colors flex items-center justify-center flex-shrink-0"
+                aria-label="Abrir tutorial"
+              >
+                ?
+              </button>
+              <button
+                onClick={handleLogout}
+                className="text-sm font-medium text-[#9ca3af] hover:text-[#18181b] transition-colors"
+              >
+                Cerrar sesión
+              </button>
+            </div>
           </div>
         </div>
       </nav>
@@ -220,6 +237,13 @@ export default function PatientPortal() {
           </div>
         </div>
       </main>
+
+      <TutorialModal
+        visible={tutorialVisible}
+        onClose={() => setTutorialVisible(false)}
+        isMobile={false}
+        patientMode
+      />
     </div>
   );
 }
