@@ -151,6 +151,7 @@ function App() {
   const [selectedPatientName, setSelectedPatientName] = useState(null);
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
   const [invitingPatientId, setInvitingPatientId] = useState(null);
+  const [selectedPatientPortalStatus, setSelectedPatientPortalStatus] = useState(null);
   const [editingPatientId, setEditingPatientId] = useState(null);
   const [newPatientName, setNewPatientName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -445,6 +446,7 @@ function App() {
   const handleSelectConversation = async (conv) => {
     setSelectedPatientId(conv.patient_id);
     setSelectedPatientName(conv.patient_name);
+    setSelectedPatientPortalStatus(conv.portal_status ?? null);
     fetchPatientSessions(conv.patient_id, conv.patient_name);
   };
 
@@ -730,6 +732,7 @@ function App() {
         open={!!invitingPatientId}
         patient={invitingPatientId ? { id: invitingPatientId, name: selectedPatientName } : null}
         onClose={() => setInvitingPatientId(null)}
+        onSuccess={() => setSelectedPatientPortalStatus('invited')}
       />
 
       {billingStatus?.status === 'trialing' && billingStatus?.days_remaining != null && (
@@ -785,6 +788,7 @@ function App() {
             onEditPatient={(id) => setEditingPatientId(id)}
             onInvitePatient={(id) => setInvitingPatientId(id)}
             onShowTutorial={() => setTutorialVisible(true)}
+            portalStatus={selectedPatientPortalStatus}
           />
 
           {/* Content area */}
@@ -1056,6 +1060,7 @@ function App() {
               patientId={selectedPatientId}
               onEditPatient={(id) => setEditingPatientId(id)}
               onInvitePatient={(id) => setInvitingPatientId(id)}
+              portalStatus={selectedPatientPortalStatus}
             />
 
             {/* Tab nav */}
