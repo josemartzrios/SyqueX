@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { invitePatient } from '../api';
 
-export default function PatientInviteModal({ open, patient, onClose, onSuccess }) {
+export default function PatientInviteModal({ open, patient, onClose, onSuccess, onStatusUpdate }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -21,6 +21,9 @@ export default function PatientInviteModal({ open, patient, onClose, onSuccess }
       }, 2500);
     } catch (err) {
       setError(err.message || 'Error al enviar la invitación');
+      if (err.status === 409) {
+        onStatusUpdate?.(err.message?.includes('activó') ? 'active' : 'invited');
+      }
     } finally {
       setLoading(false);
     }

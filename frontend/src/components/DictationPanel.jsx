@@ -26,7 +26,7 @@ export default function DictationPanel({
     <div className="flex flex-col h-full bg-white">
       <div className="px-5 pt-5 pb-3 flex-shrink-0">
         <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-3">
-          Dictado · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+          Escribir · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
         </p>
         
         {orphanedSessions.length > 0 && !loading && (
@@ -103,7 +103,7 @@ export default function DictationPanel({
 
         <textarea
           className="w-full h-52 resize-none bg-white border border-black/[0.07] rounded-xl px-4 py-3 text-[14px] leading-relaxed text-[#18181b] outline-none focus:border-[#5a9e8a] focus:ring-0 transition-colors placeholder-ink-muted disabled:bg-slate-50"
-          placeholder="Dicta los puntos clave de la sesión…"
+          placeholder="Escribe los puntos clave de la sesión…"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
