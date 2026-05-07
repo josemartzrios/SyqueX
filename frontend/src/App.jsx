@@ -20,12 +20,19 @@ import OnboardingScreen from './components/OnboardingScreen.jsx';
 import NoteConfigurator from './components/NoteConfigurator.jsx';
 import { saveTemplate } from './api';
 import TutorialModal from './components/TutorialModal';
+import PatientInviteModal from './components/PatientInviteModal';
+import PatientSummarySection from './components/PatientSummarySection';
+import PatientLogin from './pages/PatientLogin';
+import PatientInviteAccept from './pages/PatientInviteAccept';
+import PatientPortal from './pages/PatientPortal';
+import PatientResetPassword from './pages/PatientResetPassword';
+import { getPatientToken } from './patientApi';
 
 // ── Module-level constants ─────────────────────────────────────────────────
 const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
-const SOAP_HEADER_MD_RE   = /^##\s*(S|O|A|P)\s*[—–\-]/i;
-const BOLD_LINE_RE        = /^\*\*[^*]+\*\*\s*$/;
-const BOLD_INLINE_RE      = /\*\*([^*]+)\*\*/;
+const SOAP_HEADER_MD_RE = /^##\s*(S|O|A|P)\s*[—–\-]/i;
+const BOLD_LINE_RE = /^\*\*[^*]+\*\*\s*$/;
+const BOLD_INLINE_RE = /\*\*([^*]+)\*\*/;
 
 // ── Static JSX (hoisted outside components to avoid recreation on render) ──
 const EMPTY_STATE = (
@@ -143,6 +150,7 @@ function App() {
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [selectedPatientName, setSelectedPatientName] = useState(null);
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
+  const [invitingPatientId, setInvitingPatientId] = useState(null);
   const [editingPatientId, setEditingPatientId] = useState(null);
   const [newPatientName, setNewPatientName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -153,7 +161,7 @@ function App() {
   const [sessionHistory, setSessionHistory] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState(null);
-  
+
   // Desktop two-mode layout state
   const [desktopMode, setDesktopMode] = useState('session'); // 'session' | 'review'
   const [reviewExpandedSessionId, setReviewExpandedSessionId] = useState(null);
@@ -183,7 +191,7 @@ function App() {
   const [evolutionSending, setEvolutionSending] = useState(false);
   const [evolutionError, setEvolutionError] = useState(null);
   const [patientProfile, setPatientProfile] = useState(null);
-  
+
   const evolutionMessagesRef = useRef(evolutionMessages);
   useEffect(() => { evolutionMessagesRef.current = evolutionMessages; }, [evolutionMessages]);
   const scrollRef = useRef(null);
@@ -208,6 +216,11 @@ function App() {
     setMobileTab('dictar');
     setDesktopMode('session');
     setBillingStatus(null);
+    // Onboarding state is per-user — clear on logout so the next user sees the selector
+    localStorage.removeItem('syquex_onboarding_done');
+    localStorage.removeItem('syquex_note_format');
+    setOnboardingCompleted(false);
+    setNoteFormat('soap');
   }, []);
 
   const checkBillingAndRoute = useCallback(async () => {
@@ -217,7 +230,7 @@ function App() {
       if (status.status === 'trialing' || status.status === 'active') {
         setAuthScreen({ screen: 'app' });
         // Re-fetch con el token del usuario recién autenticado
-        listConversations().then(setConversations).catch(() => {});
+        listConversations().then(setConversations).catch(() => { });
         getTemplate().then(t => setTemplate(t ?? {})).catch(() => setTemplate({}));
       } else {
         setAuthScreen({ screen: 'billing' });
@@ -249,9 +262,21 @@ function App() {
     });
 
     async function initAuth() {
-      const { screen } = authScreen;
-      // Si es register o reset-password, no intentar refresh
-      if (screen === 'register' || screen === 'reset-password') return;
+      const { screen, resetToken, inviteToken } = authScreen;
+
+      // Patient portal check
+      if (screen === 'patient-portal' || screen === 'patient-login') {
+        const ptoken = getPatientToken();
+        if (ptoken) {
+          setAuthScreen({ screen: 'patient-portal' });
+        } else {
+          setAuthScreen({ screen: 'patient-login' });
+        }
+        return;
+      }
+
+      // Si es register, forgot-password, reset-password o invite, no intentar refresh
+      if (screen === 'register' || screen === 'forgot-password' || screen === 'reset-password' || screen === 'patient-invite' || screen === 'patient-reset') return;
 
       // Intentar refresh silencioso
       const token = await refreshAccessToken(
@@ -566,7 +591,7 @@ function App() {
   const draftPatientIds = new Set(
     conversations.map(c => String(c.patient_id)).filter(useDraft.hasDraft)
   );
-  
+
   const soapSessions = sessionHistory.filter(s => s.format !== 'chat');
   const confirmedSessions = soapSessions.filter(s => s.status === 'confirmed');
   const orphanedSessions = soapSessions.filter(s => s.status === 'draft' && !dismissedOrphanIds.has(String(s.id)));
@@ -586,39 +611,50 @@ function App() {
   })();
 
   // Screen manager — antes del return principal
-  if (authScreen.screen === 'loading') {
+  const { screen, resetToken, inviteToken } = authScreen;
+
+  if (screen === 'loading') {
     return (
       <div className="min-h-screen bg-parchment flex items-center justify-center">
         <div className="text-ink-tertiary text-sm">Cargando…</div>
       </div>
     );
   }
-  if (authScreen.screen === 'login') {
+
+  if (screen === 'reset-password') {
+    return <ResetPasswordScreen token={resetToken} setScreen={(s) => setAuthScreen({ screen: s })} />;
+  }
+  if (screen === 'patient-reset') {
+    return <PatientResetPassword resetToken={authScreen.resetToken} setScreen={(s) => setAuthScreen({ screen: s })} />;
+  }
+  if (screen === 'patient-login') {
+    return <PatientLogin setScreen={(s) => setAuthScreen({ screen: s })} />;
+  }
+  if (screen === 'patient-invite') {
+    return <PatientInviteAccept inviteToken={inviteToken} setScreen={(s) => setAuthScreen({ screen: s })} />;
+  }
+  if (screen === 'patient-portal') {
+    return <PatientPortal />;
+  }
+  if (screen === 'login') {
     return <LoginScreen
       onSuccess={() => checkBillingAndRoute()}
       onRegister={() => { navigateTo('/registro'); setAuthScreen({ screen: 'register' }); }}
       onForgotPassword={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
     />;
   }
-  if (authScreen.screen === 'register') {
+  if (screen === 'register') {
     return <RegisterScreen
       onSuccess={() => checkBillingAndRoute()}
       onLogin={() => { navigateTo('/'); setAuthScreen({ screen: 'login' }); }}
     />;
   }
-  if (authScreen.screen === 'forgot-password') {
+  if (screen === 'forgot-password') {
     return <ForgotPasswordScreen
       onBack={() => { navigateTo('/'); setAuthScreen({ screen: 'login' }); }}
     />;
   }
-  if (authScreen.screen === 'reset-password') {
-    return <ResetPasswordScreen
-      resetToken={authScreen.resetToken}
-      onSuccess={() => checkBillingAndRoute()}
-      onInvalidToken={() => { navigateTo('/forgot-password'); setAuthScreen({ screen: 'forgot-password' }); }}
-    />;
-  }
-  if (authScreen.screen === 'billing') {
+  if (screen === 'billing') {
     return <BillingScreen
       onActivated={() => checkBillingAndRoute()}
     />;
@@ -689,6 +725,13 @@ function App() {
           }}
         />
       )}
+
+      <PatientInviteModal
+        open={!!invitingPatientId}
+        patient={invitingPatientId ? { id: invitingPatientId, name: selectedPatientName } : null}
+        onClose={() => setInvitingPatientId(null)}
+      />
+
       {billingStatus?.status === 'trialing' && billingStatus?.days_remaining != null && (
         <TrialBanner
           daysRemaining={billingStatus.days_remaining}
@@ -740,6 +783,7 @@ function App() {
             onModeChange={hasActivePatient ? setDesktopMode : undefined}
             patientId={selectedPatientId}
             onEditPatient={(id) => setEditingPatientId(id)}
+            onInvitePatient={(id) => setInvitingPatientId(id)}
             onShowTutorial={() => setTutorialVisible(true)}
           />
 
@@ -785,7 +829,7 @@ function App() {
                     ) : currentSessionNote.type === 'loading' ? (
                       <div className="flex items-center gap-3 py-6">
                         {LOADING_DOTS}
-                        <span className="text-ink-tertiary text-[14px]">Generando nota SOAP…</span>
+                        <span className="text-ink-tertiary text-[14px]">Generando nota SOAP</span>
                       </div>
                     ) : currentSessionNote.type === 'error' ? (
                       <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
@@ -866,9 +910,8 @@ function App() {
                           return (
                             <div
                               key={s.id || i}
-                              className={`rounded-xl overflow-hidden transition-all duration-200 bg-white border-l-[3px] ${
-                                s.status === 'confirmed' ? 'border-l-[#5a9e8a]' : 'border-l-[#c4935a]'
-                              } ${isExpanded ? 'ring-1 ring-[#5a9e8a]/20' : ''}`}
+                              className={`rounded-xl overflow-hidden transition-all duration-200 bg-white border-l-[3px] ${s.status === 'confirmed' ? 'border-l-[#5a9e8a]' : 'border-l-[#c4935a]'
+                                } ${isExpanded ? 'ring-1 ring-[#5a9e8a]/20' : ''}`}
                             >
                               <div
                                 className="px-3 py-3 flex items-start gap-3 cursor-pointer group"
@@ -891,9 +934,8 @@ function App() {
                                       <p className="text-[11px] text-ink-muted line-clamp-2 mt-0.5 leading-relaxed">
                                         {s.raw_dictation}
                                       </p>
-                                      <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${
-                                        s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'
-                                      }`}>
+                                      <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'
+                                        }`}>
                                         {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
                                       </span>
                                     </>
@@ -931,6 +973,10 @@ function App() {
                                       compact
                                     />
                                   )}
+                                  <PatientSummarySection
+                                    sessionId={String(s.id)}
+                                    patientName={selectedPatientName}
+                                  />
                                 </div>
                               )}
                             </div>
@@ -1009,6 +1055,7 @@ function App() {
               compact
               patientId={selectedPatientId}
               onEditPatient={(id) => setEditingPatientId(id)}
+              onInvitePatient={(id) => setInvitingPatientId(id)}
             />
 
             {/* Tab nav */}
@@ -1017,16 +1064,15 @@ function App() {
                 <button
                   key={tab}
                   onClick={() => setMobileTab(tab)}
-                  className={`flex-1 py-3 text-[12px] font-medium capitalize transition-colors border-b-2 ${
-                    mobileTab === tab
+                  className={`flex-1 py-3 text-[12px] font-medium capitalize transition-colors border-b-2 ${mobileTab === tab
                       ? 'border-[#5a9e8a] text-[#5a9e8a]'
                       : 'border-transparent text-ink-secondary hover:text-ink'
-                  }`}
+                    }`}
                 >
                   {tab === 'dictar' ? 'Dictar'
                     : tab === 'nota' ? 'Nota'
-                    : tab === 'historial' ? 'Historial'
-                    : 'Evolución'}
+                      : tab === 'historial' ? 'Historial'
+                        : 'Evolución'}
                 </button>
               ))}
             </div>
@@ -1131,81 +1177,84 @@ function App() {
             {/* Tab: Historial */}
             {mobileTab === 'historial' && (
               <div className="flex-1 overflow-y-auto px-4 py-4">
-                {soapSessions.length === 0 ? (
-                    <p className="text-ink-tertiary text-[14px] text-center mt-10">Sin sesiones registradas aún.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {soapSessions.map((s, i) => {
-                        const isExpanded = expandedSessionId === String(s.id);
-                        const isCustom = s.format === 'custom';
-                        const hasNote = s.status === 'confirmed' && (
-                          s.structured_note ||
-                          (s.custom_fields && Object.keys(s.custom_fields).length > 0)
-                        );
-                        return (
-                          <div
-                            key={s.id || i}
-                            className={`rounded-xl overflow-hidden transition-all ${
-                              isExpanded
-                                ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25'
-                                : 'bg-[#f4f4f2]'
+                {confirmedSessions.length === 0 ? (
+                  <p className="text-ink-tertiary text-[14px] text-center mt-10">Sin sesiones registradas aún.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {confirmedSessions.map((s, i) => {
+                      const isExpanded = expandedSessionId === String(s.id);
+                      const isCustom = s.format === 'custom';
+                      const hasNote = s.status === 'confirmed' && (
+                        s.structured_note ||
+                        (s.custom_fields && Object.keys(s.custom_fields).length > 0)
+                      );
+                      return (
+                        <div
+                          key={s.id || i}
+                          className={`rounded-xl overflow-hidden transition-all ${isExpanded
+                              ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25'
+                              : 'bg-[#f4f4f2]'
                             }`}
+                        >
+                          <div
+                            className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-black/[0.02] transition-colors"
+                            onClick={() => hasNote && handleToggleSession(String(s.id))}
                           >
-                            <div
-                              className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-black/[0.02] transition-colors"
-                              onClick={() => hasNote && handleToggleSession(String(s.id))}
-                            >
-                              <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[13px] font-medium text-ink">
-                                  Sesión #{confirmedDisplayNum.get(String(s.id)) ?? '—'} · {formatDate(s.session_date)}
-                                </p>
-                                {s.raw_dictation && (
-                                  <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
-                                )}
-                                <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'}`}>
-                                  {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
-                                </span>
-                              </div>
-                              {hasNote && (
-                                <svg
-                                  className={`w-4 h-4 mt-1 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : 'text-[#9ca3af]'}`}
-                                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9l6 6 6-6" />
-                                </svg>
+                            <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[13px] font-medium text-ink">
+                                Sesión #{confirmedDisplayNum.get(String(s.id)) ?? '—'} · {formatDate(s.session_date)}
+                              </p>
+                              {s.raw_dictation && (
+                                <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
                               )}
+                              <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'}`}>
+                                {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                              </span>
                             </div>
-                            {isExpanded && hasNote && (
-                              <div className="border-t border-ink/[0.06]">
-                                {isCustom ? (
-                                  <CustomNoteDocument
-                                    templateFields={s.template_fields || template?.fields || []}
-                                    values={s.custom_fields || {}}
-                                    readOnly
-                                  />
-                                ) : (
-                                  <SoapNoteDocument
-                                    noteData={{
-                                      clinical_note: {
-                                        structured_note: s.structured_note,
-                                        detected_patterns: s.detected_patterns || [],
-                                        alerts: s.alerts || [],
-                                        session_id: String(s.id),
-                                      },
-                                      text_fallback: s.ai_response,
-                                    }}
-                                    readOnly
-                                    compact
-                                  />
-                                )}
-                              </div>
+                            {hasNote && (
+                              <svg
+                                className={`w-4 h-4 mt-1 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : 'text-[#9ca3af]'}`}
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9l6 6 6-6" />
+                              </svg>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          {isExpanded && hasNote && (
+                            <div className="border-t border-ink/[0.06]">
+                              {isCustom ? (
+                                <CustomNoteDocument
+                                  templateFields={s.template_fields || template?.fields || []}
+                                  values={s.custom_fields || {}}
+                                  readOnly
+                                />
+                              ) : (
+                                <SoapNoteDocument
+                                  noteData={{
+                                    clinical_note: {
+                                      structured_note: s.structured_note,
+                                      detected_patterns: s.detected_patterns || [],
+                                      alerts: s.alerts || [],
+                                      session_id: String(s.id),
+                                    },
+                                    text_fallback: s.ai_response,
+                                  }}
+                                  readOnly
+                                  compact
+                                />
+                              )}
+                              <PatientSummarySection
+                                sessionId={String(s.id)}
+                                patientName={selectedPatientName}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

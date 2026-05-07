@@ -11,6 +11,9 @@ from api.routes import router
 from api.cron import router as cron_router
 from api.privacy import router as privacy_router
 from api.auth import router as auth_router
+from api.patient_auth import router as patient_auth_router
+from api.patient_portal import router as patient_portal_router
+from api.summary_routes import router as summary_router
 from api.billing import router as billing_router
 from config import settings
 from exceptions import DomainError
@@ -131,7 +134,10 @@ async def startup_event():
         logger.warning("Embedding warmup failed (non-fatal): %s", e)
 
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(patient_auth_router, prefix="/api/v1/auth/patient", tags=["patient-auth"])
+app.include_router(patient_portal_router, prefix="/api/v1/portal", tags=["patient-portal"])
 app.include_router(billing_router, prefix="/api/v1/billing", tags=["billing"])
 app.include_router(cron_router, prefix="/api/v1/cron", tags=["cron"])
 app.include_router(privacy_router, prefix="/api/v1/privacy", tags=["privacy"])
+app.include_router(summary_router, prefix="/api/v1")
 app.include_router(router, prefix="/api/v1")

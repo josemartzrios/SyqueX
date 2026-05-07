@@ -402,3 +402,63 @@ async def process_session_custom(
         "text_fallback": text_fallback,
         "session_messages": session_messages,
     }
+
+
+_PATIENT_SUMMARY_PROMPT = """Eres un asistente clínico. A partir de la siguiente nota clínica, genera un resumen para el paciente en lenguaje simple y empático. NO incluyas diagnósticos, formulaciones clínicas, ni información sensible.
+
+Extrae exactamente tres campos:
+1. topics_worked: ¿Qué trabajamos hoy? (1-2 oraciones, lenguaje del paciente)
+2. homework: ¿Cuál es la tarea para esta semana? (clara y accionable, o cadena vacía si no hay tarea)
+3. next_session_date: Fecha de próxima sesión en formato YYYY-MM-DD, o null si no se menciona
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional:
+{"topics_worked": "...", "homework": "...", "next_session_date": "YYYY-MM-DD o null"}"""
+
+
+def _build_note_content(note_data: dict) -> str:
+    """Serializa nota SOAP o custom a texto plano para el prompt."""
+    fmt = note_data.get("format", "").upper()
+    if fmt == "SOAP":
+        parts = []
+        for field, label in [("subjective", "Subjetivo"), ("objective", "Objetivo"),
+                               ("assessment", "Análisis"), ("plan", "Plan")]:
+            val = note_data.get(field) or ""
+            if val:
+                parts.append(f"{label}: {val}")
+        return "\n".join(parts)
+    # Custom note
+    custom_fields = note_data.get("custom_fields") or {}
+    if isinstance(custom_fields, dict):
+        return "\n".join(f"{k}: {v}" for k, v in custom_fields.items() if v)
+    return str(custom_fields)
+
+
+async def generate_patient_summary(note_data: dict) -> dict:
+    """
+    Genera un resumen para el paciente a partir de una nota SOAP o custom.
+    Retorna dict con keys: topics_worked, homework, next_session_date.
+    Propaga excepciones para que el endpoint devuelva 500 en lugar de campos vacíos silenciosos.
+    """
+    import json as _json
+    import re as _re
+
+    note_content = _build_note_content(note_data)
+    user_message = f"Nota clínica:\n{note_content}"
+
+    client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    response = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=512,
+        temperature=0,
+        system=_PATIENT_SUMMARY_PROMPT,
+        messages=[{"role": "user", "content": user_message}],
+    )
+    raw = "\n".join(b.text for b in response.content if b.type == "text").strip()
+    # Strip markdown code fences que Claude agrega a veces pese al prompt
+    cleaned = _re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=_re.MULTILINE).strip()
+    parsed = _json.loads(cleaned)
+    return {
+        "topics_worked": parsed.get("topics_worked") or "",
+        "homework": parsed.get("homework") or "",
+        "next_session_date": parsed.get("next_session_date") or None,
+    }

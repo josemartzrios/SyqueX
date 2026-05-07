@@ -4,15 +4,16 @@ export default function Pricing() {
       <div className="inline-block border border-ink-muted rounded-xl px-8 py-8 max-w-sm w-full text-left">
         <p className="text-3xl font-semibold text-ink mb-1">$499 MXN</p>
         <p className="text-ink-secondary text-sm mb-6">
-          por mes · Incluye todos los pacientes
+          Precio fundador — primeros 50 usuarios
         </p>
 
         <ul className="space-y-2 mb-6 text-sm text-ink-secondary">
           {[
             'Pacientes ilimitados',
-            'Notas personalizadas o SOAP con IA',
-            'Historial clínico completo',
-            'Soporte por email',
+            'Notas SOAP o personalizadas con IA',
+            'Historial clínico completo con memoria acumulativa',
+            'Seguimiento de pacientes',
+            'Soporte directo por WhatsApp',
           ].map((f) => (
             <li key={f} className="flex items-center gap-2">
               <span className="text-sage">✓</span> {f}
@@ -26,6 +27,9 @@ export default function Pricing() {
         >
           Empieza gratis — 14 días
         </a>
+        <p className="text-xs text-ink-tertiary mt-4 leading-relaxed">
+          Sin tarjeta de crédito requerida en los 14 dias de prueba.
+        </p>
 
         <p className="text-xs text-ink-tertiary mt-4 leading-relaxed">
           Puedes cancelar en cualquier momento escribiendo a hola@syquex.mx.

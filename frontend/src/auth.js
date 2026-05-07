@@ -27,6 +27,13 @@ export function getScreenFromUrl() {
   const token = params.get('token');
   const path = window.location.pathname;
 
+  // Patient portal routes — before the generic ?token= handler to avoid
+  // /portal/invite?token=... being misrouted to reset-password
+  if (path === '/portal/reset') return { screen: 'patient-reset', resetToken: token };
+  if (path === '/portal/login') return { screen: 'patient-login' };
+  if (path === '/portal/invite') return { screen: 'patient-invite', inviteToken: token };
+  if (path === '/portal') return { screen: 'patient-portal' };
+
   if (token) return { screen: 'reset-password', resetToken: token };
   if (path === '/registro') return { screen: 'register' };
   if (path === '/forgot-password') return { screen: 'forgot-password' };
