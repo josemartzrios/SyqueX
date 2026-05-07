@@ -7,9 +7,9 @@ const MUTED = '#9ca3af'
 const INK = '#18181b'
 
 const SECTIONS = [
-  { key: 'topics_worked',    label: 'Temas trabajados',       color: SAGE,  isDate: false },
-  { key: 'homework',         label: 'Tarea para esta semana', color: AMBER, isDate: false },
-  { key: 'next_session_date',label: 'Próxima sesión',         color: SAGE,  isDate: true  },
+  { key: 'topics_worked', label: 'Temas trabajados', color: SAGE, isDate: false },
+  { key: 'homework', label: 'Tarea para esta semana', color: AMBER, isDate: false },
+  { key: 'next_session_date', label: 'Próxima sesión', color: SAGE, isDate: true },
 ]
 
 /**
@@ -24,12 +24,12 @@ const SECTIONS = [
  */
 export default function PatientSummarySection({ sessionId, patientName }) {
   // phase: 'idle' | 'loading' | 'editing' | 'sent'
-  const [phase, setPhase]           = useState('idle')
-  const [fields, setFields]         = useState({ topics_worked: '', homework: '', next_session_date: '' })
+  const [phase, setPhase] = useState('idle')
+  const [fields, setFields] = useState({ topics_worked: '', homework: '', next_session_date: '' })
   const [activeField, setActiveField] = useState(null)
-  const [sentAt, setSentAt]         = useState(null)
-  const [error, setError]           = useState(null)
-  const [sending, setSending]       = useState(false)
+  const [sentAt, setSentAt] = useState(null)
+  const [error, setError] = useState(null)
+  const [sending, setSending] = useState(false)
 
   useEffect(() => {
     if (!sessionId) return
@@ -37,8 +37,8 @@ export default function PatientSummarySection({ sessionId, patientName }) {
       .then(data => {
         if (!data?.id) return
         setFields({
-          topics_worked:     data.topics_worked     || '',
-          homework:          data.homework          || '',
+          topics_worked: data.topics_worked || '',
+          homework: data.homework || '',
           next_session_date: data.next_session_date || '',
         })
         if (data.sent_at) {
@@ -48,7 +48,7 @@ export default function PatientSummarySection({ sessionId, patientName }) {
           setPhase('editing')
         }
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [sessionId])
 
   const handleGenerate = async () => {
@@ -57,8 +57,8 @@ export default function PatientSummarySection({ sessionId, patientName }) {
     try {
       const data = await generateSummary(sessionId)
       setFields({
-        topics_worked:     data.topics_worked     || '',
-        homework:          data.homework          || '',
+        topics_worked: data.topics_worked || '',
+        homework: data.homework || '',
         next_session_date: data.next_session_date || '',
       })
       setPhase('editing')
@@ -97,7 +97,7 @@ export default function PatientSummarySection({ sessionId, patientName }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
           </svg>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-[#5a9e8a]">Resumen enviado a {firstName}</p>
+            <p className="text-[13px] font-semibold text-[#5a9e8a]">Seguimiento enviado a {firstName}</p>
             {hourStr && <p className="text-[11px] text-[#9ca3af]">Hoy · {hourStr}</p>}
           </div>
         </div>
@@ -128,7 +128,7 @@ export default function PatientSummarySection({ sessionId, patientName }) {
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
           </svg>
-          Generar resumen con IA
+          Generar seguimiento de {patientName}
         </button>
       </div>
     )
@@ -155,8 +155,8 @@ export default function PatientSummarySection({ sessionId, patientName }) {
       </p>
 
       {SECTIONS.map(({ key, label, color, isDate }, idx) => {
-        const content   = fields[key]
-        const isActive  = activeField === key
+        const content = fields[key]
+        const isActive = activeField === key
         const hasContent = !!content
 
         return (
@@ -190,8 +190,8 @@ export default function PatientSummarySection({ sessionId, patientName }) {
                 >
                   {content
                     ? new Date(content + 'T12:00:00').toLocaleDateString('es-MX', {
-                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-                      })
+                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                    })
                     : '—'}
                 </p>
               )
@@ -230,11 +230,10 @@ export default function PatientSummarySection({ sessionId, patientName }) {
         <button
           onClick={handleSend}
           disabled={sending}
-          className={`ml-auto text-[13px] font-medium rounded-xl px-4 py-2.5 transition-colors ${
-            sending
-              ? 'bg-[#5a9e8a]/40 text-white cursor-not-allowed'
-              : 'bg-[#5a9e8a] text-white hover:bg-[#4a8a78]'
-          }`}
+          className={`ml-auto text-[13px] font-medium rounded-xl px-4 py-2.5 transition-colors ${sending
+            ? 'bg-[#5a9e8a]/40 text-white cursor-not-allowed'
+            : 'bg-[#5a9e8a] text-white hover:bg-[#4a8a78]'
+            }`}
         >
           {sending ? 'Enviando…' : 'Enviar al portal →'}
         </button>

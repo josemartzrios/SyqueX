@@ -151,6 +151,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         if db_sub:
             db_sub.status = stripe_sub.status
             db_sub.current_period_end = datetime.fromtimestamp(stripe_sub.current_period_end, timezone.utc)
+            db_sub.cancel_at_period_end = stripe_sub.cancel_at_period_end
 
     await db.commit()
     return {"status": "success"}

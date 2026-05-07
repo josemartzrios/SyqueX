@@ -16,7 +16,7 @@ async def send_welcome_email(to_email: str, name: str, trial_ends_at):
             "html": f"""
             <p>Hola {name},</p>
             <p>¡Bienvenido a SyqueX! Tu prueba gratuita de 14 días ha comenzado y termina el {trial_ends_at.strftime('%Y-%m-%d')}.</p>
-            <p><a href="{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}">Comienza a dictar</a></p>
+            <p><a href="{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}">Comienza a escribir</a></p>
             <br>
             <p>El equipo de SyqueX</p>
             """

@@ -61,12 +61,17 @@ export default function PatientHeader({
         </div>
         {onInvitePatient && patientId && (
           portalStatus === 'active' ? (
-            <span className="text-[11px] font-medium text-[#5a9e8a] bg-[#5a9e8a]/10 px-2 py-1 rounded-lg flex-shrink-0">
-              Portal activo
-            </span>
+            <div
+              className="p-2 rounded-lg text-[#5a9e8a] flex-shrink-0 cursor-default"
+              title="Paciente activo en el portal"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
           ) : portalStatus === 'invited' ? (
-            <span className="text-[11px] font-medium text-[#c4935a] bg-[#c4935a]/10 px-2 py-1 rounded-lg flex-shrink-0">
-              Invitación enviada
+            <span className="text-[11px] font-medium text-[#c4935a] bg-[#c4935a]/10 px-2 py-1 rounded-lg flex-shrink-0 text-center leading-tight">
+              Invitación<br />enviada
             </span>
           ) : (
             <button
@@ -111,12 +116,17 @@ export default function PatientHeader({
       {/* Invite patient to portal — desktop only */}
       {onInvitePatient && patientId && (
         portalStatus === 'active' ? (
-          <span className="ml-2 text-[11px] font-medium text-[#5a9e8a] bg-[#5a9e8a]/10 px-2 py-1 rounded-lg">
-            Portal activo
-          </span>
+          <div
+            className="ml-2 p-1.5 rounded-lg text-[#5a9e8a] cursor-default"
+            title="Paciente activo en el portal"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
         ) : portalStatus === 'invited' ? (
-          <span className="ml-2 text-[11px] font-medium text-[#c4935a] bg-[#c4935a]/10 px-2 py-1 rounded-lg">
-            Invitación enviada
+          <span className="ml-2 text-[11px] font-medium text-[#c4935a] bg-[#c4935a]/10 px-2 py-1 rounded-lg text-center leading-tight">
+            Invitación<br />enviada
           </span>
         ) : (
           <button
