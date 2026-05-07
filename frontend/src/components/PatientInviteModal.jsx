@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { invitePatient } from '../api';
 
-export default function PatientInviteModal({ open, patient, onClose }) {
+export default function PatientInviteModal({ open, patient, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -14,6 +14,7 @@ export default function PatientInviteModal({ open, patient, onClose }) {
     try {
       await invitePatient(patient.id);
       setSuccess(true);
+      onSuccess?.();
       setTimeout(() => {
         setSuccess(false);
         onClose();
