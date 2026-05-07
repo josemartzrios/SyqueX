@@ -178,6 +178,29 @@ class PasswordResetToken(Base):
     )
 
 
+class PatientPasswordResetToken(Base):
+    __tablename__ = 'patient_password_reset_tokens'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey('patient_users.id', ondelete='CASCADE'), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    __table_args__ = (
+        Index('idx_patient_password_reset_tokens_hash', 'token_hash'),
+    )
+
+
+
+
 class ProcessedStripeEvent(Base):
     __tablename__ = 'processed_stripe_events'
 
@@ -206,6 +229,7 @@ class Patient(Base):
     psychological_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     gender_identity: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     risk_level: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
@@ -317,10 +341,64 @@ class PatientProfile(Base):
     patient = relationship("Patient", back_populates="profile")
 
 
+class PatientUser(Base):
+    __tablename__ = "patient_users"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    psychologist_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("psychologists.id"), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    password_hash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    invite_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    invite_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    invited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    patient: Mapped["Patient"] = relationship("Patient", foreign_keys=[patient_id])
+    psychologist: Mapped["Psychologist"] = relationship("Psychologist", foreign_keys=[psychologist_id])
+
+
+class PatientSummary(Base):
+    __tablename__ = "patient_summaries"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, unique=True)
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    ai_draft: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    topics_worked: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    homework: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    next_session_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    viewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+    session: Mapped["Session"] = relationship("Session", foreign_keys=[session_id])
+    patient: Mapped["Patient"] = relationship("Patient", foreign_keys=[patient_id])
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
+
+        # Patient portal migrations
+        await conn.execute(text("""
+            ALTER TABLE patients ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_patient_users_patient ON patient_users(patient_id);
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_patient_users_psychologist ON patient_users(psychologist_id);
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_patient_summaries_patient ON patient_summaries(patient_id);
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_patient_summaries_session ON patient_summaries(session_id);
+        """))
 
         # note_templates table
         await conn.execute(text("""

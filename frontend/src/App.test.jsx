@@ -187,6 +187,44 @@ describe('markPendingNotesReadOnly', () => {
   })
 })
 
+describe('confirmedSessions filter', () => {
+  // Mirrors the derived variable logic in App.jsx lines 595-596
+  function getConfirmedSessions(sessionHistory) {
+    const soapSessions = sessionHistory.filter(s => s.format !== 'chat')
+    return soapSessions.filter(s => s.status === 'confirmed')
+  }
+
+  it('excluye sesiones draft del historial', () => {
+    const history = [
+      { id: '1', format: 'SOAP', status: 'draft' },
+      { id: '2', format: 'SOAP', status: 'confirmed' },
+    ]
+    const result = getConfirmedSessions(history)
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('2')
+  })
+
+  it('no produce duplicados cuando una sesión cambia de draft a confirmed', () => {
+    // Simula el estado después de que fetchPatientSessions reemplaza el array:
+    // la misma sesión ahora viene como confirmed (misma id, nuevo status)
+    const historyAfterConfirm = [
+      { id: '1', format: 'SOAP', status: 'confirmed' },
+    ]
+    const result = getConfirmedSessions(historyAfterConfirm)
+    expect(result).toHaveLength(1)
+  })
+
+  it('excluye sesiones chat aunque estén confirmadas', () => {
+    const history = [
+      { id: '1', format: 'chat', status: 'confirmed' },
+      { id: '2', format: 'SOAP', status: 'confirmed' },
+    ]
+    const result = getConfirmedSessions(history)
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('2')
+  })
+})
+
 describe('toggleExpandedSession', () => {
   // Mirrors the toggle logic that will live in App.jsx
   function toggleExpandedSession(currentId, clickedId) {

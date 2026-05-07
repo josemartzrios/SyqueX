@@ -21,13 +21,13 @@ export default function PatientHeader({
   patientId = null,
   onEditPatient = null,
   onShowTutorial = null,
+  onInvitePatient = null,
 }) {
   const tutorialButton = onShowTutorial && (
     <button
       onClick={onShowTutorial}
-      className={`rounded-full border border-ink/[0.07] text-ink-muted hover:text-ink hover:bg-ink/[0.05] transition-colors flex items-center justify-center flex-shrink-0 ${
-        compact ? 'w-7 h-7 text-[12px]' : 'w-8 h-8 text-[14px]'
-      }`}
+      className={`rounded-full border border-ink/[0.07] text-ink-muted hover:text-ink hover:bg-ink/[0.05] transition-colors flex items-center justify-center flex-shrink-0 ${compact ? 'w-7 h-7 text-[12px]' : 'w-8 h-8 text-[14px]'
+        }`}
       aria-label="Ayuda"
     >
       ?
@@ -58,11 +58,23 @@ export default function PatientHeader({
             {sessionCount} {sessionCount === 1 ? 'sesión confirmada' : 'sesiones confirmadas'}
           </p>
         </div>
+        {onInvitePatient && patientId && (
+          <button
+            onClick={() => onInvitePatient(patientId)}
+            className="p-2 rounded-lg text-[#9ca3af] hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors flex-shrink-0"
+            aria-label="Invitar al portal"
+            title="Invitar al portal"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </button>
+        )}
         {onEditPatient && patientId && (
           <button
             onClick={() => onEditPatient(patientId)}
             className="p-2 rounded-lg text-[#9ca3af] hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors flex-shrink-0"
-            aria-label="Editar expediente"
+            aria-label="Editar expediente" title="Editar expediente"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
@@ -85,6 +97,20 @@ export default function PatientHeader({
         · {sessionCount} {sessionCount === 1 ? 'sesión' : 'sesiones'}
       </span>
 
+      {/* Invite patient to portal — desktop only */}
+      {onInvitePatient && patientId && (
+        <button
+          onClick={() => onInvitePatient(patientId)}
+          className="ml-2 p-1.5 rounded-lg text-ink-tertiary hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors"
+          aria-label="Invitar al portal"
+          title="Invitar al portal"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </button>
+      )}
+
       {/* Edit expediente — desktop only, requires patientId + handler */}
       {onEditPatient && patientId && (
         <button
@@ -95,7 +121,7 @@ export default function PatientHeader({
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
           </svg>
         </button>
       )}
@@ -106,21 +132,19 @@ export default function PatientHeader({
           <div className="flex bg-[#f4f4f2] rounded-lg p-0.5 gap-0.5">
             <button
               onClick={() => onModeChange('session')}
-              className={`px-3 py-1 rounded-md text-[12px] transition-all ${
-                mode === 'session'
+              className={`px-3 py-1 rounded-md text-[12px] transition-all ${mode === 'session'
                   ? 'bg-white shadow-sm font-medium text-[#18181b]'
                   : 'text-[#9ca3af] hover:text-[#6b7280]'
-              }`}
+                }`}
             >
               Sesión
             </button>
             <button
               onClick={() => onModeChange('review')}
-              className={`px-3 py-1 rounded-md text-[12px] transition-all ${
-                mode === 'review'
+              className={`px-3 py-1 rounded-md text-[12px] transition-all ${mode === 'review'
                   ? 'bg-white shadow-sm font-medium text-[#18181b]'
                   : 'text-[#9ca3af] hover:text-[#6b7280]'
-              }`}
+                }`}
             >
               Revisión
             </button>
