@@ -137,10 +137,11 @@ function FallbackInstructions({ onDone }) {
   )
 }
 
-function PWASlide({ forceBrowser, forceInstallable, onTriggerInstall, onDone }) {
+function PWASlide({ forceBrowser, forceInstallable, onTriggerInstall, onDone, patientMode }) {
   const pwa = usePWAInstall()
   const browser = forceBrowser ?? pwa.browser
-  const isInstallable = forceInstallable ?? pwa.isInstallable
+  // En patientMode nunca activamos el prompt nativo: instalaría la app en "/" no en "/portal"
+  const isInstallable = patientMode ? false : (forceInstallable ?? pwa.isInstallable)
   const triggerInstall = onTriggerInstall ?? pwa.triggerInstall
 
   useEffect(() => {
@@ -155,10 +156,22 @@ function PWASlide({ forceBrowser, forceInstallable, onTriggerInstall, onDone }) 
   return (
     <div>
       <div className="text-center mb-4">
-        <div className="text-3xl mb-2">📱</div>
-        <p className="text-[15px] font-semibold text-[#18181b] mb-1">Instala la app en tu celular</p>
+        <div className="text-3xl mb-2">📲</div>
+        <p className="text-[15px] font-semibold text-[#18181b] mb-1">
+          {patientMode ? 'Accede siempre desde tu celular' : 'Instala la app en tu celular'}
+        </p>
         <p className="text-[12px] text-[#9ca3af]">Acceso directo desde tu pantalla de inicio</p>
       </div>
+
+      {patientMode && (
+        <div className="bg-[#f4f4f2] rounded-xl px-3 py-2.5 mb-4 text-center">
+          <p className="text-[10px] text-[#9ca3af] uppercase tracking-wide mb-0.5">Tu portal</p>
+          <p className="text-[13px] font-mono font-semibold text-[#5a9e8a] break-all select-all">
+            app.syquex.mx/portal
+          </p>
+        </div>
+      )}
+
       {browser === 'safari' && <SafariInstructions onDone={onDone} />}
       {browser === 'chrome' && <ChromeInstructions isInstallable={isInstallable} onInstall={handleInstall} onDone={onDone} />}
       {browser === 'other' && <FallbackInstructions onDone={onDone} />}
@@ -171,6 +184,7 @@ export default function TutorialModal({
   onClose,
   isMobile,
   noteFormat,
+  patientMode,
   // test-only escape hatches
   forceBrowser,
   forceInstallable,
@@ -184,14 +198,18 @@ export default function TutorialModal({
 
   if (!visible) return null
 
-  const slides = isMobile ? [...SLIDES_DESKTOP, { pwa: true }] : SLIDES_DESKTOP
+  const slides = patientMode
+    ? [{ pwa: true }]
+    : isMobile ? [...SLIDES_DESKTOP, { pwa: true }] : SLIDES_DESKTOP
+
   const total = slides.length
   const current = slides[step]
   const isFirst = step === 0
   const isLast = step === total - 1
 
   const handleClose = () => {
-    localStorage.setItem('syquex_tutorial_done', 'true')
+    const key = patientMode ? 'patient_tutorial_done' : 'syquex_tutorial_done'
+    localStorage.setItem(key, 'true')
     onClose()
   }
 
@@ -236,6 +254,7 @@ export default function TutorialModal({
             forceInstallable={forceInstallable}
             onTriggerInstall={onTriggerInstall}
             onDone={handleClose}
+            patientMode={patientMode}
           />
         )}
 
