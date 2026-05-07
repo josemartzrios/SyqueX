@@ -23,6 +23,11 @@ const SLIDES_DESKTOP = [
     title: 'Revisa y confirma la nota',
     body: 'La nota generada aparece a la derecha. Edita cualquier campo directo en la nota antes de confirmar. Queda guardada en el expediente.',
   },
+  {
+    icon: '📨',
+    title: 'Comparte el seguimiento con tu paciente',
+    body: 'Después de confirmar la nota, genera un resumen en lenguaje simple. Lo revisas, lo editas y lo envías — el paciente lo ve en su propio portal.',
+  },
 ]
 
 function FlowDiagram() {
