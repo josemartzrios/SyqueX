@@ -54,7 +54,7 @@ async def send_reset_email(to_email: str, name: str, token: str):
 
 async def send_patient_invite(to_email: str, patient_name: str, psychologist_name: str, token: str):
     frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
-    invite_url = f"{frontend_url}/patient/invite?token={token}"
+    invite_url = f"{frontend_url}/portal/invite?token={token}"
     if not resend.api_key:
         print(f"Mock email: Invite patient {patient_name} -> {invite_url}")
         return None
