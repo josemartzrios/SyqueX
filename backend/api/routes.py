@@ -146,6 +146,9 @@ class PatientCreate(BaseModel):
     # Obligatorios adicionales
     phone: str = Field(..., max_length=20)
 
+    # Obligatorio (requerido para portal del paciente)
+    email: str = Field(..., max_length=255)
+
     # Opcionales
     marital_status: Optional[MaritalStatus] = None
     gender_identity: Optional[GenderIdentity] = None
@@ -502,6 +505,7 @@ async def create_patient(
         psychological_history=encrypt_if_set(payload.psychological_history),
         gender_identity=encrypt_if_set(payload.gender_identity),
         phone=encrypt_if_set(payload.phone),
+        email=payload.email,
     )
     db.add(patient)
     await db.flush()  # populate patient.id

@@ -139,7 +139,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
   const phoneDigits = form.phone.replace(/\D/g, '');
   const phoneInvalid = phoneHasInvalidChars || (form.phone.trim().length > 0 && phoneDigits.length < 10);
   
-  // Email: opcional, pero si está presente debe ser válido
+  // Email: requerido, y si está presente debe tener formato válido
   const emailInvalid = form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
 
   const canSubmit =
@@ -150,6 +150,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
     !ecInvalid &&
     form.phone.trim() &&
     !phoneInvalid &&
+    form.email.trim() &&
     !emailInvalid &&
     !saving &&
     !loading;
@@ -327,6 +328,7 @@ export default function PatientIntakeModal({ open, mode = 'create', initialPatie
 
               <Field
                 label="Correo electrónico"
+                required
                 error={form.email && emailInvalid ? 'Correo electrónico inválido' : null}
               >
                 <input
