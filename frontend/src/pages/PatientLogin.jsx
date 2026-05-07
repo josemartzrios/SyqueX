@@ -14,6 +14,7 @@ export default function PatientLogin({ setScreen }) {
     setError(null);
     try {
       await patientLogin(email, password);
+      sessionStorage.setItem('portal_session', '1');
       navigateTo('/portal');
       setScreen('patient-portal');
     } catch (err) {
