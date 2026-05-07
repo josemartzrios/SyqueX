@@ -87,7 +87,7 @@ export default function EvolucionPanel({ patient, messages, profile, loading, on
                 className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed ${
                   msg.role === 'user'
                     ? 'bg-[#5a9e8a] text-white rounded-br-sm'
-                    : 'bg-[#f4f4f2] text-[#18181b] rounded-bl-sm'
+                    : 'bg-[#f4f4f2] text-[#18181b] rounded-bl-sm whitespace-pre-wrap'
                 }`}
               >
                 {msg.content}
