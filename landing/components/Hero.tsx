@@ -1,22 +1,66 @@
+'use client'
+import FadeIn from './FadeIn'
+
 export default function Hero() {
   return (
-    <section className="max-w-5xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
-      <h1 className="font-serif text-4xl sm:text-5xl font-semibold text-ink leading-tight tracking-tight mb-6">
-        Deja de perder horas en papeleo.
-        <br />
-        <br className="hidden sm:block" /> SyqueX documenta, recuerda y da seguimiento por ti.
-      </h1>
-      <p className="text-lg sm:text-xl text-ink-secondary max-w-xl mx-auto mb-10 leading-relaxed">
-        ¿Cuántas horas pierdes cada semana
-        documentando sesiones, buscando notas
-        y recordando qué acordaste con cada paciente?
-      </p>
-      <a
-        href="https://app.syquex.mx/registro"
-        className="inline-block bg-sage hover:bg-sage-dark text-white font-medium px-8 py-3 rounded-lg transition-colors text-base"
-      >
-        Empieza gratis — 14 días
-      </a>
+    <section className="max-w-5xl mx-auto px-4 sm:px-8 py-16 sm:py-24">
+      <div className="flex flex-col sm:flex-row items-center gap-12 sm:gap-16">
+
+        {/* Left — copy */}
+        <div className="flex-1 text-center sm:text-left">
+          <FadeIn>
+            <div className="inline-block text-xs font-semibold text-sage bg-sage-light px-4 py-1.5 rounded-full mb-5 tracking-wide">
+              HECHO EN MÉXICO PARA PSICÓLOGOS MEXICANOS
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <h1 className="font-serif text-4xl sm:text-5xl font-normal leading-tight mb-5 text-ink">
+              Genera tu nota clínica en{' '}
+              <em className="text-sage">45 segundos</em>.
+              <br />
+              Llega preparado a cada sesión.
+            </h1>
+          </FadeIn>
+          <FadeIn delay={0.2}>
+            <p className="text-lg text-ink-secondary leading-relaxed mb-8 max-w-xl">
+              Dicta lo que pasó en sesión, SyqueX genera la nota clínica y analiza el
+              historial completo de tu paciente con IA. Pregúntale cualquier cosa antes
+              de tu próxima cita.
+            </p>
+          </FadeIn>
+          <FadeIn delay={0.3}>
+            <div className="flex gap-4 flex-wrap items-center justify-center sm:justify-start">
+              <a
+                href="https://app.syquex.mx/registro"
+                className="text-base text-white bg-sage hover:bg-sage-dark px-8 py-3.5 rounded-xl font-semibold shadow-lg shadow-sage/30 transition-all hover:-translate-y-0.5"
+              >
+                Prueba gratis — 14 días
+              </a>
+              <span className="text-sm text-ink-tertiary">Sin tarjeta de crédito</span>
+            </div>
+          </FadeIn>
+        </div>
+
+        {/* Right — phone-frame video */}
+        <FadeIn delay={0.25} className="flex-none flex justify-center w-full sm:w-[280px]">
+          <div
+            className="rounded-[2rem] overflow-hidden shadow-2xl border-4 border-ink-muted bg-black"
+            style={{ width: '100%', maxWidth: '280px' }}
+          >
+            <div style={{ position: 'relative', paddingBottom: '177.78%', height: 0, overflow: 'hidden' }}>
+              <iframe
+                src="https://www.youtube.com/embed/czmHUu2LU30?rel=0&modestbranding=1"
+                frameBorder={0}
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                title="SyqueX en acción — crea una nota clínica en segundos"
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+              />
+            </div>
+          </div>
+        </FadeIn>
+
+      </div>
     </section>
   )
 }

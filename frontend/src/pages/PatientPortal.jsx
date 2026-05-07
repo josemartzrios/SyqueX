@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { clearPatientToken, getPatientSummaries, getPatientSummaryDetail } from '../patientApi';
 import { navigateTo } from '../auth';
 import TutorialModal from '../components/TutorialModal';
@@ -11,6 +11,7 @@ export default function PatientPortal() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState(null);
   const [tutorialVisible, setTutorialVisible] = useState(false);
+  const detailRef = useRef(null);
 
   useEffect(() => {
     // El body global tiene overflow:hidden para el app del psicólogo — lo sobreescribimos aquí
@@ -47,6 +48,9 @@ export default function PatientPortal() {
       const detail = await getPatientSummaryDetail(summaryId);
       setSelectedSummary(detail);
       setSummaries(prev => prev.map(s => s.id === summaryId ? { ...s, viewed_at: detail.viewed_at } : s));
+      if (window.innerWidth < 768) {
+        setTimeout(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      }
     } catch (err) {
       setDetailError(err.message);
     } finally {
@@ -56,6 +60,7 @@ export default function PatientPortal() {
 
   const handleLogout = () => {
     clearPatientToken();
+    sessionStorage.removeItem('portal_session');
     navigateTo('/portal/login');
     window.location.reload();
   };
@@ -104,7 +109,7 @@ export default function PatientPortal() {
 
           {/* List Section */}
           <div className="md:col-span-1 md:sticky md:top-[88px] md:max-h-[calc(100vh-104px)] md:overflow-y-auto md:pr-1">
-            <h1 className="text-2xl font-serif text-[#18181b] mb-6">Mis Sesiones</h1>
+            <h1 className="text-lg font-bold text-[#18181b] mb-4">Mis Sesiones</h1>
             {error && (
               <div className="mb-4 flex items-center gap-2 bg-[#fef2f2] border border-red-200 rounded-xl px-3 py-2.5">
                 <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
@@ -113,7 +118,7 @@ export default function PatientPortal() {
                 <p className="text-[12px] text-red-600">{error}</p>
               </div>
             )}
-            <div className="space-y-3">
+            <div className="flex flex-col gap-2">
               {summaries.length === 0 ? (
                 <div className="bg-white p-6 rounded-2xl border border-dashed border-[#18181b]/[0.1] text-center">
                   <p className="text-[#9ca3af] text-sm">Aún no tienes resúmenes disponibles.</p>
@@ -123,20 +128,20 @@ export default function PatientPortal() {
                   <button
                     key={s.id}
                     onClick={() => handleViewDetail(s.id)}
-                    className={`w-full text-left p-4 rounded-2xl border transition-all ${selectedSummary?.id === s.id
-                      ? 'bg-[#5a9e8a]/5 border-[#5a9e8a] shadow-sm'
-                      : 'bg-white border-[#18181b]/[0.06] hover:border-[#5a9e8a]/30'
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl border transition-all ${selectedSummary?.id === s.id
+                      ? 'border-2 border-[#5a9e8a] bg-white'
+                      : 'bg-white border border-[#18181b]/[0.08] hover:border-[#5a9e8a]/30'
                       }`}
                   >
                     <div className="flex justify-between items-start mb-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#9ca3af]">
-                        {new Date(s.sent_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                      <span className="text-[10px] text-[#5a9e8a] font-semibold tracking-wide mb-1">
+                        {new Date(s.sent_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).toUpperCase()}
                       </span>
                       {!s.viewed_at && (
                         <span className="w-2 h-2 bg-[#5a9e8a] rounded-full"></span>
                       )}
                     </div>
-                    <p className="text-sm font-medium text-[#18181b] truncate">
+                    <p className={`text-xs truncate ${selectedSummary?.id === s.id ? 'font-medium text-[#18181b]' : 'text-[#18181b]/60'}`}>
                       {s.topics_worked || 'Sesión sin título'}
                     </p>
                   </button>
@@ -146,7 +151,7 @@ export default function PatientPortal() {
           </div>
 
           {/* Detail Section */}
-          <div className="md:col-span-2">
+          <div ref={detailRef} className="md:col-span-2">
             {detailError && (
               <div className="mb-4 flex items-center gap-2 bg-[#fef2f2] border border-red-200 rounded-xl px-3 py-2.5">
                 <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
@@ -160,56 +165,43 @@ export default function PatientPortal() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5a9e8a]"></div>
               </div>
             ) : selectedSummary ? (
-              <div className="bg-white rounded-3xl border border-[#18181b]/[0.06] shadow-sm overflow-hidden">
-                <div className="p-6 sm:p-8">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5a9e8a]">Resumen de Sesión</span>
-                      <p className="text-[15px] font-medium text-[#18181b] mt-0.5">
-                        {new Date(selectedSummary.sent_at).toLocaleDateString('es-ES', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric'
-                        })}
-                      </p>
+              <div className="bg-white rounded-xl border border-[#18181b]/[0.08] overflow-hidden">
+                <div className="p-4">
+                  <div className="mb-3.5">
+                    <div className="text-[10px] text-[#5a9e8a] font-bold tracking-widest mb-1">RESUMEN DE SESIÓN</div>
+                    <div className="text-sm font-semibold text-[#18181b]">
+                      {new Date(selectedSummary.sent_at).toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      })}
                     </div>
-
                   </div>
 
-                  <div className="space-y-8">
+                  <section>
+                    <div className="text-[10px] text-[#5a9e8a] font-bold tracking-widest mb-1.5">TEMAS TRABAJADOS</div>
+                    <p className="text-xs leading-relaxed text-[#18181b]/60 whitespace-pre-wrap mb-4">
+                      {selectedSummary.topics_worked}
+                    </p>
+                  </section>
+
+                  {selectedSummary.homework && (
                     <section>
-                      <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#9ca3af] mb-3 pb-1 border-b border-[#18181b]/[0.04]">
-                        Temas Trabajados
-                      </h3>
-                      <p className="text-[#18181b] leading-relaxed whitespace-pre-wrap">
-                        {selectedSummary.topics_worked}
-                      </p>
+                      <div className="text-[10px] text-[#5a9e8a] font-bold tracking-widest mb-2">TAREAS Y PROPÓSITOS</div>
+                      <div className="px-3.5 py-2.5 rounded-xl border-l-[3px] border-[#5a9e8a] bg-[#f4f4f2] text-xs leading-relaxed text-[#18181b] italic mb-3.5">
+                        {selectedSummary.homework}
+                      </div>
                     </section>
-
-                    {selectedSummary.homework && (
-                      <section>
-                        <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#5a9e8a] mb-3 pb-1 border-b border-[#5a9e8a]/10">
-                          Tareas y Propósitos
-                        </h3>
-                        <div className="bg-[#5a9e8a]/[0.02] p-4 rounded-2xl border border-[#5a9e8a]/5">
-                          <p className="text-[#18181b] leading-relaxed whitespace-pre-wrap italic">
-                            {selectedSummary.homework}
-                          </p>
-                        </div>
-                      </section>
-                    )}
-                  </div>
+                  )}
 
                   {selectedSummary.next_session_date && (
-                    <section style={{ marginTop: '24px' }}>
-                      <div className="bg-[#fefaf6] px-4 py-2 rounded-xl border border-[#5a9e8a]/20">
-                        <p className="text-[10px] font-bold uppercase text-[#5a9e8a] mb-0.5">Próxima Sesión</p>
-                        <p className="text-sm font-medium text-[#18181b]">
-                          {new Date(selectedSummary.next_session_date).toLocaleDateString('es-ES', {
-                            day: 'numeric',
-                            month: 'short'
-                          })}
-                        </p>
+                    <section>
+                      <div className="text-[10px] text-[#5a9e8a] font-bold tracking-widest mb-1">PRÓXIMA SESIÓN</div>
+                      <div className="text-sm font-semibold text-[#18181b]">
+                        {new Date(selectedSummary.next_session_date).toLocaleDateString('es-ES', {
+                          day: 'numeric',
+                          month: 'long'
+                        })}
                       </div>
                     </section>
                   )}

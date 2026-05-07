@@ -23,6 +23,7 @@ export default function PatientInviteAccept({ inviteToken, setScreen }) {
     setError(null);
     try {
       await acceptPatientInvite(inviteToken, password);
+      sessionStorage.setItem('portal_session', '1');
       setSuccess(true);
       setTimeout(() => {
         navigateTo('/portal');

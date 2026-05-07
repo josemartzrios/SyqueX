@@ -27,7 +27,7 @@ import PatientLogin from './pages/PatientLogin';
 import PatientInviteAccept from './pages/PatientInviteAccept';
 import PatientPortal from './pages/PatientPortal';
 import PatientResetPassword from './pages/PatientResetPassword';
-import { getPatientToken } from './patientApi';
+import { getPatientToken, clearPatientToken } from './patientApi';
 
 // ── Module-level constants ─────────────────────────────────────────────────
 const SOAP_HEADER_BOLD_RE = /^\*\*(S|O|A|P)\s*[—–\-]/i;
@@ -301,12 +301,14 @@ function App() {
     async function initAuth() {
       const { screen, resetToken, inviteToken } = authScreen;
 
-      // Patient portal check
+      // Patient portal check — require both localStorage token AND active session flag
       if (screen === 'patient-portal' || screen === 'patient-login') {
         const ptoken = getPatientToken();
-        if (ptoken) {
+        const sessionActive = sessionStorage.getItem('portal_session') === '1';
+        if (ptoken && sessionActive) {
           setAuthScreen({ screen: 'patient-portal' });
         } else {
+          clearPatientToken();
           setAuthScreen({ screen: 'patient-login' });
         }
         return;
