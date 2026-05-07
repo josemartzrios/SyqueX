@@ -1,3 +1,5 @@
+import { navigateTo } from './auth'
+
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api/v1'
 
 let _patientToken = null
@@ -38,6 +40,8 @@ async function patientFetch(path, options = {}) {
   if (!res.ok) {
     if (res.status === 401) {
       clearPatientToken()
+      navigateTo('/portal/login')
+      window.location.reload()
     }
     let msg = 'Error en el portal'
     try {
