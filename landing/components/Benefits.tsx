@@ -1,15 +1,21 @@
 const benefits = [
   {
     icon: '⚡',
-    title: 'Notas personalizadas o SOAP en segundos',
+    title: 'Notas clínicas en segundos',
     description:
-      'La IA estructura el dictado a tu estilo o en formato SOAP (Subjetivo, Objetivo, Análisis y Plan)',
+      'Escribe libremente. SyqueX genera tu nota en el formato que tú elijas, personalizado a tu enfoque.',
   },
   {
-    icon: '🔍',
-    title: 'Historial con búsqueda semántica',
+    icon: '🧠',
+    title: 'Memoria clínica acumulativa',
     description:
-      'Encuentra patrones clínicos en sesiones anteriores al instante con ayuda del agente de IA.',
+      'El agente recuerda el historial completo de cada paciente. Detecta patrones, señales de alerta y evolución sin que tengas que releer ninguna nota.',
+  },
+  {
+    icon: '📋',
+    title: 'Seguimiento para tus pacientes',
+    description:
+      'Tu paciente recibe las tareas y acuerdos de cada sesión. Llega preparado. No olvida lo que trabajaron juntos.',
   },
   {
     icon: '🔒',
