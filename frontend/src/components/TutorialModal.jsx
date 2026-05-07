@@ -16,7 +16,7 @@ const SLIDES_DESKTOP = [
   {
     icon: '✏️',
     title: 'Escribe tus apuntes',
-    body: 'Escribe libremente en el panel de dictado — sin estructura. El asistente organiza automáticamente tu nota clínica.',
+    body: 'Escribe libremente tus apuntes — sin estructura. El asistente organiza automáticamente tu nota clínica.',
   },
   {
     icon: '📄',

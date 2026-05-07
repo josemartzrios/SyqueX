@@ -1,7 +1,7 @@
 # Spec: Cancelar suscripción
 
 **Fecha:** 2026-05-07
-**Feature:** Botón de cancelación de suscripción para el psicólogo
+**Feature:** feature/tutorial-patient
 **Alcance:** Backend endpoint + frontend sidebar + modal de confirmación
 
 ---

@@ -257,6 +257,7 @@ function App() {
   }
 
   async function handleCancelSubscription() {
+    console.log('Attempting to cancel subscription. Current status:', billingStatus);
     setIsCancelling(true);
     setCancelError('');
     try {
@@ -273,6 +274,17 @@ function App() {
       setIsCancelling(false);
     }
   }
+
+  // Diagnostic log
+  useEffect(() => {
+    if (billingStatus) {
+      console.log('DEBUG Billing Status:', {
+        status: billingStatus.status,
+        cancel_at_period_end: billingStatus.cancel_at_period_end,
+        canCancel: billingStatus.status === 'active' && !billingStatus.cancel_at_period_end
+      });
+    }
+  }, [billingStatus]);
 
   // Inicializar auth al montar
   useEffect(() => {

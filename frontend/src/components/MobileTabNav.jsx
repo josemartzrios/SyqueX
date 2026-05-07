@@ -1,8 +1,8 @@
 // frontend/src/components/MobileTabNav.jsx
 export default function MobileTabNav({ activeTab, onTabChange }) {
   const tabs = [
-    { id: 'dictar',    label: 'Dictar' },
-    { id: 'nota',      label: 'Nota' },
+    { id: 'escribir', label: 'Escribir' },
+    { id: 'nota', label: 'Nota' },
     { id: 'evolucion', label: 'Evolución' },
   ];
 
@@ -12,11 +12,10 @@ export default function MobileTabNav({ activeTab, onTabChange }) {
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
-          className={`flex-1 py-3 text-[13px] font-medium border-b-2 transition-all ${
-            activeTab === tab.id
-              ? 'text-sage border-sage font-semibold'
-              : 'text-ink-muted border-transparent'
-          }`}
+          className={`flex-1 py-3 text-[13px] font-medium border-b-2 transition-all ${activeTab === tab.id
+            ? 'text-sage border-sage font-semibold'
+            : 'text-ink-muted border-transparent'
+            }`}
         >
           {tab.label}
         </button>

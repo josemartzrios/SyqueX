@@ -154,3 +154,36 @@ class TestCancelSubscription:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 res = await client.post("/api/v1/billing/cancel")
         assert res.status_code == 502
+
+
+class TestStripeWebhook:
+    @pytest.mark.asyncio
+    async def test_webhook_updates_cancel_at_period_end(self, app, mock_db, active_sub, monkeypatch):
+        monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+        mock_db.execute.return_value = _result(None) # For ProcessedStripeEvent check
+        
+        # We need to mock the second execute call inside the webhook
+        # 1. ProcessedStripeEvent check -> None
+        # 2. Subscription select -> active_sub
+        mock_db.execute.side_effect = [_result(None), _result(active_sub)]
+
+        payload = b'{"id": "evt_123", "type": "customer.subscription.updated", "data": {"object": {"id": "sub_test123", "status": "active", "current_period_end": 1717718400, "cancel_at_period_end": true}}}'
+        
+        with patch("api.billing.stripe.Webhook.construct_event") as mock_construct:
+            mock_event = MagicMock()
+            mock_event.id = "evt_123"
+            mock_event.type = "customer.subscription.updated"
+            mock_event.data.object = MagicMock(
+                id="sub_test123", 
+                status="active", 
+                current_period_end=1717718400, 
+                cancel_at_period_end=True
+            )
+            mock_construct.return_value = mock_event
+
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                res = await client.post("/api/v1/billing/webhook", content=payload, headers={"stripe-signature": "sig"})
+        
+        assert res.status_code == 200
+        assert active_sub.cancel_at_period_end is True
+        mock_db.commit.assert_called_once()
