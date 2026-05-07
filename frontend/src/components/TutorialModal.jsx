@@ -26,7 +26,7 @@ const SLIDES_DESKTOP = [
   {
     icon: '📨',
     title: 'Comparte el seguimiento con tu paciente',
-    body: 'Después de confirmar la nota, genera un resumen en lenguaje simple. Lo revisas, lo editas y lo envías — el paciente lo ve en su propio portal.',
+    body: 'Después de confirmar la nota, genera un resumen en lenguaje simple. Lo revisas, lo editas y lo envías. El paciente lo ve en su propio portal.',
   },
 ]
 

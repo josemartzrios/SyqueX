@@ -69,7 +69,7 @@ export default function PatientPortal() {
               <div className="w-8 h-8 bg-[#5a9e8a] rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">S</span>
               </div>
-              <span className="font-serif text-xl text-[#18181b] hidden sm:block">SyqueX Portal</span>
+              <span className="font-serif text-xl text-[#18181b] hidden sm:block">SyqueX</span>
             </div>
             <button
               onClick={handleLogout}
@@ -196,7 +196,7 @@ export default function PatientPortal() {
                 </div>
                 <h3 className="text-lg font-serif text-[#18181b]">Selecciona una sesión</h3>
                 <p className="text-sm text-[#9ca3af] mt-2 max-w-xs">
-                  Toca uno de tus resúmenes en la lista de la izquierda para ver los detalles.
+                  Toca uno de tus resúmenes en la lista para ver los detalles.
                 </p>
               </div>
             )}
