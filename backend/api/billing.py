@@ -154,3 +154,40 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return {"status": "success"}
+
+@router.post("/cancel")
+async def cancel_subscription(
+    psychologist=Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Subscription).where(Subscription.psychologist_id == psychologist.id)
+    )
+    sub = result.scalar_one_or_none()
+
+    if not sub or sub.status != "active" or not sub.stripe_subscription_id:
+        raise HTTPException(status_code=400, detail="No tienes una suscripción activa")
+
+    if sub.cancel_at_period_end:
+        return {
+            "cancel_at_period_end": True,
+            "current_period_end": sub.current_period_end,
+        }
+
+    try:
+        stripe.Subscription.modify(
+            sub.stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+    except Exception as e:
+        logger.error("Stripe cancel error: %s", e, exc_info=True)
+        raise HTTPException(status_code=502, detail="Error al comunicarse con Stripe")
+
+    sub.cancel_at_period_end = True
+    sub.canceled_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {
+        "cancel_at_period_end": True,
+        "current_period_end": sub.current_period_end,
+    }
