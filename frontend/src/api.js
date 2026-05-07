@@ -237,6 +237,10 @@ export async function createCheckout() {
   return _authFetch(`${API_BASE}/billing/create-checkout`, { method: 'POST' });
 }
 
+export async function cancelSubscription() {
+  return _authFetch(`${API_BASE}/billing/cancel`, { method: 'POST' });
+}
+
 // --- Patient Summaries (psychologist side) ---
 export async function getSummary(sessionId) {
   return _authFetch(`${API_BASE}/sessions/${sessionId}/summary`);
