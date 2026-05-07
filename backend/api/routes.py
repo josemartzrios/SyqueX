@@ -1162,6 +1162,14 @@ async def invite_patient(
             raise HTTPException(status_code=409, detail="Este paciente ya activó su cuenta en el portal. No se puede volver a invitar.")
         raise HTTPException(status_code=409, detail="Ya se envió una invitación a este paciente. Solo se permite una invitación por paciente.")
 
+    # Verificar que el email no esté ya en uso por otro PatientUser
+    res_email = await db.execute(select(PatientUser).where(PatientUser.email == patient_email))
+    if res_email.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409,
+            detail="Este correo electrónico ya está asociado a otro paciente del portal. Usa un correo diferente para este paciente.",
+        )
+
     patient_user = PatientUser(
         patient_id=patient.id,
         psychologist_id=psychologist.id,
@@ -1175,7 +1183,14 @@ async def invite_patient(
     patient_user.invite_token_expires_at = datetime.now(timezone.utc) + timedelta(days=settings.PATIENT_INVITE_EXPIRE_DAYS)
     patient_user.invited_at = datetime.now(timezone.utc)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Este correo electrónico ya está en uso en el portal.",
+        )
 
     # 4. Enviar email
     try:
