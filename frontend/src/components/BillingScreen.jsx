@@ -74,14 +74,23 @@ export default function BillingScreen({ onActivated }) {
         {status?.status === 'active' && (
           <>
             <p className="text-sm font-medium text-sage">Plan Pro — Activo</p>
-            {status.current_period_end && (
+            {status.cancel_at_period_end ? (
+              <div className="bg-orange-50 border border-orange-200 rounded p-3 text-sm text-orange-800">
+                <p className="font-medium">Suscripción cancelada</p>
+                <p className="mt-1">
+                  Tu acceso se mantendrá activo hasta el <strong>{new Date(status.current_period_end).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>. Después de esta fecha no se realizarán más cobros y perderás el acceso.
+                </p>
+              </div>
+            ) : status.current_period_end && (
               <p className="text-sm text-ink-secondary">
                 Próximo cobro: {new Date(status.current_period_end).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
             )}
-            <p className="text-sm text-ink-tertiary">
-              Para cancelar o cambiar tu plan, escríbenos a hola@syquex.mx
-            </p>
+            {!status.cancel_at_period_end && (
+              <p className="text-sm text-ink-tertiary">
+                Para gestionar tu suscripción o cambiar de plan, escríbenos a hola@syquex.mx
+              </p>
+            )}
           </>
         )}
 
