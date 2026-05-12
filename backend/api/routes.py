@@ -1144,6 +1144,7 @@ async def invite_patient(
     db: AsyncSession = Depends(get_db_with_user),
 ):
     import secrets
+    from api.auth import get_current_psychologist, hash_token
     from services.email import send_patient_invite
     from datetime import timedelta
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
@@ -1179,7 +1180,7 @@ async def invite_patient(
 
     # 3. Generar token
     token = secrets.token_urlsafe(32)
-    patient_user.invite_token = token
+    patient_user.invite_token = hash_token(token)
     patient_user.invite_token_expires_at = datetime.now(timezone.utc) + timedelta(days=settings.PATIENT_INVITE_EXPIRE_DAYS)
     patient_user.invited_at = datetime.now(timezone.utc)
 

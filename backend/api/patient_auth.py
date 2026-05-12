@@ -16,6 +16,7 @@ import secrets
 import asyncio
 import random
 from collections import defaultdict
+from api.auth import validate_password, hash_token, get_current_psychologist
 
 router = APIRouter()
 
@@ -43,10 +44,30 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 _forgot_pw_email_attempts: dict = defaultdict(list)
+_failed_login_attempts: dict = defaultdict(list)
+_MAX_LOGIN_ATTEMPTS = 5
+_LOGIN_WINDOW_MINUTES = 15
+_LOGIN_LOCKOUT_MINUTES = 30
+
+def _check_patient_brute_force(email: str) -> None:
+    now = datetime.now(timezone.utc)
+    window = now - timedelta(minutes=_LOGIN_WINDOW_MINUTES)
+    _failed_login_attempts[email] = [t for t in _failed_login_attempts[email] if t > window]
+
+    if len(_failed_login_attempts[email]) >= _MAX_LOGIN_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Cuenta bloqueada temporalmente por seguridad. Intenta en {_LOGIN_LOCKOUT_MINUTES} minutos.",
+            headers={"Retry-After": str(_LOGIN_LOCKOUT_MINUTES * 60)},
+        )
+
+def _record_failed_login(email: str) -> None:
+    _failed_login_attempts[email].append(datetime.now(timezone.utc))
+
+def _reset_login_attempts(email: str) -> None:
+    _failed_login_attempts[email] = []
 
 
-def _hash_token(raw: str) -> str:
-    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def _check_patient_forgot_email_rate(email: str) -> None:
@@ -85,7 +106,7 @@ class ResetPasswordRequest(BaseModel):
 
 @router.post("/accept-invite")
 async def accept_invite(req: AcceptInviteRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(PatientUser).where(PatientUser.invite_token == req.token))
+    result = await db.execute(select(PatientUser).where(PatientUser.invite_token == hash_token(req.token)))
     patient_user = result.scalar_one_or_none()
 
     if not patient_user:
@@ -95,8 +116,10 @@ async def accept_invite(req: AcceptInviteRequest, db: AsyncSession = Depends(get
     if patient_user.invite_token_expires_at and now > patient_user.invite_token_expires_at:
         raise HTTPException(status_code=400, detail="El token ha expirado.")
 
-    if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres.")
+    try:
+        validate_password(req.password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     patient_user.password_hash = hash_password(req.password)
     patient_user.invite_token = None
@@ -144,7 +167,7 @@ async def patient_forgot_password(
         raw_token = secrets.token_urlsafe(32)
         reset_record = PatientPasswordResetToken(
             patient_user_id=patient_user.id,
-            token_hash=_hash_token(raw_token),
+            token_hash=hash_token(raw_token),
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=60),
             ip_address=request.client.host if request.client else None,
         )
@@ -175,10 +198,12 @@ async def patient_reset_password(
     req: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    if len(req.new_password) < 8:
-        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres.")
+    try:
+        validate_password(req.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    token_hash = _hash_token(req.token)
+    token_hash = hash_token(req.token)
     result = await db.execute(
         select(PatientPasswordResetToken).where(
             PatientPasswordResetToken.token_hash == token_hash
@@ -217,15 +242,22 @@ async def patient_reset_password(
 
 
 @router.post("/login")
-async def patient_login(req: PatientLoginRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def patient_login(request: Request, req: PatientLoginRequest, db: AsyncSession = Depends(get_db)):
+    _check_patient_brute_force(req.email)
+    await asyncio.sleep(random.uniform(0.1, 0.3)) # Prevent timing attacks
+
     result = await db.execute(select(PatientUser).where(PatientUser.email == req.email))
     patient_user = result.scalar_one_or_none()
 
     if not patient_user or not patient_user.password_hash or not verify_password(req.password, patient_user.password_hash):
+        _record_failed_login(req.email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email o contraseña incorrectos.")
 
     if not patient_user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Cuenta inactiva.")
+
+    _reset_login_attempts(req.email)
 
     # Create JWT
     access_token = create_patient_access_token(patient_user)

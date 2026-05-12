@@ -37,7 +37,7 @@ _PASSWORD_MIN_LENGTH = 8
 _PASSWORD_UPPERCASE_RE = re.compile(r'[A-Z]')
 _PASSWORD_NUMBER_RE = re.compile(r'[0-9]')
 
-def _validate_password(password: str) -> str:
+def validate_password(password: str) -> str:
     """Valida política de contraseña. Retorna el password si es válido, lanza ValueError si no."""
     errors = []
     if len(password) < _PASSWORD_MIN_LENGTH:
@@ -49,6 +49,11 @@ def _validate_password(password: str) -> str:
     if errors:
         raise ValueError("; ".join(errors))
     return password
+
+def hash_token(token: str) -> str:
+    """Retorna SHA-256 hash de un token."""
+    import hashlib
+    return hashlib.sha256(token.encode()).hexdigest()
 
 # --- Schema de registro ---
 class RegisterRequest(BaseModel):
@@ -64,7 +69,7 @@ class RegisterRequest(BaseModel):
     @field_validator('password')
     @classmethod
     def password_strength(cls, v):
-        return _validate_password(v)
+        return validate_password(v)
 
     @field_validator('accepted_privacy', 'accepted_terms')
     @classmethod
@@ -83,7 +88,7 @@ class ResetPasswordRequest(BaseModel):
     @field_validator('new_password')
     @classmethod
     def password_strength(cls, v):
-        return _validate_password(v)
+        return validate_password(v)
 
 logger = logging.getLogger("syquex.auth")
 

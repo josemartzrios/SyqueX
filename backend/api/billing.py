@@ -8,10 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from .auth import get_current_psychologist
 
+from config import settings
+
 logger = logging.getLogger("syquex.billing")
 
 router = APIRouter()
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 @router.get("/status")
 async def get_billing_status(
@@ -63,12 +65,12 @@ async def create_checkout_session(
         session = stripe.checkout.Session.create(
             customer=psychologist.stripe_customer_id,
             line_items=[{
-                'price': os.getenv('STRIPE_PRICE_ID'),
+                'price': settings.STRIPE_PRICE_ID,
                 'quantity': 1,
             }],
             mode='subscription',
-            success_url=f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/?success=true",
-            cancel_url=f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/",
+            success_url=f"{settings.FRONTEND_URL}/?success=true",
+            cancel_url=f"{settings.FRONTEND_URL}/",
             metadata={'psychologist_id': psychologist.id}
         )
         return {"checkout_url": session.url}
@@ -80,7 +82,7 @@ async def create_checkout_session(
 async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get('stripe-signature')
-    webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+    webhook_secret = settings.STRIPE_WEBHOOK_SECRET
 
     if not webhook_secret:
         logger.error("STRIPE_WEBHOOK_SECRET not configured")

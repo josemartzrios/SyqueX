@@ -55,14 +55,16 @@ async def _add_security_headers(request: Request, call_next):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://js.stripe.com; "
+            "script-src 'self' https://cdn.tailwindcss.com https://js.stripe.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "connect-src 'self' https://*.supabase.co https://api.stripe.com; "
             "frame-src https://js.stripe.com; "
             "img-src 'self' data:; "
             "object-src 'none'; "
-            "base-uri 'self'"
+            "base-uri 'self'; "
+            "upgrade-insecure-requests; "
+            "frame-ancestors 'none'"
         )
     for header in ("X-Powered-By", "Server"):
         if header in response.headers:
