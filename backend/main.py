@@ -135,6 +135,12 @@ async def startup_event():
     except Exception as e:
         logger.warning("Embedding warmup failed (non-fatal): %s", e)
 
+    # Start Background Job Worker
+    import asyncio
+    from agent.worker import job_worker
+    asyncio.create_task(job_worker())
+    logger.info("Background job worker task created.")
+
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(patient_auth_router, prefix="/api/v1/auth/patient", tags=["patient-auth"])
 app.include_router(patient_portal_router, prefix="/api/v1/portal", tags=["patient-portal"])
