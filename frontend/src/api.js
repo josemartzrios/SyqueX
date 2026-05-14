@@ -86,6 +86,39 @@ export async function processSession(patientId, dictation, format = 'SOAP') {
   });
 }
 
+export async function getJobStatus(jobId) {
+  return await _authFetch(`${API_BASE}/jobs/${jobId}`);
+}
+
+export function openJobStream(jobId, onMessage, onError) {
+  const token = getAccessToken();
+  const url = `${API_BASE}/jobs/${jobId}/stream`;
+  // Our backend now supports token in query param for SSE
+  const sseUrl = `${url}?token=${token}`;
+  const eventSource = new EventSource(sseUrl);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      onMessage(data);
+      if (data.status === 'completed' || data.status === 'failed') {
+        eventSource.close();
+      }
+    } catch (err) {
+      console.error("Error parsing SSE data", err);
+    }
+  };
+
+  eventSource.onerror = (err) => {
+    eventSource.close();
+    onError(err);
+  };
+
+  return () => {
+    eventSource.close();
+  };
+}
+
 export async function confirmNote(sessionId, noteData) {
   return await _authFetch(`${API_BASE}/sessions/${sessionId}/confirm`, {
     method: 'POST',

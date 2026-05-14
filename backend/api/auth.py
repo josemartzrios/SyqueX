@@ -175,17 +175,26 @@ def _reset_attempts(email: str) -> None:
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
+from fastapi import Query
+
 async def get_current_psychologist(
     token: str = Depends(oauth2_scheme),
+    token_query: Optional[str] = Query(None, alias="token"),
     db: AsyncSession = Depends(get_db),
 ) -> Psychologist:
+    # Favor header token, fall back to query token
+    effective_token = token or token_query
+    
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Token inválido o sesión expirada",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not effective_token:
+        raise credentials_exc
+
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(effective_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         psychologist_id: Optional[str] = payload.get("sub")
         if not psychologist_id or payload.get("type") != "access":
             raise credentials_exc
