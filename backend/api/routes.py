@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import Optional, List, Dict, Any, Literal
 from datetime import date, datetime, timezone
 
-from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal, NoteTemplate, PatientUser, PatientSummary
+from database import get_db, Patient, Session, ClinicalNote, PatientProfile, Psychologist, AsyncSessionLocal, NoteTemplate, PatientUser, PatientSummary, JobQueue
 from config import settings
 import json as _json
 from crypto import encrypt_if_set, decrypt_if_set
@@ -447,6 +447,16 @@ class ProcessSessionOut(BaseModel):
     custom_fields: Optional[dict] = None
     template_fields: Optional[list] = None
 
+class JobAcceptedOut(BaseModel):
+    job_id: str
+    status: str = "pending"
+
+class JobStatusOut(BaseModel):
+    id: str
+    status: str
+    result: Optional[dict] = None
+    error_message: Optional[str] = None
+
 
 class ConfirmNoteOut(BaseModel):
     id: uuid.UUID
@@ -718,7 +728,7 @@ async def patient_search(
 # Sessions
 # ---------------------------------------------------------------------------
 
-@router.post("/sessions/{patient_id}/process", response_model=ProcessSessionOut, tags=["sessions"])
+@router.post("/sessions/{patient_id}/process", response_model=JobAcceptedOut, status_code=status.HTTP_202_ACCEPTED, tags=["sessions"])
 @limiter.limit("30/hour")
 async def process_session_endpoint(
     request: Request,
@@ -728,97 +738,102 @@ async def process_session_endpoint(
     db: AsyncSession = Depends(get_db_with_user),
 ):
     patient = await _get_owned_patient(db, psychologist.id, patient_id)
-    patient_uuid = patient.id
+    
+    # 1. Prompt Injection check (basic)
+    if "ignore previous instructions" in rec.raw_dictation.lower():
+        raise HTTPException(status_code=422, detail="Contenido no permitido en el dictado.")
 
-    # Load psychologist's note template
-    tmpl_result = await db.execute(
-        select(NoteTemplate).where(NoteTemplate.psychologist_id == psychologist.id)
-    )
-    template = tmpl_result.scalar_one_or_none()
-
-    if template and template.fields and rec.format.lower() == "custom":
-        result = await process_session_custom(
-            db=db,
-            patient_id=str(patient_uuid),
-            raw_dictation=rec.raw_dictation,
-            session_id=None,
-            template_fields=template.fields,
-            patient_name=patient.name,
+    # 2. Fetch template fields if format is custom
+    template_fields = None
+    if rec.format.lower() == "custom":
+        tmpl_res = await db.execute(
+            select(NoteTemplate).where(NoteTemplate.psychologist_id == psychologist.id)
         )
+        tmpl = tmpl_res.scalar_one_or_none()
+        if not tmpl or not tmpl.fields:
+            raise HTTPException(status_code=400, detail="Debes configurar una plantilla personalizada antes de usar este formato.")
+        template_fields = tmpl.fields
 
-        # Determine session_number for custom (non-chat) sessions
-        res_last = await db.execute(
-            select(Session)
-            .where(Session.patient_id == patient_uuid, Session.format != "chat")
-            .order_by(Session.session_number.desc())
-            .limit(1)
-        )
-        last_session = res_last.scalar_one_or_none()
-        current_session_number = (last_session.session_number + 1) if last_session else 1
-
-        custom_session = Session(
-            patient_id=patient_uuid,
-            session_number=current_session_number,
-            session_date=date.today(),
-            format="custom",
-            raw_dictation=encrypt_if_set(rec.raw_dictation),
-            ai_response=encrypt_if_set(result["text_fallback"]),
-            status="draft",
-            messages=encrypt_if_set(_json.dumps(result["session_messages"])),
-        )
-        db.add(custom_session)
-        await db.commit()
-        await db.refresh(custom_session)
-        return ProcessSessionOut(
-            text_fallback=result["text_fallback"],
-            session_id=str(custom_session.id),
-            format="custom",
-            custom_fields=result["custom_fields"],
-            template_fields=template.fields,
-        )
-
-    response = await process_session(db, patient_id, rec.raw_dictation, None, rec.format, patient_name=patient.name)
-
-    session_id = str(uuid.uuid4())
-
-    # Chat sessions are confirmed immediately (no confirmation step needed)
-    _fmt_raw = rec.format or "SOAP"
-    _fmt_lower = _fmt_raw.lower()
-    session_format = "chat" if _fmt_lower == "chat" else ("custom" if _fmt_lower == "custom" else _fmt_raw.upper())
-    session_status = "confirmed" if session_format.lower() == "chat" else "draft"
-
-    # Only SOAP sessions get a session_number; chat sessions are not clinical sessions
-    if session_format.lower() != "chat":
-        res_last = await db.execute(
-            select(Session)
-            .where(Session.patient_id == patient_uuid, Session.format != "chat")
-            .order_by(Session.session_number.desc())
-            .limit(1)
-        )
-        last_session = res_last.scalar_one_or_none()
-        current_session_number = (last_session.session_number + 1) if last_session else 1
-    else:
-        current_session_number = None
-
-    session_messages = response.get("session_messages", [])
-    new_session = Session(
-        id=uuid.UUID(session_id),
-        patient_id=patient_uuid,
-        session_number=current_session_number,
-        session_date=date.today(),
+    # 3. Create Async Job
+    job = JobQueue(
+        id=uuid.uuid4(),
+        psychologist_id=psychologist.id,
+        patient_id=patient.id,
+        format_=rec.format,
         raw_dictation=encrypt_if_set(rec.raw_dictation),
-        format=session_format,
-        ai_response=encrypt_if_set(response.get("text_fallback")),
-        messages=encrypt_if_set(_json.dumps(session_messages)),
-        status=session_status,
+        template_fields=template_fields,
+        status="pending"
     )
-    db.add(new_session)
+    db.add(job)
     await db.commit()
+    await db.refresh(job)
 
-    return ProcessSessionOut(
-        text_fallback=response.get("text_fallback"),
-        session_id=session_id,
+    return JobAcceptedOut(job_id=str(job.id))
+
+
+@router.get("/jobs/{job_id}", response_model=JobStatusOut, tags=["jobs"])
+async def get_job_status(
+    job_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db_with_user),
+):
+    juuid = _parse_uuid(job_id, "job_id")
+    job = await db.get(JobQueue, juuid)
+    if not job:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada.")
+    if job.psychologist_id != psychologist.id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta tarea.")
+
+    result = None
+    if job.result:
+        res_json = decrypt_if_set(job.result)
+        if res_json:
+            result = _json.loads(res_json)
+
+    return JobStatusOut(
+        id=str(job.id),
+        status=job.status,
+        result=result,
+        error_message=job.error_message
     )
+
+
+@router.get("/jobs/{job_id}/stream", tags=["jobs"])
+async def stream_job_status(
+    job_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+):
+    """SSE endpoint for job progress. Stops when status is completed or failed."""
+    from fastapi.responses import StreamingResponse
+    juuid = _parse_uuid(job_id, "job_id")
+
+    async def event_generator():
+        while True:
+            # We use a fresh session to avoid cache/state issues in long polling
+            async with AsyncSessionLocal() as db:
+                # Manual RLS check since we aren't using the Depends(get_db_with_user) to keep generator clean
+                job = await db.get(JobQueue, juuid)
+                if not job or job.psychologist_id != psychologist.id:
+                    yield f"data: {_json.dumps({'error': 'Not found or unauthorized'})}\n\n"
+                    break
+
+                data = {
+                    "status": job.status,
+                    "error_message": job.error_message
+                }
+                if job.result:
+                    res_json = decrypt_if_set(job.result)
+                    if res_json:
+                        data["result"] = _json.loads(res_json)
+
+                yield f"data: {_json.dumps(data)}\n\n"
+
+                if job.status in ("completed", "failed"):
+                    break
+            
+            await asyncio.sleep(1)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 async def _background_update_profile(patient_id: uuid.UUID, session_note: dict) -> None:
