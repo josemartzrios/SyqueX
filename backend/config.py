@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     MAX_DICTATION_LENGTH: int = 5000
     MAX_SESSIONS_CONTEXT: int = 6
     EMBEDDING_DIMENSIONS: int = 1024
+    WORKER_CONCURRENCY: int = 10
 
     # Stripe
     STRIPE_SECRET_KEY: str = ""
