@@ -809,14 +809,17 @@ async def stream_job_status(
     juuid = _parse_uuid(job_id, "job_id")
 
     async def event_generator():
-        while True:
-            # We use a fresh session to avoid cache/state issues in long polling
-            async with AsyncSessionLocal() as db:
-                # Manual RLS check since we aren't using the Depends(get_db_with_user) to keep generator clean
-                job = await db.get(JobQueue, juuid)
-                if not job or job.psychologist_id != psychologist.id:
-                    yield f"data: {_json.dumps({'error': 'Not found or unauthorized'})}\n\n"
-                    break
+        # Single session for the entire SSE stream — avoids NullPool+pgBouncer
+        # prepared statement conflicts that occur when creating a new session per iteration.
+        # db.refresh(job) forces a re-query each iteration, replacing the fresh-session pattern.
+        async with AsyncSessionLocal() as db:
+            job = await db.get(JobQueue, juuid)
+            if not job or job.psychologist_id != psychologist.id:
+                yield f"data: {_json.dumps({'error': 'Not found or unauthorized'})}\n\n"
+                return
+
+            while True:
+                await db.refresh(job)
 
                 data = {
                     "status": job.status,
@@ -831,8 +834,8 @@ async def stream_job_status(
 
                 if job.status in ("completed", "failed"):
                     break
-            
-            await asyncio.sleep(1)
+
+                await asyncio.sleep(1)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
