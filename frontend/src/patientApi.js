@@ -145,3 +145,21 @@ export async function resetPatientPassword(token, newPassword) {
   setPatientToken(data.access_token)
   return data
 }
+
+// --- Booking ---
+export async function getPatientAvailability(month) {
+  return patientFetch(`/portal/availability?month=${month}`)
+}
+
+export async function bookPatientSlot(slotId) {
+  return patientFetch('/portal/book', {
+    method: 'POST',
+    body: JSON.stringify({ slot_id: slotId })
+  })
+}
+
+export async function cancelPatientBooking(slotId) {
+  return patientFetch(`/portal/booking/${slotId}`, {
+    method: 'DELETE'
+  })
+}
