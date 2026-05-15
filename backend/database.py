@@ -22,7 +22,20 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://psicoagente:psico
 # MED-02: Enforce SSL for production (Supabase / Railway)
 # Supabase's connection pooler uses a self-signed cert in its chain;
 # we require encryption but skip verification (cert is from a known host we configure).
-_connect_args = {"statement_cache_size": 0}
+#
+# pgBouncer fix: asyncpg 0.30 converts name=None → named=True in _prepare(), which
+# calls _get_unique_id() and creates a *named* prepared statement even when
+# statement_cache_size=0.  Named statements accumulate on pgBouncer backend
+# connections and trigger DuplicatePreparedStatementError on connection reuse.
+# Passing prepared_statement_name_func=lambda:"" makes SQLAlchemy call
+# asyncpg.Connection.prepare(name=""), which goes through the isinstance(named,str)
+# branch → stmt_name="" (unnamed).  asyncpg 0.30 then marks the anonymous statement
+# as "unprepared" (mark_unprepared) so it re-parses on every bind_execute — the
+# correct behaviour for pgBouncer transaction-pool mode.
+_connect_args: dict = {
+    "statement_cache_size": 0,
+    "prepared_statement_name_func": lambda: "",
+}
 if "supabase" in DATABASE_URL or "railway" in DATABASE_URL:
     _ssl_ctx = _ssl.create_default_context()
     _ssl_ctx.check_hostname = False
