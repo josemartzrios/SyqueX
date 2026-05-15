@@ -542,11 +542,6 @@ function App() {
   };
 
   useEffect(() => {
-    fetchConversations();
-    getTemplate().then(setTemplate).catch(() => setTemplate({}));
-  }, []);
-
-  useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
@@ -640,7 +635,7 @@ function App() {
         }
       }, (err) => {
         console.error("Job stream error", err);
-        const errorMsg = 'Anomalía de conexión: ' + err.message;
+        const errorMsg = 'Error de conexión al procesar la nota. Por favor intenta de nuevo.';
         setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', type: 'error', text: errorMsg }]);
         if (activeFormat === 'soap' || activeFormat === 'custom') {
           setCurrentSessionNote({ type: 'error', text: errorMsg });
