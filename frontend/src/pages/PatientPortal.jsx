@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { clearPatientToken, getPatientSummaries, getPatientSummaryDetail } from '../patientApi';
 import { navigateTo } from '../auth';
 import TutorialModal from '../components/TutorialModal';
+import PatientBookingModal from '../components/PatientBookingModal';
 
 export default function PatientPortal() {
   const [summaries, setSummaries] = useState([]);
@@ -11,6 +12,8 @@ export default function PatientPortal() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState(null);
   const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
   const detailRef = useRef(null);
 
   useEffect(() => {
@@ -94,6 +97,15 @@ export default function PatientPortal() {
                 ?
               </button>
               <button
+                onClick={() => setBookingModalOpen(true)}
+                className="text-sm font-medium bg-[#5a9e8a] hover:bg-[#4a8271] text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Agendar cita
+              </button>
+              <button
                 onClick={handleLogout}
                 className="text-sm font-medium text-[#9ca3af] hover:text-[#18181b] transition-colors"
               >
@@ -105,6 +117,24 @@ export default function PatientPortal() {
       </nav>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {bookingSuccess && (
+          <div className="mb-6 bg-[#f0fdf4] border border-[#bbf7d0] rounded-xl p-4 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-[#22c55e] flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-[#166534] font-semibold">¡Cita confirmada exitosamente!</h3>
+              <p className="text-[#15803d] text-sm mt-1">
+                Hemos enviado un correo con los detalles de tu cita y un archivo de calendario (.ics) para que la guardes.
+              </p>
+            </div>
+            <button onClick={() => setBookingSuccess(false)} className="ml-auto text-[#166534] hover:bg-[#dcfce7] p-1.5 rounded-lg transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
 
           {/* List Section */}
@@ -235,6 +265,15 @@ export default function PatientPortal() {
         onClose={() => setTutorialVisible(false)}
         isMobile={false}
         patientMode
+      />
+
+      <PatientBookingModal 
+        open={bookingModalOpen} 
+        onClose={() => setBookingModalOpen(false)} 
+        onBookingSuccess={() => {
+          setBookingSuccess(true);
+          setTimeout(() => setBookingSuccess(false), 8000);
+        }}
       />
     </div>
   );
