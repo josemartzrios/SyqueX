@@ -835,7 +835,7 @@ async def stream_job_status(
                 if job.status in ("completed", "failed"):
                     break
 
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.5)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
