@@ -36,7 +36,8 @@ class TestSettings:
             STRIPE_SECRET_KEY="sk_...",
             STRIPE_WEBHOOK_SECRET="whsec_...",
             ENCRYPTION_KEY="k"*44,
-            DATABASE_URL="postgresql+asyncpg://user:pass@localhost/db"
+            DATABASE_URL="postgresql+asyncpg://user:pass@localhost/db",
+            FRONTEND_URL="https://staging.syquex.mx",
         )
         assert s.is_production() is False
 
@@ -49,7 +50,8 @@ class TestSettings:
             STRIPE_SECRET_KEY="sk_...",
             STRIPE_WEBHOOK_SECRET="whsec_...",
             ENCRYPTION_KEY="l"*44,
-            DATABASE_URL="postgresql+asyncpg://user:pass@localhost/db"
+            DATABASE_URL="postgresql+asyncpg://user:pass@localhost/db",
+            FRONTEND_URL="https://app.syquex.mx",
         )
         assert s.is_production() is True
 

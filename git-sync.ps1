@@ -18,12 +18,12 @@ git fetch --all --prune
 # 3. Actualizar Main
 Write-Host "Actualizando local 'main'..." -ForegroundColor Green
 git checkout main
-git reset --hard origin/main
+git reset --hard SyqueX/main
 
 # 4. Actualizar Dev
 Write-Host "Actualizando local 'dev'..." -ForegroundColor Green
 git checkout dev
-git reset --hard origin/dev
+git reset --hard SyqueX/dev
 
 # 5. Volver a la rama original
 Write-Host "Regresando a $currentBranch..." -ForegroundColor Cyan

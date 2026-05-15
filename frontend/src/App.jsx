@@ -163,6 +163,7 @@ function App() {
   const [sessionHistory, setSessionHistory] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState(null);
+  const [processingJobs, setProcessingJobs] = useState(new Map()); // Map<jobId, { status, progress, result }>
 
   // Desktop two-mode layout state
   const [desktopMode, setDesktopMode] = useState('session'); // 'session' | 'review'
@@ -228,6 +229,7 @@ function App() {
     localStorage.removeItem('syquex_note_format');
     setOnboardingCompleted(false);
     setNoteFormat('soap');
+    setProcessingJobs(new Map());
   }, []);
 
   const checkBillingAndRoute = useCallback(async () => {
@@ -470,14 +472,26 @@ function App() {
     setEvolutionError(null);
 
     try {
-      const response = await processSession(patientId, text, 'chat');
-      setEvolutionMessages(prev => {
-        const current = prev.get(patientId) || [];
-        return new Map(prev).set(patientId, [...current, { role: 'agent', content: response.text_fallback || '' }]);
+      const { job_id } = await processSession(patientId, text, 'chat');
+      
+      const { openJobStream } = await import('./api');
+      openJobStream(job_id, (job) => {
+        if (job.status === 'completed') {
+          setEvolutionMessages(prev => {
+            const current = prev.get(patientId) || [];
+            return new Map(prev).set(patientId, [...current, { role: 'agent', content: job.result.text_fallback || '' }]);
+          });
+          setEvolutionSending(false);
+        } else if (job.status === 'failed') {
+          setEvolutionError('Error: ' + (job.error || 'Desconocido'));
+          setEvolutionSending(false);
+        }
+      }, (err) => {
+        setEvolutionError('Anomalía de conexión.');
+        setEvolutionSending(false);
       });
     } catch (err) {
-      setEvolutionError('No se pudo enviar. Intenta de nuevo.');
-    } finally {
+      setEvolutionError('No se pudo enviar.');
       setEvolutionSending(false);
     }
   };
@@ -580,32 +594,68 @@ function App() {
     ]);
     if (activeFormat === 'soap' || activeFormat === 'custom') setMobileTab('nota');
     if (activeFormat === 'soap' || activeFormat === 'custom') setCurrentSessionNote({ type: 'loading' });
+    
     try {
-      const noteData = await processSession(selectedPatientId, dictation, activeFormat);
+      const { job_id } = await processSession(selectedPatientId, dictation, activeFormat);
       clearDraft();
-      const botMessage = (activeFormat === 'soap' || activeFormat === 'custom')
-        ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
-        : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
-      setMessages(prev => [...prev.slice(0, -1), botMessage]);
-      if (activeFormat === 'soap' || activeFormat === 'custom') {
-        setCurrentSessionNote({
-          type: 'bot',
-          noteData,
-          sessionId: noteData.session_id,
-          readOnly: false,
-        });
-      }
-      fetchConversations();
+      
+      const { openJobStream } = await import('./api');
+      const closeStream = openJobStream(job_id, (job) => {
+        setProcessingJobs(prev => new Map(prev).set(job_id, job));
+        
+        if (job.status === 'completed' || job.status === 'failed') {
+          if (job.status === 'completed') {
+            const noteData = job.result;
+            const botMessage = (activeFormat === 'soap' || activeFormat === 'custom')
+              ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
+              : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
+            
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last?.type === 'loading') return [...prev.slice(0, -1), botMessage];
+              return prev;
+            });
+
+            if (activeFormat === 'soap' || activeFormat === 'custom') {
+              setCurrentSessionNote({
+                type: 'bot',
+                noteData,
+                sessionId: noteData.session_id,
+                readOnly: false,
+              });
+            }
+            fetchConversations();
+          } else {
+            const errorMsg = 'Error en el procesamiento: ' + (job.error || 'Desconocido');
+            setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', type: 'error', text: errorMsg }]);
+            if (activeFormat === 'soap' || activeFormat === 'custom') {
+              setCurrentSessionNote({ type: 'error', text: errorMsg });
+            }
+          }
+          setProcessingJobs(prev => {
+            const next = new Map(prev);
+            next.delete(job_id);
+            return next;
+          });
+        }
+      }, (err) => {
+        console.error("Job stream error", err);
+        const errorMsg = 'Anomalía de conexión: ' + err.message;
+        setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', type: 'error', text: errorMsg }]);
+        if (activeFormat === 'soap' || activeFormat === 'custom') {
+          setCurrentSessionNote({ type: 'error', text: errorMsg });
+        }
+      });
+
+      // Track cleanup
+      return closeStream;
     } catch (err) {
       setMessages(prev => [
         ...prev.slice(0, -1),
-        { role: 'assistant', type: 'error', text: 'Anomalía de conexión: ' + err.message }
+        { role: 'assistant', type: 'error', text: 'Error al iniciar proceso: ' + err.message }
       ]);
       if (activeFormat === 'soap' || activeFormat === 'custom') {
-        setCurrentSessionNote({
-          type: 'error',
-          text: 'Anomalía de conexión: ' + err.message,
-        });
+        setCurrentSessionNote({ type: 'error', text: 'Error al iniciar proceso: ' + err.message });
       }
     }
   };
@@ -888,9 +938,18 @@ function App() {
                     {currentSessionNote === null ? (
                       NOTE_EMPTY_STATE
                     ) : currentSessionNote.type === 'loading' ? (
-                      <div className="flex items-center gap-3 py-6">
-                        {LOADING_DOTS}
-                        <span className="text-ink-tertiary text-[14px]">Generando nota SOAP</span>
+                      <div className="flex flex-col gap-3 py-6">
+                        <div className="flex items-center gap-3">
+                          {LOADING_DOTS}
+                          <span className="text-ink text-[14px] font-medium">
+                            {Array.from(processingJobs.values())[0]?.status === 'processing' 
+                              ? (Array.from(processingJobs.values())[0]?.progress || 'Procesando...') 
+                              : 'Iniciando generación...'}
+                          </span>
+                        </div>
+                        <p className="text-ink-tertiary text-xs max-w-sm leading-relaxed">
+                          Estamos analizando tu dictado con IA para generar una nota clínica precisa. Esto suele tomar de 10 a 20 segundos.
+                        </p>
                       </div>
                     ) : currentSessionNote.type === 'error' ? (
                       <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
@@ -1176,13 +1235,20 @@ function App() {
                   {currentSessionNote === null ? (
                     NOTE_EMPTY_STATE
                   ) : currentSessionNote.type === 'loading' ? (
-                    <div className="flex gap-2 items-center py-4">
-                      {[0, 0.2, 0.4].map((d, i) => (
-                        <div key={i} className="w-2 h-2 rounded-full bg-ink-muted animate-pulse" style={{ animationDelay: `${d}s` }} />
-                      ))}
-                      <span className="text-ink-tertiary text-sm">
-                        {noteFormat === 'custom' ? 'Generando nota personalizada…' : 'Generando nota SOAP…'}
-                      </span>
+                    <div className="flex flex-col gap-2 py-4">
+                      <div className="flex gap-2 items-center">
+                        {[0, 0.2, 0.4].map((d, i) => (
+                          <div key={i} className="w-2 h-2 rounded-full bg-sage/60 animate-pulse" style={{ animationDelay: `${d}s` }} />
+                        ))}
+                        <span className="text-ink text-sm font-medium">
+                          {Array.from(processingJobs.values())[0]?.status === 'processing' 
+                            ? (Array.from(processingJobs.values())[0]?.progress || 'Procesando...') 
+                            : 'Iniciando generación...'}
+                        </span>
+                      </div>
+                      <p className="text-ink-tertiary text-xs leading-relaxed">
+                        Analizando dictado con IA. Esto suele tomar 15 segundos.
+                      </p>
                     </div>
                   ) : currentSessionNote.type === 'error' ? (
                     <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
