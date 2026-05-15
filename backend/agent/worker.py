@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 UTC = timezone.utc
 
 _MAX_ATTEMPTS = 3
-_POLL_INTERVAL = 2  # seconds between batch polls
+_POLL_INTERVAL = 0.5  # seconds between batch polls
 _429_BACKOFF = [30, 60, 120]  # seconds
 
 
