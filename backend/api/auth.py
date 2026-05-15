@@ -7,14 +7,19 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from typing import Optional
 
+# pyrefly: ignore [missing-import]
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+# pyrefly: ignore [missing-import]
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, field_validator
+# pyrefly: ignore [missing-import]
 from sqlalchemy import select, update
+# pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
+# pyrefly: ignore [missing-import]
 import stripe
 
 from config import settings
@@ -173,7 +178,7 @@ def _reset_attempts(email: str) -> None:
 # JWT dependency — get_current_psychologist
 # ---------------------------------------------------------------------------
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 from fastapi import Query
 
@@ -230,6 +235,7 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ):
     from datetime import timedelta
+    # pyrefly: ignore [missing-import]
     import stripe as stripe_lib
 
     # 1. Email único
