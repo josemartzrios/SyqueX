@@ -23,6 +23,7 @@ import TutorialModal from './components/TutorialModal';
 import CancelSubscriptionModal from './components/CancelSubscriptionModal';
 import PatientInviteModal from './components/PatientInviteModal';
 import PatientSummarySection from './components/PatientSummarySection';
+import CalendarScreen from './components/CalendarScreen';
 import PatientLogin from './pages/PatientLogin';
 import PatientInviteAccept from './pages/PatientInviteAccept';
 import PatientPortal from './pages/PatientPortal';
@@ -1417,6 +1418,9 @@ function App() {
           {toast}
         </div>
       )}
+
+      {/* Calendar Screen (Psychologist native agenda) */}
+      {calendarOpen && <CalendarScreen onClose={() => setCalendarOpen(false)} />}
 
       {/* PatientIntakeModal — crear o editar expediente */}
       <PatientIntakeModal
