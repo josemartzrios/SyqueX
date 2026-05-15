@@ -378,6 +378,34 @@ class PatientSummary(Base):
     patient: Mapped["Patient"] = relationship("Patient", foreign_keys=[patient_id])
 
 
+class JobQueue(Base):
+    __tablename__ = 'job_queue'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    psychologist_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey('patients.id', ondelete='RESTRICT'), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default='pending')
+    format_: Mapped[str] = mapped_column('format', String(20), nullable=False, default='SOAP')
+    raw_dictation: Mapped[str] = mapped_column(Text, nullable=False)  # Fernet-encrypted
+    template_fields: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    result: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Fernet-encrypted JSON
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'processing', 'completed', 'failed')",
+            name='chk_job_queue_status'
+        ),
+        Index('idx_job_queue_status_created', 'status', 'created_at'),
+        Index('idx_job_queue_psychologist_id', 'psychologist_id'),
+    )
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
@@ -398,6 +426,33 @@ async def init_db():
         """))
         await conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_patient_summaries_session ON patient_summaries(session_id);
+        """))
+
+        # ── job_queue table ──────────────────────────────────────────────────
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS job_queue (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                psychologist_id UUID NOT NULL,
+                patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE RESTRICT,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                format VARCHAR(20) NOT NULL DEFAULT 'SOAP',
+                raw_dictation TEXT NOT NULL,
+                template_fields JSONB,
+                result TEXT,
+                error_message TEXT,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT chk_job_queue_status CHECK (status IN ('pending','processing','completed','failed'))
+            )
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_job_queue_status_created
+            ON job_queue(status, created_at)
+        """))
+        await conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_job_queue_psychologist_id
+            ON job_queue(psychologist_id)
         """))
 
         # note_templates table

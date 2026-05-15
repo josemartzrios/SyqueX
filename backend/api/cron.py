@@ -42,5 +42,17 @@ async def daily_cron(request: Request, db: AsyncSession = Depends(get_db)):
     for sub, psy in records:
         if await send_trial_ending_email(psy.email):
             emails_sent += 1
+
+    # Cleanup old jobs (> 7 days)
+    from database import JobQueue
+    from sqlalchemy import delete
+    seven_days_ago = now - timedelta(days=7)
+    await db.execute(
+        delete(JobQueue).where(
+            JobQueue.status.in_(["completed", "failed"]),
+            JobQueue.updated_at < seven_days_ago
+        )
+    )
+    await db.commit()
             
-    return {"status": "ok", "emails_sent": emails_sent}
+    return {"status": "ok", "emails_sent": emails_sent, "jobs_cleaned": True}

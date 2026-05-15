@@ -7,14 +7,19 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from typing import Optional
 
+# pyrefly: ignore [missing-import]
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+# pyrefly: ignore [missing-import]
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, field_validator
+# pyrefly: ignore [missing-import]
 from sqlalchemy import select, update
+# pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
+# pyrefly: ignore [missing-import]
 import stripe
 
 from config import settings
@@ -37,7 +42,7 @@ _PASSWORD_MIN_LENGTH = 8
 _PASSWORD_UPPERCASE_RE = re.compile(r'[A-Z]')
 _PASSWORD_NUMBER_RE = re.compile(r'[0-9]')
 
-def _validate_password(password: str) -> str:
+def validate_password(password: str) -> str:
     """Valida política de contraseña. Retorna el password si es válido, lanza ValueError si no."""
     errors = []
     if len(password) < _PASSWORD_MIN_LENGTH:
@@ -49,6 +54,11 @@ def _validate_password(password: str) -> str:
     if errors:
         raise ValueError("; ".join(errors))
     return password
+
+def hash_token(token: str) -> str:
+    """Retorna SHA-256 hash de un token."""
+    import hashlib
+    return hashlib.sha256(token.encode()).hexdigest()
 
 # --- Schema de registro ---
 class RegisterRequest(BaseModel):
@@ -64,7 +74,7 @@ class RegisterRequest(BaseModel):
     @field_validator('password')
     @classmethod
     def password_strength(cls, v):
-        return _validate_password(v)
+        return validate_password(v)
 
     @field_validator('accepted_privacy', 'accepted_terms')
     @classmethod
@@ -83,7 +93,7 @@ class ResetPasswordRequest(BaseModel):
     @field_validator('new_password')
     @classmethod
     def password_strength(cls, v):
-        return _validate_password(v)
+        return validate_password(v)
 
 logger = logging.getLogger("syquex.auth")
 
@@ -168,19 +178,28 @@ def _reset_attempts(email: str) -> None:
 # JWT dependency — get_current_psychologist
 # ---------------------------------------------------------------------------
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
+from fastapi import Query
 
 async def get_current_psychologist(
     token: str = Depends(oauth2_scheme),
+    token_query: Optional[str] = Query(None, alias="token"),
     db: AsyncSession = Depends(get_db),
 ) -> Psychologist:
+    # Favor header token, fall back to query token
+    effective_token = token or token_query
+    
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Token inválido o sesión expirada",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not effective_token:
+        raise credentials_exc
+
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(effective_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         psychologist_id: Optional[str] = payload.get("sub")
         if not psychologist_id or payload.get("type") != "access":
             raise credentials_exc
@@ -216,13 +235,12 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ):
     from datetime import timedelta
+    # pyrefly: ignore [missing-import]
     import stripe as stripe_lib
 
     # 1. Email único
     existing = await db.execute(
-        select(Psychologist).where(
-            Psychologist.email == body.email
-        )
+        select(Psychologist).where(Psychologist.email == body.email)
     )
     if existing.scalar_one_or_none():
         raise DomainError("El email ya está registrado.", code="EMAIL_TAKEN", http_status=409)
