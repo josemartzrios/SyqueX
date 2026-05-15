@@ -240,9 +240,7 @@ async def register(
 
     # 1. Email único
     existing = await db.execute(
-        select(Psychologist).where(
-            Psychologist.email == body.email
-        )
+        select(Psychologist).where(Psychologist.email == body.email)
     )
     if existing.scalar_one_or_none():
         raise DomainError("El email ya está registrado.", code="EMAIL_TAKEN", http_status=409)

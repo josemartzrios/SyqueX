@@ -1,8 +1,15 @@
-import os
 import resend
+from config import settings
 
-resend.api_key = os.environ.get("RESEND_API_KEY", "")
-FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "SyqueX <hola@syquex.mx>")
+resend.api_key = settings.RESEND_API_KEY
+FROM_EMAIL = settings.RESEND_FROM_EMAIL or "SyqueX <hola@syquex.mx>"
+
+
+def _patient_portal_url() -> str:
+    """Devuelve la URL base del portal del paciente. Usa PATIENT_PORTAL_URL si está configurada,
+    de lo contrario cae a FRONTEND_URL (mismo deploy, rutas /portal/*)."""
+    return settings.PATIENT_PORTAL_URL or settings.FRONTEND_URL
+
 
 async def send_welcome_email(to_email: str, name: str, trial_ends_at):
     if not resend.api_key:
@@ -16,7 +23,7 @@ async def send_welcome_email(to_email: str, name: str, trial_ends_at):
             "html": f"""
             <p>Hola {name},</p>
             <p>¡Bienvenido a SyqueX! Tu prueba gratuita de 14 días ha comenzado y termina el {trial_ends_at.strftime('%Y-%m-%d')}.</p>
-            <p><a href="{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}">Comienza a escribir</a></p>
+            <p><a href="{settings.FRONTEND_URL}">Comienza a escribir</a></p>
             <br>
             <p>El equipo de SyqueX</p>
             """
@@ -27,8 +34,7 @@ async def send_welcome_email(to_email: str, name: str, trial_ends_at):
         return None
 
 async def send_reset_email(to_email: str, name: str, token: str):
-    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
-    reset_url = f"{frontend_url}/?token={token}"
+    reset_url = f"{settings.FRONTEND_URL}/?token={token}"
     if not resend.api_key:
         print(f"Mock email: Reset for {to_email} -> {reset_url}")
         return None
@@ -53,8 +59,7 @@ async def send_reset_email(to_email: str, name: str, token: str):
         return None
 
 async def send_patient_invite(to_email: str, patient_name: str, psychologist_name: str, token: str):
-    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
-    invite_url = f"{frontend_url}/portal/invite?token={token}"
+    invite_url = f"{_patient_portal_url()}/portal/invite?token={token}"
     if not resend.api_key:
         print(f"Mock email: Invite patient {patient_name} -> {invite_url}")
         return None
@@ -79,8 +84,7 @@ async def send_patient_invite(to_email: str, patient_name: str, psychologist_nam
         return None
 
 async def send_patient_reset_email(to_email: str, patient_name: str, token: str):
-    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
-    reset_url = f"{frontend_url}/portal/reset?token={token}"
+    reset_url = f"{_patient_portal_url()}/portal/reset?token={token}"
     if not resend.api_key:
         print(f"Mock email: Password reset for patient {patient_name} ({to_email}) -> {reset_url}")
         return None

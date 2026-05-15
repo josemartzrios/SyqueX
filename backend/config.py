@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = "hola@syquex.mx"
 
+    # URLs públicas — requeridas en producción para que los links de email apunten al lugar correcto
+    FRONTEND_URL: str = "http://localhost:5173"         # Portal del psicólogo y del paciente (mismo app)
+    PATIENT_PORTAL_URL: str = ""                        # Si vacío, se usa FRONTEND_URL
+
     # Internal cron key
     INTERNAL_API_KEY: str = "dev_internal_key_change_in_prod"
 
@@ -67,6 +71,8 @@ class Settings(BaseSettings):
                 raise ValueError("INTERNAL_API_KEY must be changed in production")
             if not self.ENCRYPTION_KEY:
                 raise ValueError("ENCRYPTION_KEY is required in production/staging")
+            if self.FRONTEND_URL == "http://localhost:5173":
+                raise ValueError("FRONTEND_URL must be set to the production URL (email links will break otherwise)")
         return self
 
 settings = Settings()
