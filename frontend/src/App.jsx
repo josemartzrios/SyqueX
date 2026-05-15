@@ -36,16 +36,30 @@ const BOLD_LINE_RE = /^\*\*[^*]+\*\*\s*$/;
 const BOLD_INLINE_RE = /\*\*([^*]+)\*\*/;
 
 // ── Static JSX (hoisted outside components to avoid recreation on render) ──
-const EMPTY_STATE = (
-  <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
-    <div className="w-14 h-14 rounded-2xl bg-parchment-dark border border-ink/[0.07] flex items-center justify-center">
-      <svg className="w-7 h-7 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+const EmptyState = ({ onOpenCalendar, onNewPatient }) => (
+  <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-8">
+    <div className="w-16 h-16 rounded-3xl bg-sage/10 text-sage flex items-center justify-center mb-2">
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
       </svg>
     </div>
     <div>
-      <p className="text-ink-secondary text-sm font-medium">Sin expediente activo</p>
-      <p className="text-ink-tertiary text-xs mt-1">Selecciona una sesión o crea un nuevo paciente para comenzar</p>
+      <p className="text-ink text-lg font-medium">Bienvenido a SyqueX</p>
+      <p className="text-ink-tertiary text-sm mt-1 max-w-sm">Selecciona un paciente en el menú lateral o comienza una nueva consulta.</p>
+    </div>
+    <div className="flex items-center gap-3 mt-4">
+      <button onClick={onOpenCalendar} className="px-5 py-2.5 rounded-xl border border-ink/[0.08] hover:bg-black/[0.02] text-ink-secondary text-sm font-medium transition-colors flex items-center gap-2">
+        <svg className="w-4 h-4 text-ink-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        Mi Agenda
+      </button>
+      <button onClick={onNewPatient} className="px-5 py-2.5 rounded-xl bg-sage hover:bg-sage-dark text-white text-sm font-medium transition-colors flex items-center gap-2 shadow-sm">
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Nuevo Expediente
+      </button>
     </div>
   </div>
 );
@@ -164,6 +178,7 @@ function App() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState(null);
   const [processingJobs, setProcessingJobs] = useState(new Map()); // Map<jobId, { status, progress, result }>
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   // Desktop two-mode layout state
   const [desktopMode, setDesktopMode] = useState('session'); // 'session' | 'review'
@@ -895,7 +910,10 @@ function App() {
 
           {/* Content area */}
           {!hasActivePatient ? (
-            EMPTY_STATE
+            <EmptyState 
+              onOpenCalendar={() => setCalendarOpen(true)} 
+              onNewPatient={() => setIsCreatingPatient(true)} 
+            />
           ) : (
             /* Split: Dictation (320px) | Note (flex) */
             <div className="flex-1 flex overflow-hidden min-h-0">
@@ -1144,20 +1162,11 @@ function App() {
             >
               ?
             </button>
-            <button
-              onClick={() => setIsCreatingPatient(true)}
-              className="flex items-center gap-1.5 text-[#5a9e8a] border border-[#5a9e8a]/30 bg-[#5a9e8a]/[0.06] rounded-full px-3 py-1.5 text-[13px] font-medium"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-              </svg>
-              Nuevo
-            </button>
           </div>
         </header>
 
         {/* No patient selected — empty state */}
-        {!hasActivePatient && EMPTY_STATE}
+        {!hasActivePatient && <EmptyState onOpenCalendar={() => setCalendarOpen(true)} onNewPatient={() => setIsCreatingPatient(true)} />}
 
         {/* Patient active — strip + tabs */}
         {hasActivePatient && (
