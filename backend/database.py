@@ -1,13 +1,13 @@
 import uuid
 import os
 import ssl as _ssl
-from datetime import datetime, date, timezone
+from datetime import datetime, date, time, timezone
 from typing import List, Optional
 
 UTC = timezone.utc
 
 from sqlalchemy import (
-    Column, String, Integer, DateTime, Date, ForeignKey, Text,
+    Column, String, Integer, DateTime, Date, Time, ForeignKey, Text,
     Boolean, Index, CheckConstraint, event
 )
 from sqlalchemy.orm import declarative_base, relationship, mapped_column, Mapped
@@ -79,6 +79,7 @@ class Psychologist(Base):
     patients = relationship("Patient", back_populates="psychologist")
     subscription = relationship("Subscription", back_populates="psychologist", uselist=False)
     note_template: Mapped[Optional["NoteTemplate"]] = relationship("NoteTemplate", back_populates="psychologist", uselist=False)
+    availability_slots = relationship("AvailabilitySlot", back_populates="psychologist")
 
 
 class NoteTemplate(Base):
@@ -261,6 +262,32 @@ class Patient(Base):
     profile = relationship("PatientProfile", back_populates="patient", uselist=False)
 
 
+class AvailabilitySlot(Base):
+    __tablename__ = 'availability_slots'
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    psychologist_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('psychologists.id', ondelete='CASCADE'), nullable=False)
+    slot_date: Mapped[date] = mapped_column(Date, nullable=False)
+    start_time: Mapped[time] = mapped_column(Time, nullable=False)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default='available', nullable=False)
+    booked_by_patient_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey('patients.id', ondelete='SET NULL'), nullable=True)
+    booked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
+
+    psychologist = relationship("Psychologist", back_populates="availability_slots")
+    booked_patient = relationship("Patient")
+
+    __table_args__ = (
+        CheckConstraint("status IN ('available', 'booked', 'cancelled')", name='chk_slot_status'),
+        CheckConstraint("duration_minutes >= 15 AND duration_minutes <= 180", name='chk_slot_duration'),
+        Index('idx_slots_psychologist_date', 'psychologist_id', 'slot_date'),
+        Index('idx_slots_psychologist_status', 'psychologist_id', 'status'),
+        Index('idx_slots_booked_patient', 'booked_by_patient_id'),
+    )
+
+
 class Session(Base):
     __tablename__ = 'sessions'
 
@@ -440,6 +467,28 @@ async def init_db():
         await conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_patient_summaries_session ON patient_summaries(session_id);
         """))
+
+        # ── availability_slots table ─────────────────────────────────────────
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS availability_slots (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                psychologist_id UUID NOT NULL REFERENCES psychologists(id) ON DELETE CASCADE,
+                slot_date DATE NOT NULL,
+                start_time TIME NOT NULL,
+                duration_minutes INTEGER NOT NULL DEFAULT 50,
+                status VARCHAR(20) NOT NULL DEFAULT 'available',
+                booked_by_patient_id UUID REFERENCES patients(id) ON DELETE SET NULL,
+                booked_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT chk_slot_status CHECK (status IN ('available', 'booked', 'cancelled')),
+                CONSTRAINT chk_slot_duration CHECK (duration_minutes >= 15 AND duration_minutes <= 180),
+                UNIQUE (psychologist_id, slot_date, start_time)
+            )
+        """))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_slots_psychologist_date ON availability_slots(psychologist_id, slot_date)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_slots_psychologist_status ON availability_slots(psychologist_id, status)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_slots_booked_patient ON availability_slots(booked_by_patient_id)"))
 
         # ── job_queue table ──────────────────────────────────────────────────
         await conn.execute(text("""
