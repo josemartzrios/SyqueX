@@ -77,10 +77,7 @@ class TestCreateSlotsBatch:
         db_session.flush.side_effect = [None, IntegrityError(None, None, Exception())]
         
         res1 = await async_client.post("/api/v1/calendar/slots/batch", json=payload, headers=auth_headers)
-        print(f"DEBUG: First response: {res1.json()}")
-        
         res2 = await async_client.post("/api/v1/calendar/slots/batch", json=payload, headers=auth_headers)
-        print(f"DEBUG: Second response: {res2.json()}")
         
         assert res2.status_code == 200
         assert res2.json()["skipped"] == 1
