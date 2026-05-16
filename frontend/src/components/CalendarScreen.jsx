@@ -49,6 +49,14 @@ export default function CalendarScreen({ onClose }) {
   const handleCreateSlot = async (e) => {
     e.preventDefault();
     if (!selectedDate) return;
+
+    // Duplicate check
+    const existingTimes = (slotsByDate[selectedDate] || []).map(s => s.start_time.substring(0, 5));
+    if (existingTimes.includes(newTime)) {
+      alert(`Ya existe un horario a las ${newTime} para este día.`);
+      return;
+    }
+
     setCreating(true);
     try {
       await createCalendarSlot({

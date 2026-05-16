@@ -8,7 +8,7 @@ UTC = timezone.utc
 
 from sqlalchemy import (
     Column, String, Integer, DateTime, Date, Time, ForeignKey, Text,
-    Boolean, Index, CheckConstraint, event
+    Boolean, Index, CheckConstraint, event, UniqueConstraint
 )
 from sqlalchemy.orm import declarative_base, relationship, mapped_column, Mapped
 from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
@@ -282,6 +282,7 @@ class AvailabilitySlot(Base):
     __table_args__ = (
         CheckConstraint("status IN ('available', 'booked', 'cancelled')", name='chk_slot_status'),
         CheckConstraint("duration_minutes >= 15 AND duration_minutes <= 180", name='chk_slot_duration'),
+        UniqueConstraint('psychologist_id', 'slot_date', 'start_time', name='uq_psychologist_slot'),
         Index('idx_slots_psychologist_date', 'psychologist_id', 'slot_date'),
         Index('idx_slots_psychologist_status', 'psychologist_id', 'status'),
         Index('idx_slots_booked_patient', 'booked_by_patient_id'),
@@ -489,6 +490,18 @@ async def init_db():
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_slots_psychologist_date ON availability_slots(psychologist_id, slot_date)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_slots_psychologist_status ON availability_slots(psychologist_id, status)"))
         await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_slots_booked_patient ON availability_slots(booked_by_patient_id)"))
+
+        # Ensure UNIQUE constraint exists for existing tables
+        await conn.execute(text("""
+            DO $$ BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'uq_psychologist_slot'
+                ) THEN
+                    ALTER TABLE availability_slots 
+                    ADD CONSTRAINT uq_psychologist_slot UNIQUE (psychologist_id, slot_date, start_time);
+                END IF;
+            END$$;
+        """))
 
         # ── job_queue table ──────────────────────────────────────────────────
         await conn.execute(text("""
