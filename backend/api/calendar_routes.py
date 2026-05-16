@@ -12,6 +12,8 @@ from api.limiter import limiter
 from starlette.requests import Request
 from crypto import decrypt_if_set
 from services.email import send_booking_cancellation
+from sqlalchemy.exc import IntegrityError
+from api.calendar_ai import parse_availability
 
 router = APIRouter(tags=["calendar"])
 
@@ -120,3 +122,88 @@ async def delete_slot(
             
     await db.delete(slot)
     await db.commit()
+
+
+# --- Schemas nuevos ---
+
+class ParseAvailabilityRequest(BaseModel):
+    text: str
+    reference_date: str  # YYYY-MM-DD
+
+class SlotProposalOut(BaseModel):
+    slot_date: date
+    start_time: time
+    duration_minutes: int
+
+class ParseAvailabilityResponse(BaseModel):
+    slots: list[SlotProposalOut]
+
+class SlotBatchItem(BaseModel):
+    slot_date: date
+    start_time: time
+    duration_minutes: int = 50
+
+class SlotBatchCreate(BaseModel):
+    slots: list[SlotBatchItem]
+
+class SlotBatchResponse(BaseModel):
+    created: int
+    skipped: int
+
+
+# --- Endpoints nuevos ---
+
+@router.post("/parse-availability", response_model=ParseAvailabilityResponse)
+@limiter.limit("30/hour")
+async def parse_availability_endpoint(
+    request: Request,
+    payload: ParseAvailabilityRequest,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+):
+    slots = await parse_availability(payload.text, payload.reference_date)
+    if not slots:
+        raise HTTPException(
+            status_code=422,
+            detail="No se pudieron identificar fechas u horas. Intenta: 'Lunes de 9 a 2, sesiones 50 min'",
+        )
+    return ParseAvailabilityResponse(
+        slots=[SlotProposalOut(slot_date=s.slot_date, start_time=s.start_time, duration_minutes=s.duration_minutes) for s in slots]
+    )
+
+
+@router.post("/slots/batch", response_model=SlotBatchResponse)
+@limiter.limit("60/hour")
+async def create_slots_batch(
+    request: Request,
+    payload: SlotBatchCreate,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db),
+):
+    if not payload.slots:
+        raise HTTPException(status_code=400, detail="El array de slots no puede estar vacío")
+
+    today = date.today()
+    created = 0
+    skipped = 0
+
+    for item in payload.slots:
+        if item.slot_date < today:
+            skipped += 1
+            continue
+        try:
+            async with db.begin_nested():
+                slot = AvailabilitySlot(
+                    psychologist_id=psychologist.id,
+                    slot_date=item.slot_date,
+                    start_time=item.start_time,
+                    duration_minutes=item.duration_minutes,
+                    status="available",
+                )
+                db.add(slot)
+                await db.flush()
+            created += 1
+        except IntegrityError:
+            skipped += 1
+
+    await db.commit()
+    return SlotBatchResponse(created=created, skipped=skipped)
