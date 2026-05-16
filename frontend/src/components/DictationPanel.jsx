@@ -1,15 +1,24 @@
-export default function DictationPanel({ 
-  value, 
-  onChange, 
-  onGenerate, 
-  loading, 
-  orphanedSessions = [], 
-  onResumeOrphan, 
+import AvailabilityPanel from './AvailabilityPanel';
+
+export default function DictationPanel({
+  value,
+  onChange,
+  onGenerate,
+  loading,
+  orphanedSessions = [],
+  onResumeOrphan,
   onDiscardOrphan,
   noteFormat = 'soap',
   onFormatChange,
-  onEditTemplate
+  onEditTemplate,
+  panelMode = 'nota',
+  onParseAvailability,
+  onConfirmSlots,
 }) {
+  if (panelMode === 'disponibilidad') {
+    return <AvailabilityPanel onParseAvailability={onParseAvailability} onConfirmSlots={onConfirmSlots} />;
+  }
+
   const handleGenerate = () => {
     if (!value.trim() || loading) return;
     onGenerate(value.trim());
