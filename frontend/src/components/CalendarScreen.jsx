@@ -11,6 +11,10 @@ export default function CalendarScreen({ onClose }) {
   
   const currentMonthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const isPastSelected = selectedDate && selectedDate < todayStr;
+
   useEffect(() => {
     loadSlots();
   }, [currentMonthStr]);
@@ -80,11 +84,13 @@ export default function CalendarScreen({ onClose }) {
       const daySlots = slotsByDate[dateStr] || [];
       const isSelected = selectedDate === dateStr;
       
+      const isDatePast = dateStr < todayStr;
+
       days.push(
         <div 
           key={i} 
           onClick={() => setSelectedDate(dateStr)}
-          className={`min-h-[80px] p-2 border border-ink/[0.05] bg-white rounded-lg cursor-pointer transition-colors ${isSelected ? 'ring-2 ring-sage bg-sage/5' : 'hover:bg-black/[0.02]'}`}
+          className={`min-h-[80px] p-2 border border-ink/[0.05] bg-white rounded-lg cursor-pointer transition-colors ${isSelected ? 'ring-2 ring-sage bg-sage/5' : 'hover:bg-black/[0.02]'} ${isDatePast ? 'opacity-60 bg-gray-50' : ''}`}
         >
           <div className="font-medium text-sm text-ink-secondary mb-1">{i}</div>
           <div className="space-y-1">
@@ -119,21 +125,23 @@ export default function CalendarScreen({ onClose }) {
                 Horarios para el {selectedDate.split('-').reverse().join('/')}
               </h3>
               
-              <form onSubmit={handleCreateSlot} className="mb-6 bg-[#f4f4f2] p-4 rounded-xl border border-ink/[0.05]">
-                <label className="block text-[13px] font-medium text-ink-secondary mb-2">Nuevo horario (50 min)</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="time" 
-                    value={newTime} 
-                    onChange={e => setNewTime(e.target.value)} 
-                    className="flex-1 bg-white border border-ink/[0.1] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sage focus:ring-1 focus:ring-sage"
-                    required
-                  />
-                  <button disabled={creating} type="submit" className="bg-sage hover:bg-sage-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
-                    Añadir
-                  </button>
-                </div>
-              </form>
+              {!isPastSelected && (
+                <form onSubmit={handleCreateSlot} className="mb-6 bg-[#f4f4f2] p-4 rounded-xl border border-ink/[0.05]">
+                  <label className="block text-[13px] font-medium text-ink-secondary mb-2">Nuevo horario (50 min)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="time" 
+                      value={newTime} 
+                      onChange={e => setNewTime(e.target.value)} 
+                      className="flex-1 bg-white border border-ink/[0.1] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sage focus:ring-1 focus:ring-sage"
+                      required
+                    />
+                    <button disabled={creating} type="submit" className="bg-sage hover:bg-sage-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                      Añadir
+                    </button>
+                  </div>
+                </form>
+              )}
 
               <div className="space-y-2">
                 <h4 className="text-xs font-medium text-ink-tertiary uppercase tracking-wider mb-3">Horarios registrados</h4>
@@ -151,13 +159,15 @@ export default function CalendarScreen({ onClose }) {
                         </div>
                         {s.status === 'booked' && <div className="text-xs text-ink-secondary mt-1">Cita con: {s.patient_name}</div>}
                       </div>
-                      <button 
-                        onClick={() => handleDeleteSlot(s.id)}
-                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Eliminar horario"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
+                      {!isPastSelected && (
+                        <button 
+                          onClick={() => handleDeleteSlot(s.id)}
+                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Eliminar horario"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
