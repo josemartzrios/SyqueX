@@ -320,3 +320,17 @@ export async function deleteCalendarSlot(slotId) {
     method: 'DELETE',
   });
 }
+
+export async function parseAvailability(text, referenceDate) {
+  return _authFetch(`${API_BASE}/calendar/parse-availability`, {
+    method: 'POST',
+    body: JSON.stringify({ text, reference_date: referenceDate }),
+  });
+}
+
+export async function createCalendarSlotsBatch(slots) {
+  return _authFetch(`${API_BASE}/calendar/slots/batch`, {
+    method: 'POST',
+    body: JSON.stringify({ slots }),
+  });
+}
