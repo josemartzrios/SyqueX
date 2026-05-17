@@ -6,7 +6,7 @@ import SoapNoteDocument from './components/SoapNoteDocument'
 import DictationPanel from './components/DictationPanel'
 import PatientIntakeModal from './components/PatientIntakeModal'
 import EvolucionPanel from './components/EvolucionPanel'
-import { processSession, confirmNote, getTemplate, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout, deleteSession, cancelSubscription } from './api'
+import { processSession, confirmNote, getTemplate, createPatient, getPatientSessions, listConversations, archivePatientSessions, getPatientProfile, setAuthCallbacks, getBillingStatus, createCheckout, logout, deleteSession, cancelSubscription, parseAvailability, createCalendarSlotsBatch } from './api'
 import useDraft from './hooks/useDraft';
 import { getScreenFromUrl, navigateTo, refreshAccessToken, clearAccessToken, getAccessToken, setAccessToken } from './auth.js';
 import LoginScreen from './components/LoginScreen.jsx';
@@ -24,6 +24,7 @@ import CancelSubscriptionModal from './components/CancelSubscriptionModal';
 import PatientInviteModal from './components/PatientInviteModal';
 import PatientSummarySection from './components/PatientSummarySection';
 import CalendarScreen from './components/CalendarScreen';
+import BottomNav from './components/BottomNav';
 import PatientLogin from './pages/PatientLogin';
 import PatientInviteAccept from './pages/PatientInviteAccept';
 import PatientPortal from './pages/PatientPortal';
@@ -180,6 +181,9 @@ function App() {
   const [expandedSessionId, setExpandedSessionId] = useState(null);
   const [processingJobs, setProcessingJobs] = useState(new Map()); // Map<jobId, { status, progress, result }>
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('patients'); // 'patients' | 'agenda'
+  const [agendaMobileTab, setAgendaMobileTab] = useState('disponibilidad'); // 'disponibilidad' | 'calendario'
+  const [agendaCalendarKey, setAgendaCalendarKey] = useState(0);
 
   // Desktop two-mode layout state
   const [desktopMode, setDesktopMode] = useState('session'); // 'session' | 'review'
@@ -688,6 +692,23 @@ function App() {
   };
 
 
+  const handleParseAvailability = async (text, referenceDate) => {
+    const result = await parseAvailability(text, referenceDate);
+    return result.slots;
+  };
+
+  const handleConfirmSlots = async (slots) => {
+    const formatted = slots.map(s => ({
+      slot_date: s.slot_date,
+      start_time: s.start_time.substring(0, 5),
+      duration_minutes: s.duration_minutes,
+    }));
+    const result = await createCalendarSlotsBatch(formatted);
+    setAgendaCalendarKey(k => k + 1);
+    setToast(`${result.created} horario${result.created !== 1 ? 's' : ''} creado${result.created !== 1 ? 's' : ''}`);
+    setTimeout(() => setToast(null), 3500);
+  };
+
   const isLoading = messages[messages.length - 1]?.type === 'loading';
   const hasActivePatient = !!selectedPatientId;
   const draftPatientIds = new Set(
@@ -875,27 +896,67 @@ function App() {
       {/* ── DESKTOP LAYOUT (md+) ── */}
       <div className="hidden md:flex flex-1 overflow-hidden">
 
-        {/* Left sidebar — patient list */}
-        <PatientSidebar
-          conversations={conversations}
-          selectedPatientId={selectedPatientId}
-          onSelectConversation={handleSelectConversation}
-          onDeleteConversation={handleDeleteConversation}
-          onNewPatient={() => setIsCreatingPatient(true)}
-          isCreatingPatient={isCreatingPatient}
-          newPatientName={newPatientName}
-          onNewPatientNameChange={(e) => setNewPatientName(e.target.value)}
-          onSavePatient={handleSavePatient}
-          onCancelNewPatient={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
-          onLogout={handleLogout}
-          draftPatientIds={draftPatientIds}
-          canCancelSubscription={billingStatus?.status === 'active' && !billingStatus?.cancel_at_period_end}
-          onCancelSubscription={() => setIsCancelModalOpen(true)}
-        />
+        {/* Left sidebar — patient list + agenda nav */}
+        <div className="flex flex-col flex-shrink-0 border-r border-ink/[0.07]" style={{width: '256px'}}>
+          <div className="flex-1 overflow-hidden">
+            <PatientSidebar
+              conversations={conversations}
+              selectedPatientId={selectedPatientId}
+              onSelectConversation={handleSelectConversation}
+              onDeleteConversation={handleDeleteConversation}
+              onNewPatient={() => setIsCreatingPatient(true)}
+              isCreatingPatient={isCreatingPatient}
+              newPatientName={newPatientName}
+              onNewPatientNameChange={(e) => setNewPatientName(e.target.value)}
+              onSavePatient={handleSavePatient}
+              onCancelNewPatient={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
+              onLogout={handleLogout}
+              draftPatientIds={draftPatientIds}
+              canCancelSubscription={billingStatus?.status === 'active' && !billingStatus?.cancel_at_period_end}
+              onCancelSubscription={() => setIsCancelModalOpen(true)}
+            />
+          </div>
+          <div className="border-t border-ink/[0.07] p-3 flex-shrink-0">
+            <button
+              onClick={() => setActiveSection(activeSection === 'agenda' ? 'patients' : 'agenda')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors ${
+                activeSection === 'agenda'
+                  ? 'bg-[#5a9e8a]/10 text-[#5a9e8a]'
+                  : 'text-ink-secondary hover:bg-ink/[0.04] hover:text-ink'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Mi Agenda
+            </button>
+          </div>
+        </div>
 
         {/* Right work area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
+          {/* Agenda section */}
+          {activeSection === 'agenda' && (
+            <div className="flex-1 flex overflow-hidden min-h-0">
+              <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
+                <DictationPanel
+                  value=""
+                  onChange={() => {}}
+                  onGenerate={() => {}}
+                  loading={false}
+                  panelMode="disponibilidad"
+                  onParseAvailability={handleParseAvailability}
+                  onConfirmSlots={handleConfirmSlots}
+                />
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <CalendarScreen key={agendaCalendarKey} mode="inline" onClose={() => {}} />
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'patients' && (<>
           {/* Patient header */}
           <PatientHeader
             patientName={hasActivePatient ? selectedPatientName : null}
@@ -911,9 +972,9 @@ function App() {
 
           {/* Content area */}
           {!hasActivePatient ? (
-            <EmptyState 
-              onOpenCalendar={() => setCalendarOpen(true)} 
-              onNewPatient={() => setIsCreatingPatient(true)} 
+            <EmptyState
+              onOpenCalendar={() => setActiveSection('agenda')}
+              onNewPatient={() => setIsCreatingPatient(true)}
             />
           ) : (
             /* Split: Dictation (320px) | Note (flex) */
@@ -1136,6 +1197,7 @@ function App() {
               )}
             </div>
           )}
+          </>)}
         </div>
       </div>
 
@@ -1166,8 +1228,9 @@ function App() {
           </div>
         </header>
 
+        {activeSection === 'patients' && (<>
         {/* No patient selected — empty state */}
-        {!hasActivePatient && <EmptyState onOpenCalendar={() => setCalendarOpen(true)} onNewPatient={() => setIsCreatingPatient(true)} />}
+        {!hasActivePatient && <EmptyState onOpenCalendar={() => setActiveSection('agenda')} onNewPatient={() => setIsCreatingPatient(true)} />}
 
         {/* Patient active — strip + tabs */}
         {hasActivePatient && (
@@ -1408,6 +1471,47 @@ function App() {
 
           </div>
         )}
+        </>)}
+
+        {activeSection === 'agenda' && (
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex border-b border-ink/[0.07] bg-white flex-shrink-0">
+              {['disponibilidad', 'calendario'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setAgendaMobileTab(tab)}
+                  className={`flex-1 py-3 text-[12px] font-medium transition-colors border-b-2 capitalize ${
+                    agendaMobileTab === tab
+                      ? 'border-[#5a9e8a] text-[#5a9e8a]'
+                      : 'border-transparent text-ink-secondary hover:text-ink'
+                  }`}
+                >
+                  {tab === 'disponibilidad' ? 'Disponibilidad' : 'Calendario'}
+                </button>
+              ))}
+            </div>
+            {agendaMobileTab === 'disponibilidad' && (
+              <div className="flex flex-col flex-1 min-h-0 bg-[#f4f4f2]">
+                <DictationPanel
+                  value=""
+                  onChange={() => {}}
+                  onGenerate={() => {}}
+                  loading={false}
+                  panelMode="disponibilidad"
+                  onParseAvailability={handleParseAvailability}
+                  onConfirmSlots={handleConfirmSlots}
+                />
+              </div>
+            )}
+            {agendaMobileTab === 'calendario' && (
+              <div className="flex-1 overflow-hidden">
+                <CalendarScreen key={agendaCalendarKey} mode="inline" onClose={() => {}} />
+              </div>
+            )}
+          </div>
+        )}
+
+        <BottomNav activeSection={activeSection} onSectionChange={setActiveSection} />
       </div>
 
 
