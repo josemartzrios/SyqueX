@@ -47,6 +47,8 @@ async def parse_availability(text: str, reference_date: str) -> List[SlotProposa
             messages=[{"role": "user", "content": user_message}],
         )
         raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         slots_data = json.loads(raw)
         if not isinstance(slots_data, list):
             return []

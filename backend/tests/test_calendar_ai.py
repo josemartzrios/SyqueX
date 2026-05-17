@@ -34,6 +34,19 @@ class TestParseAvailability:
         assert result == []
 
     @pytest.mark.asyncio
+    async def test_parses_json_wrapped_in_markdown_code_fence(self):
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text='```json\n[{"slot_date":"2026-05-18","start_time":"07:00","duration_minutes":50}]\n```')]
+
+        with patch("api.calendar_ai.AsyncAnthropic") as MockClient:
+            instance = MockClient.return_value
+            instance.messages.create = AsyncMock(return_value=mock_response)
+            result = await parse_availability("Lunes de 7 a 8", "2026-05-15")
+
+        assert len(result) == 1
+        assert result[0].start_time == time(7, 0)
+
+    @pytest.mark.asyncio
     async def test_returns_empty_list_on_invalid_json(self):
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="No puedo determinar las fechas")]
