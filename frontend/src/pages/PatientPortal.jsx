@@ -36,13 +36,15 @@ export default function PatientPortal() {
     loadSummaries();
   }, []);
 
-  useEffect(() => {
+  const loadUpcomingBooking = () => {
     const today = new Date();
     const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-    getPatientAvailability(month)
-      .then(data => setUpcomingBooking(data.upcoming_booking ?? null))
+    return getPatientAvailability(month)
+      .then(data => { setUpcomingBooking(data.upcoming_booking ?? null); setCancelError(null); })
       .catch(() => {});
-  }, []);
+  };
+
+  useEffect(() => { loadUpcomingBooking(); }, []);
 
   const loadSummaries = async () => {
     setLoading(true);
@@ -329,6 +331,7 @@ export default function PatientPortal() {
         onBookingSuccess={() => {
           setBookingSuccess(true);
           setTimeout(() => setBookingSuccess(false), 8000);
+          loadUpcomingBooking();
         }}
       />
     </div>
