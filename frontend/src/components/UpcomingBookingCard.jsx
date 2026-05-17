@@ -46,7 +46,7 @@ export default function UpcomingBookingCard({ booking, onCancel, canceling, erro
             onClick={handleCancelClick}
             disabled={canceling}
             aria-label={`Cancelar cita del ${formattedDate}`}
-            className="w-full rounded-xl py-2.5 border border-red-200 text-red-400 hover:bg-red-50 transition-colors text-sm disabled:cursor-not-allowed"
+            className="w-full min-h-[44px] rounded-xl py-2.5 border border-red-200 text-red-400 hover:bg-red-50 transition-colors text-sm disabled:cursor-not-allowed"
           >
             {canceling ? (
               <span className="flex items-center justify-center gap-2">
