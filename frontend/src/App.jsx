@@ -517,6 +517,7 @@ function App() {
   };
 
   const handleSelectConversation = async (conv) => {
+    setActiveSection('patients');
     setSelectedPatientId(conv.patient_id);
     setSelectedPatientName(conv.patient_name);
     setSelectedPatientPortalStatus(conv.portal_status ?? null);
