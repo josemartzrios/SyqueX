@@ -8,7 +8,7 @@ export default function UpcomingBookingCard({ booking, onCancel, canceling, erro
   const formattedDate = new Date(booking.slot_date + 'T12:00:00')
     .toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  const [h, m] = booking.start_time.split(':');
+  const [h = '00', m = '00'] = (booking.start_time ?? '00:00').split(':');
   const formattedTime = `${h}:${m} ${parseInt(h, 10) < 12 ? 'am' : 'pm'}`;
 
   const handleCancelClick = () => setConfirming(true);
@@ -67,14 +67,14 @@ export default function UpcomingBookingCard({ booking, onCancel, canceling, erro
           <div className="flex gap-2">
             <button
               onClick={handleConfirm}
-              className="flex-1 rounded-xl py-2 border border-red-200 text-red-400 text-sm hover:bg-red-50 transition-colors"
+              className="flex-1 min-h-[44px] rounded-xl py-2 border border-red-200 text-red-400 text-sm hover:bg-red-50 transition-colors"
             >
               Sí, cancelar
             </button>
             <button
               onClick={handleAbort}
               autoFocus
-              className="flex-1 rounded-xl py-2 border border-[#18181b]/10 text-[#9ca3af] text-sm hover:bg-[#18181b]/[0.03] transition-colors"
+              className="flex-1 min-h-[44px] rounded-xl py-2 border border-[#18181b]/10 text-[#9ca3af] text-sm hover:bg-[#18181b]/[0.03] transition-colors"
             >
               No, regresar
             </button>
