@@ -910,13 +910,21 @@ function App() {
               onNewPatientNameChange={(e) => setNewPatientName(e.target.value)}
               onSavePatient={handleSavePatient}
               onCancelNewPatient={() => { setIsCreatingPatient(false); setNewPatientName(''); }}
-              onLogout={handleLogout}
               draftPatientIds={draftPatientIds}
               canCancelSubscription={billingStatus?.status === 'active' && !billingStatus?.cancel_at_period_end}
               onCancelSubscription={() => setIsCancelModalOpen(true)}
             />
           </div>
-          <div className="border-t border-ink/[0.07] p-3 flex-shrink-0">
+          <div className="border-t border-ink/[0.07] p-3 flex-shrink-0 flex flex-col gap-1">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors text-ink-secondary hover:bg-ink/[0.04] hover:text-ink"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Cerrar sesión
+            </button>
             <button
               onClick={() => setActiveSection(activeSection === 'agenda' ? 'patients' : 'agenda')}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors ${

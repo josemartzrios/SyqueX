@@ -130,7 +130,6 @@ export default function PatientSidebar({
   onNewPatientNameChange,
   onSavePatient,
   onCancelNewPatient,
-  onLogout,
   draftPatientIds = new Set(),
   canCancelSubscription = false,
   onCancelSubscription,
@@ -218,23 +217,16 @@ export default function PatientSidebar({
       </div>
 
 
-      {/* Logout — pinned to very bottom */}
-      <div className="border-t border-black/[0.07] flex-shrink-0">
-        {canCancelSubscription && (
+      {canCancelSubscription && (
+        <div className="border-t border-black/[0.07] flex-shrink-0">
           <button
             onClick={onCancelSubscription}
-            className="w-full text-left px-4 py-[10px] text-[12px] text-gray-400 hover:text-gray-600 hover:bg-parchment transition-colors border-b border-black/[0.04]"
+            className="w-full text-left px-4 py-[10px] text-[12px] text-gray-400 hover:text-gray-600 hover:bg-parchment transition-colors"
           >
             Cancelar suscripción
           </button>
-        )}
-        <button
-          onClick={onLogout}
-          className="w-full text-left px-4 py-3 text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          Cerrar sesión
-        </button>
-      </div>
+        </div>
+      )}
     </aside>
   );
 }
