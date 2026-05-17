@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { clearPatientToken, getPatientSummaries, getPatientSummaryDetail } from '../patientApi';
+import { clearPatientToken, getPatientSummaries, getPatientSummaryDetail, getPatientAvailability, cancelPatientBooking } from '../patientApi';
 import { navigateTo } from '../auth';
 import TutorialModal from '../components/TutorialModal';
 import PatientBookingModal from '../components/PatientBookingModal';
+import UpcomingBookingCard from '../components/UpcomingBookingCard';
 
 export default function PatientPortal() {
   const [summaries, setSummaries] = useState([]);
@@ -14,6 +15,9 @@ export default function PatientPortal() {
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [upcomingBooking, setUpcomingBooking]   = useState(null);
+  const [cancelingBooking, setCancelingBooking] = useState(false);
+  const [cancelError, setCancelError]           = useState(null);
   const detailRef = useRef(null);
 
   useEffect(() => {
@@ -32,6 +36,14 @@ export default function PatientPortal() {
     loadSummaries();
   }, []);
 
+  useEffect(() => {
+    const today = new Date();
+    const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    getPatientAvailability(month)
+      .then(data => setUpcomingBooking(data.upcoming_booking ?? null))
+      .catch(() => {});
+  }, []);
+
   const loadSummaries = async () => {
     setLoading(true);
     try {
@@ -41,6 +53,19 @@ export default function PatientPortal() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelBooking = async (slotId) => {
+    setCancelingBooking(true);
+    setCancelError(null);
+    try {
+      await cancelPatientBooking(slotId);
+      setUpcomingBooking(null);
+    } catch (err) {
+      setCancelError(err.message || 'No se pudo cancelar. Intenta de nuevo.');
+    } finally {
+      setCancelingBooking(false);
     }
   };
 
@@ -138,6 +163,14 @@ export default function PatientPortal() {
           {/* List Section */}
           <div className="md:col-span-1 md:sticky md:top-[88px] md:max-h-[calc(100vh-104px)] md:overflow-y-auto md:pr-1">
 
+            {/* Próxima cita del paciente */}
+            <UpcomingBookingCard
+              booking={upcomingBooking}
+              onCancel={handleCancelBooking}
+              canceling={cancelingBooking}
+              error={cancelError}
+            />
+
             {/* Booking CTA — explicit, always visible */}
             <button
               onClick={() => setBookingModalOpen(true)}
@@ -145,12 +178,17 @@ export default function PatientPortal() {
             >
               <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
               <div className="text-left">
-                <div className="text-sm font-semibold leading-tight">Agendar cita</div>
-                <div className="text-[11px] text-white/70 leading-tight mt-0.5">Ver disponibilidad del psicólogo</div>
+                <div className="text-sm font-semibold leading-tight">
+                  {upcomingBooking ? 'Agendar otra cita' : 'Agendar cita'}
+                </div>
+                <div className="text-[11px] text-white/70 leading-tight mt-0.5">
+                  Ver disponibilidad
+                </div>
               </div>
               <svg className="w-4 h-4 ml-auto text-white/60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
