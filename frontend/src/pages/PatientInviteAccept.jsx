@@ -19,6 +19,14 @@ export default function PatientInviteAccept({ inviteToken, setScreen }) {
       setError('La contraseña debe tener al menos 8 caracteres');
       return;
     }
+    if (!/[A-Z]/.test(password)) {
+      setError('La contraseña debe incluir al menos una letra mayúscula');
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      setError('La contraseña debe incluir al menos un número');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -98,7 +106,7 @@ export default function PatientInviteAccept({ inviteToken, setScreen }) {
                 placeholder="••••••••"
                 className="w-full bg-[#f4f4f2] border border-black/[0.08] rounded-xl px-3 py-2.5 text-[14px] text-[#18181b] focus:outline-none focus:border-[#5a9e8a]/60 focus:ring-1 focus:ring-[#5a9e8a]/20 transition-all"
               />
-              <p className="text-[11px] text-[#9ca3af] mt-1.5 pl-0.5">Mínimo 8 caracteres</p>
+              <p className="text-[11px] text-[#9ca3af] mt-1.5 pl-0.5">Mínimo 8 caracteres · 1 mayúscula · 1 número</p>
             </div>
 
             <div>

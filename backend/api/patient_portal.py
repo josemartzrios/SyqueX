@@ -133,9 +133,17 @@ class BookRequest(BaseModel):
 async def book_slot(payload: BookRequest, patient_id: str = Depends(get_current_patient), db: AsyncSession = Depends(get_db)):
     puuid = uuid.UUID(patient_id)
     suuid = uuid.UUID(payload.slot_id)
-    
+
     patient = await db.get(Patient, puuid)
-    
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    # Capturar datos antes del commit — los objetos ORM expiran tras commit()
+    # y async sessions no soportan lazy loading implícito (MissingGreenlet)
+    patient_email = patient.email
+    patient_name = patient.name
+    patient_psych_id = patient.psychologist_id
+
     # SELECT FOR UPDATE to prevent race conditions
     res = await db.execute(
         select(AvailabilitySlot)
@@ -143,50 +151,64 @@ async def book_slot(payload: BookRequest, patient_id: str = Depends(get_current_
         .with_for_update()
     )
     slot = res.scalar_one_or_none()
-    
-    if not slot or slot.status != 'available' or slot.psychologist_id != patient.psychologist_id:
+
+    if not slot or slot.status != 'available' or slot.psychologist_id != patient_psych_id:
         raise HTTPException(status_code=400, detail="El horario ya no está disponible")
-        
+
     slot.status = 'booked'
     slot.booked_by_patient_id = puuid
     slot.booked_at = datetime.now(timezone.utc)
-    
+
     await db.commit()
     await db.refresh(slot)
-    
-    # Send emails
-    psych = await db.get(Psychologist, slot.psychologist_id)
-    if psych and patient.email:
-        await send_booking_confirmation(
-            patient.email, psych.email, patient.name, psych.name,
-            slot.slot_date, slot.start_time, slot.duration_minutes
-        )
-        
+
+    # Send emails — wrapped para que un fallo de email nunca rompa el booking
+    try:
+        psych = await db.get(Psychologist, slot.psychologist_id)
+        if psych and patient_email:
+            await send_booking_confirmation(
+                patient_email, psych.email, patient_name, psych.name,
+                slot.slot_date, slot.start_time, slot.duration_minutes
+            )
+    except Exception as e:
+        # Email falla silenciosamente — el booking ya está confirmado en DB
+        import logging
+        logging.getLogger(__name__).error("Error enviando email de booking: %s", e)
+
     return {"status": "ok", "message": "Cita confirmada"}
 
 @router.delete("/booking/{slot_id}")
 async def cancel_booking(slot_id: str, patient_id: str = Depends(get_current_patient), db: AsyncSession = Depends(get_db)):
     puuid = uuid.UUID(patient_id)
     suuid = uuid.UUID(slot_id)
-    
+
     res = await db.execute(select(AvailabilitySlot).where(AvailabilitySlot.id == suuid, AvailabilitySlot.booked_by_patient_id == puuid))
     slot = res.scalar_one_or_none()
-    
+
     if not slot:
         raise HTTPException(status_code=404, detail="Cita no encontrada")
-        
+
+    # Capturar antes del commit — mismo patrón que book_slot
+    slot_psych_id = slot.psychologist_id
+    slot_date = slot.slot_date
+    slot_start_time = slot.start_time
+
     slot.status = 'available'
     slot.booked_by_patient_id = None
     slot.booked_at = None
-    
+
     await db.commit()
-    
-    patient = await db.get(Patient, puuid)
-    psych = await db.get(Psychologist, slot.psychologist_id)
-    if psych and patient.email:
-        await send_booking_cancellation(
-            patient.email, psych.email, patient.name, psych.name,
-            slot.slot_date, slot.start_time, canceled_by="patient"
-        )
-        
+
+    try:
+        patient = await db.get(Patient, puuid)
+        psych = await db.get(Psychologist, slot_psych_id)
+        if psych and patient and patient.email:
+            await send_booking_cancellation(
+                patient.email, psych.email, patient.name, psych.name,
+                slot_date, slot_start_time, canceled_by="patient"
+            )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("Error enviando email de cancelación: %s", e)
+
     return {"status": "ok"}

@@ -20,7 +20,7 @@ router = APIRouter(tags=["calendar"])
 class SlotCreate(BaseModel):
     slot_date: date
     start_time: time
-    duration_minutes: int = 50
+    duration_minutes: int = 60
 
 class SlotOut(BaseModel):
     id: uuid.UUID
@@ -141,7 +141,7 @@ class ParseAvailabilityResponse(BaseModel):
 class SlotBatchItem(BaseModel):
     slot_date: date
     start_time: time
-    duration_minutes: int = 50
+    duration_minutes: int = 60
 
 class SlotBatchCreate(BaseModel):
     slots: list[SlotBatchItem]
@@ -164,7 +164,7 @@ async def parse_availability_endpoint(
     if not slots:
         raise HTTPException(
             status_code=422,
-            detail="No se pudieron identificar fechas u horas. Intenta: 'Lunes de 9 a 2, sesiones 50 min'",
+            detail="No se pudieron identificar fechas u horas. Intenta: 'Lunes de 9 a 2, sesiones 60 min'",
         )
     return ParseAvailabilityResponse(
         slots=[SlotProposalOut(slot_date=s.slot_date, start_time=s.start_time, duration_minutes=s.duration_minutes) for s in slots]

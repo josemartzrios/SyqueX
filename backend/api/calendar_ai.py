@@ -8,13 +8,13 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = """Eres un asistente de agenda para psicólogos. Cuando el psicólogo describe su disponibilidad en texto libre en español, extrae los días y horarios y genera slots de citas de 50 minutos consecutivos.
+_SYSTEM_PROMPT = """Eres un asistente de agenda para psicólogos. Cuando el psicólogo describe su disponibilidad en texto libre en español, extrae los días y horarios y genera slots de citas de 60 minutos consecutivos.
 
 Devuelve ÚNICAMENTE un array JSON con objetos de la forma:
-[{"slot_date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": 50}, ...]
+[{"slot_date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": 60}, ...]
 
 Reglas:
-- Genera citas de 50 minutos que comiencen consecutivamente dentro de cada rango horario indicado
+- Genera citas de 60 minutos que comiencen consecutivamente dentro de cada rango horario indicado
 - Resuelve fechas relativas ("mañana", "el lunes", "esta semana") usando la fecha de hoy
 - Si el texto no contiene fechas u horas identificables, devuelve []
 - Devuelve SOLO el array JSON, sin texto adicional ni explicaciones"""
@@ -23,7 +23,7 @@ Reglas:
 class SlotProposal(BaseModel):
     slot_date: date
     start_time: time
-    duration_minutes: int = 50
+    duration_minutes: int = 60
 
     @field_validator("start_time", mode="before")
     @classmethod

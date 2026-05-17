@@ -28,9 +28,8 @@ export function clearPatientToken() {
 async function patientFetch(path, options = {}) {
   const token = getPatientToken()
   const headers = { ...options.headers }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
+  if (options.body) headers['Content-Type'] = 'application/json'
+  if (token) headers['Authorization'] = `Bearer ${token}`
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -46,7 +45,11 @@ async function patientFetch(path, options = {}) {
     let msg = 'Error en el portal'
     try {
       const data = await res.json()
-      msg = data.detail || msg
+      if (Array.isArray(data.detail)) {
+        msg = data.detail.map(e => e.msg).join('; ')
+      } else {
+        msg = data.detail || msg
+      }
     } catch (e) {
       msg = await res.text() || msg
     }

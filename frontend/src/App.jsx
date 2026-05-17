@@ -200,7 +200,7 @@ function App() {
   const [dismissedOrphanIds, setDismissedOrphanIds] = useState(new Set());
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  
+
   // Cancel subscription modal state
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -493,7 +493,7 @@ function App() {
 
     try {
       const { job_id } = await processSession(patientId, text, 'chat');
-      
+
       const { openJobStream } = await import('./api');
       openJobStream(job_id, (job) => {
         if (job.status === 'completed') {
@@ -609,22 +609,22 @@ function App() {
     ]);
     if (activeFormat === 'soap' || activeFormat === 'custom') setMobileTab('nota');
     if (activeFormat === 'soap' || activeFormat === 'custom') setCurrentSessionNote({ type: 'loading' });
-    
+
     try {
       const { job_id } = await processSession(selectedPatientId, dictation, activeFormat);
       clearDraft();
-      
+
       const { openJobStream } = await import('./api');
       const closeStream = openJobStream(job_id, (job) => {
         setProcessingJobs(prev => new Map(prev).set(job_id, job));
-        
+
         if (job.status === 'completed' || job.status === 'failed') {
           if (job.status === 'completed') {
             const noteData = job.result;
             const botMessage = (activeFormat === 'soap' || activeFormat === 'custom')
               ? { role: 'assistant', type: 'bot', noteData, sessionId: noteData.session_id }
               : { role: 'assistant', type: 'chat', text: noteData.text_fallback || '' };
-            
+
             setMessages(prev => {
               const last = prev[prev.length - 1];
               if (last?.type === 'loading') return [...prev.slice(0, -1), botMessage];
@@ -897,7 +897,7 @@ function App() {
       <div className="hidden md:flex flex-1 overflow-hidden">
 
         {/* Left sidebar — patient list + agenda nav */}
-        <div className="flex flex-col flex-shrink-0 border-r border-ink/[0.07]" style={{width: '256px'}}>
+        <div className="flex flex-col flex-shrink-0 border-r border-ink/[0.07]" style={{ width: '256px' }}>
           <div className="flex-1 overflow-hidden">
             <PatientSidebar
               conversations={conversations}
@@ -917,6 +917,18 @@ function App() {
           </div>
           <div className="border-t border-ink/[0.07] p-3 flex-shrink-0 flex flex-col gap-1">
             <button
+              onClick={() => setActiveSection(activeSection === 'agenda' ? 'patients' : 'agenda')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors ${activeSection === 'agenda'
+                ? 'bg-[#5a9e8a]/10 text-[#5a9e8a]'
+                : 'text-ink-secondary hover:bg-ink/[0.04] hover:text-ink'
+                }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Mi Agenda
+            </button>
+            <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors text-ink-secondary hover:bg-ink/[0.04] hover:text-ink"
             >
@@ -924,19 +936,6 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
               Cerrar sesión
-            </button>
-            <button
-              onClick={() => setActiveSection(activeSection === 'agenda' ? 'patients' : 'agenda')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors ${
-                activeSection === 'agenda'
-                  ? 'bg-[#5a9e8a]/10 text-[#5a9e8a]'
-                  : 'text-ink-secondary hover:bg-ink/[0.04] hover:text-ink'
-              }`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Mi Agenda
             </button>
           </div>
         </div>
@@ -950,8 +949,8 @@ function App() {
               <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
                 <DictationPanel
                   value=""
-                  onChange={() => {}}
-                  onGenerate={() => {}}
+                  onChange={() => { }}
+                  onGenerate={() => { }}
                   loading={false}
                   panelMode="disponibilidad"
                   onParseAvailability={handleParseAvailability}
@@ -959,252 +958,252 @@ function App() {
                 />
               </div>
               <div className="flex-1 overflow-hidden">
-                <CalendarScreen key={agendaCalendarKey} mode="inline" onClose={() => {}} />
+                <CalendarScreen key={agendaCalendarKey} mode="inline" onClose={() => { }} />
               </div>
             </div>
           )}
 
           {activeSection === 'patients' && (<>
-          {/* Patient header */}
-          <PatientHeader
-            patientName={hasActivePatient ? selectedPatientName : null}
-            sessionCount={soapSessions.filter(s => s.status === 'confirmed').length}
-            mode={desktopMode}
-            onModeChange={hasActivePatient ? setDesktopMode : undefined}
-            patientId={selectedPatientId}
-            onEditPatient={(id) => setEditingPatientId(id)}
-            onInvitePatient={(id) => setInvitingPatientId(id)}
-            onShowTutorial={() => setTutorialVisible(true)}
-            portalStatus={selectedPatientPortalStatus}
-          />
-
-          {/* Content area */}
-          {!hasActivePatient ? (
-            <EmptyState
-              onOpenCalendar={() => setActiveSection('agenda')}
-              onNewPatient={() => setIsCreatingPatient(true)}
+            {/* Patient header */}
+            <PatientHeader
+              patientName={hasActivePatient ? selectedPatientName : null}
+              sessionCount={soapSessions.filter(s => s.status === 'confirmed').length}
+              mode={desktopMode}
+              onModeChange={hasActivePatient ? setDesktopMode : undefined}
+              patientId={selectedPatientId}
+              onEditPatient={(id) => setEditingPatientId(id)}
+              onInvitePatient={(id) => setInvitingPatientId(id)}
+              onShowTutorial={() => setTutorialVisible(true)}
+              portalStatus={selectedPatientPortalStatus}
             />
-          ) : (
-            /* Split: Dictation (320px) | Note (flex) */
-            <div className="flex-1 flex overflow-hidden min-h-0">
-              {desktopMode === 'session' ? (
-                <>
-                  {/* Left: Dictation panel */}
-                  <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
-                    <DictationPanel
-                      value={draft}
-                      onChange={setDraft}
-                      onGenerate={(d) => handleSendDictation(d)}
-                      loading={isLoading}
-                      orphanedSessions={orphanedSessions}
-                      onResumeOrphan={handleResumeOrphan}
-                      onDiscardOrphan={handleDiscardOrphan}
-                      noteFormat={noteFormat}
-                      onFormatChange={(format) => {
-                        if (format === 'custom' && (!template?.fields || template.fields.length === 0)) {
+
+            {/* Content area */}
+            {!hasActivePatient ? (
+              <EmptyState
+                onOpenCalendar={() => setActiveSection('agenda')}
+                onNewPatient={() => setIsCreatingPatient(true)}
+              />
+            ) : (
+              /* Split: Dictation (320px) | Note (flex) */
+              <div className="flex-1 flex overflow-hidden min-h-0">
+                {desktopMode === 'session' ? (
+                  <>
+                    {/* Left: Dictation panel */}
+                    <div className="w-80 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
+                      <DictationPanel
+                        value={draft}
+                        onChange={setDraft}
+                        onGenerate={(d) => handleSendDictation(d)}
+                        loading={isLoading}
+                        orphanedSessions={orphanedSessions}
+                        onResumeOrphan={handleResumeOrphan}
+                        onDiscardOrphan={handleDiscardOrphan}
+                        noteFormat={noteFormat}
+                        onFormatChange={(format) => {
+                          if (format === 'custom' && (!template?.fields || template.fields.length === 0)) {
+                            setIsConfiguratorFirstTime(false);
+                            setShowNoteConfigurator(true);
+                          } else {
+                            setNoteFormat(format);
+                          }
+                        }}
+                        onEditTemplate={() => {
                           setIsConfiguratorFirstTime(false);
                           setShowNoteConfigurator(true);
-                        } else {
-                          setNoteFormat(format);
-                        }
-                      }}
-                      onEditTemplate={() => {
-                        setIsConfiguratorFirstTime(false);
-                        setShowNoteConfigurator(true);
-                      }}
-                    />
-
-                  </div>
-
-                  {/* Right: Note panel */}
-                  <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-7 bg-white">
-                    {currentSessionNote === null ? (
-                      NOTE_EMPTY_STATE
-                    ) : currentSessionNote.type === 'loading' ? (
-                      <div className="flex flex-col gap-3 py-6">
-                        <div className="flex items-center gap-3">
-                          {LOADING_DOTS}
-                          <span className="text-ink text-[14px] font-medium">
-                            {Array.from(processingJobs.values())[0]?.status === 'processing' 
-                              ? (Array.from(processingJobs.values())[0]?.progress || 'Procesando...') 
-                              : 'Iniciando generación...'}
-                          </span>
-                        </div>
-                        <p className="text-ink-tertiary text-xs max-w-sm leading-relaxed">
-                          Estamos analizando tu dictado con IA para generar una nota clínica precisa. Esto suele tomar de 10 a 20 segundos.
-                        </p>
-                      </div>
-                    ) : currentSessionNote.type === 'error' ? (
-                      <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                        <strong className="font-medium">Error:</strong> {currentSessionNote.text}
-                      </div>
-                    ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData?.format === 'custom' ? (
-                      <CustomNoteDocument
-                        templateFields={currentSessionNote.noteData.template_fields || template?.fields || []}
-                        values={currentSessionNote.noteData.custom_fields || {}}
-                        onConfirm={async (editedValues) => {
-                          const sid = currentSessionNote.noteData.session_id;
-                          await confirmNote(sid, {
-                            format: 'custom',
-                            custom_fields: editedValues,
-                          });
-                          setNewlyConfirmedSessionId(sid);
-                          fetchPatientSessions(selectedPatientId);
-                          fetchConversations();
-                          setDesktopMode('review');
-                          setCurrentSessionNote(null);
-                          setToast('Sesión confirmada — nota guardada en historial');
-                          setTimeout(() => setToast(null), 3500);
-                        }}
-                        onDelete={async () => {
-                          const sid = currentSessionNote.noteData.session_id;
-                          await deleteSession(sid);
-                          setCurrentSessionNote(null);
-                          fetchPatientSessions(selectedPatientId);
                         }}
                       />
-                    ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
-                      <SoapNoteDocument
-                        noteData={currentSessionNote.noteData}
-                        onConfirm={async () => {
-                          const sid = currentSessionNote.noteData?.session_id || currentSessionNote.sessionId;
-                          if (sid) setNewlyConfirmedSessionId(sid);
-                          fetchPatientSessions(selectedPatientId);
-                          fetchConversations();
-                          setDesktopMode('review');
-                          setCurrentSessionNote(null);
-                          setToast('Sesión confirmada — nota guardada en historial');
-                          setTimeout(() => setToast(null), 3500);
-                        }}
-                        readOnly={currentSessionNote.readOnly}
-                        onDelete={!currentSessionNote.readOnly ? async () => {
-                          const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
-                          if (!sid) return;
-                          await deleteSession(sid);
-                          setCurrentSessionNote(null);
-                          fetchPatientSessions(selectedPatientId);
-                        } : undefined}
-                      />
-                    ) : null}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Mode: Review */}
-                  {/* Left: Historial (380px wide in Review mode) */}
-                  <div className="w-[380px] flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2] overflow-y-auto px-5 py-6">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-4 px-2">Historial de Notas</p>
-                    <div className="space-y-3">
-                      {sessionsLoading ? (
-                        <div className="flex flex-col items-center gap-2 py-8">
-                          {LOADING_DOTS}
-                          <p className="text-ink-tertiary text-[11px] uppercase tracking-wider">Cargando historial...</p>
+
+                    </div>
+
+                    {/* Right: Note panel */}
+                    <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-7 bg-white">
+                      {currentSessionNote === null ? (
+                        NOTE_EMPTY_STATE
+                      ) : currentSessionNote.type === 'loading' ? (
+                        <div className="flex flex-col gap-3 py-6">
+                          <div className="flex items-center gap-3">
+                            {LOADING_DOTS}
+                            <span className="text-ink text-[14px] font-medium">
+                              {Array.from(processingJobs.values())[0]?.status === 'processing'
+                                ? (Array.from(processingJobs.values())[0]?.progress || 'Procesando...')
+                                : 'Iniciando generación...'}
+                            </span>
+                          </div>
+                          <p className="text-ink-tertiary text-xs max-w-sm leading-relaxed">
+                            Estamos analizando tu dictado con IA para generar una nota clínica precisa. Esto suele tomar de 10 a 20 segundos.
+                          </p>
                         </div>
-                      ) : confirmedSessions.length === 0 ? (
-                        <p className="text-ink-tertiary text-xs px-2 italic">Sin notas SOAP confirmadas.</p>
-                      ) : (
-                        confirmedSessions.map((s, i) => {
-                          const isExpanded = reviewExpandedSessionId === String(s.id);
-                          const isCustom = s.format === 'custom';
-                          const hasNote = s.status === 'confirmed' && (
-                            s.structured_note ||
-                            (s.custom_fields && Object.keys(s.custom_fields).length > 0)
-                          );
-                          return (
-                            <div
-                              key={s.id || i}
-                              className={`rounded-xl overflow-hidden transition-all duration-200 bg-white border-l-[3px] ${s.status === 'confirmed' ? 'border-l-[#5a9e8a]' : 'border-l-[#c4935a]'
-                                } ${isExpanded ? 'ring-1 ring-[#5a9e8a]/20' : ''}`}
-                            >
+                      ) : currentSessionNote.type === 'error' ? (
+                        <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                          <strong className="font-medium">Error:</strong> {currentSessionNote.text}
+                        </div>
+                      ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData?.format === 'custom' ? (
+                        <CustomNoteDocument
+                          templateFields={currentSessionNote.noteData.template_fields || template?.fields || []}
+                          values={currentSessionNote.noteData.custom_fields || {}}
+                          onConfirm={async (editedValues) => {
+                            const sid = currentSessionNote.noteData.session_id;
+                            await confirmNote(sid, {
+                              format: 'custom',
+                              custom_fields: editedValues,
+                            });
+                            setNewlyConfirmedSessionId(sid);
+                            fetchPatientSessions(selectedPatientId);
+                            fetchConversations();
+                            setDesktopMode('review');
+                            setCurrentSessionNote(null);
+                            setToast('Sesión confirmada — nota guardada en historial');
+                            setTimeout(() => setToast(null), 3500);
+                          }}
+                          onDelete={async () => {
+                            const sid = currentSessionNote.noteData.session_id;
+                            await deleteSession(sid);
+                            setCurrentSessionNote(null);
+                            fetchPatientSessions(selectedPatientId);
+                          }}
+                        />
+                      ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
+                        <SoapNoteDocument
+                          noteData={currentSessionNote.noteData}
+                          onConfirm={async () => {
+                            const sid = currentSessionNote.noteData?.session_id || currentSessionNote.sessionId;
+                            if (sid) setNewlyConfirmedSessionId(sid);
+                            fetchPatientSessions(selectedPatientId);
+                            fetchConversations();
+                            setDesktopMode('review');
+                            setCurrentSessionNote(null);
+                            setToast('Sesión confirmada — nota guardada en historial');
+                            setTimeout(() => setToast(null), 3500);
+                          }}
+                          readOnly={currentSessionNote.readOnly}
+                          onDelete={!currentSessionNote.readOnly ? async () => {
+                            const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
+                            if (!sid) return;
+                            await deleteSession(sid);
+                            setCurrentSessionNote(null);
+                            fetchPatientSessions(selectedPatientId);
+                          } : undefined}
+                        />
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Mode: Review */}
+                    {/* Left: Historial (380px wide in Review mode) */}
+                    <div className="w-[380px] flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2] overflow-y-auto px-5 py-6">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-4 px-2">Historial de Notas</p>
+                      <div className="space-y-3">
+                        {sessionsLoading ? (
+                          <div className="flex flex-col items-center gap-2 py-8">
+                            {LOADING_DOTS}
+                            <p className="text-ink-tertiary text-[11px] uppercase tracking-wider">Cargando historial...</p>
+                          </div>
+                        ) : confirmedSessions.length === 0 ? (
+                          <p className="text-ink-tertiary text-xs px-2 italic">Sin notas SOAP confirmadas.</p>
+                        ) : (
+                          confirmedSessions.map((s, i) => {
+                            const isExpanded = reviewExpandedSessionId === String(s.id);
+                            const isCustom = s.format === 'custom';
+                            const hasNote = s.status === 'confirmed' && (
+                              s.structured_note ||
+                              (s.custom_fields && Object.keys(s.custom_fields).length > 0)
+                            );
+                            return (
                               <div
-                                className="px-3 py-3 flex items-start gap-3 cursor-pointer group"
-                                onClick={() => hasNote && setReviewExpandedSessionId(toggleExpandedSession(reviewExpandedSessionId, String(s.id)))}
+                                key={s.id || i}
+                                className={`rounded-xl overflow-hidden transition-all duration-200 bg-white border-l-[3px] ${s.status === 'confirmed' ? 'border-l-[#5a9e8a]' : 'border-l-[#c4935a]'
+                                  } ${isExpanded ? 'ring-1 ring-[#5a9e8a]/20' : ''}`}
                               >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-1.5">
-                                      <p className="text-[13px] font-semibold text-ink">Sesión #{confirmedDisplayNum.get(String(s.id)) ?? i + 1}</p>
-                                      {String(s.id) === newlyConfirmedSessionId && (
-                                        <span className="text-[9px] font-bold bg-[#5a9e8a] text-white rounded-full px-2 py-0.5">
-                                          Nueva
-                                        </span>
-                                      )}
+                                <div
+                                  className="px-3 py-3 flex items-start gap-3 cursor-pointer group"
+                                  onClick={() => hasNote && setReviewExpandedSessionId(toggleExpandedSession(reviewExpandedSessionId, String(s.id)))}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="text-[13px] font-semibold text-ink">Sesión #{confirmedDisplayNum.get(String(s.id)) ?? i + 1}</p>
+                                        {String(s.id) === newlyConfirmedSessionId && (
+                                          <span className="text-[9px] font-bold bg-[#5a9e8a] text-white rounded-full px-2 py-0.5">
+                                            Nueva
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[11px] text-ink-tertiary font-medium">{formatDate(s.session_date)}</span>
                                     </div>
-                                    <span className="text-[11px] text-ink-tertiary font-medium">{formatDate(s.session_date)}</span>
+                                    {!isExpanded && s.raw_dictation && (
+                                      <>
+                                        <p className="text-[11px] text-ink-muted line-clamp-2 mt-0.5 leading-relaxed">
+                                          {s.raw_dictation}
+                                        </p>
+                                        <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'
+                                          }`}>
+                                          {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                                        </span>
+                                      </>
+                                    )}
                                   </div>
-                                  {!isExpanded && s.raw_dictation && (
-                                    <>
-                                      <p className="text-[11px] text-ink-muted line-clamp-2 mt-0.5 leading-relaxed">
-                                        {s.raw_dictation}
-                                      </p>
-                                      <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'
-                                        }`}>
-                                        {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
-                                      </span>
-                                    </>
+                                  {hasNote && (
+                                    <svg
+                                      className={`w-4 h-4 mt-0.5 text-ink-tertiary group-hover:text-ink-secondary transition-transform duration-200 ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : ''}`}
+                                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
                                   )}
                                 </div>
-                                {hasNote && (
-                                  <svg
-                                    className={`w-4 h-4 mt-0.5 text-ink-tertiary group-hover:text-ink-secondary transition-transform duration-200 ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : ''}`}
-                                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                  </svg>
+                                {isExpanded && hasNote && (
+                                  <div className="bg-white border-t border-ink/[0.04]">
+                                    {isCustom ? (
+                                      <CustomNoteDocument
+                                        templateFields={s.template_fields || template?.fields || []}
+                                        values={s.custom_fields || {}}
+                                        readOnly
+                                      />
+                                    ) : (
+                                      <SoapNoteDocument
+                                        noteData={{
+                                          clinical_note: {
+                                            structured_note: s.structured_note,
+                                            detected_patterns: s.detected_patterns || [],
+                                            alerts: s.alerts || [],
+                                            session_id: String(s.id),
+                                          },
+                                          text_fallback: s.ai_response,
+                                        }}
+                                        readOnly
+                                        compact
+                                      />
+                                    )}
+                                    <PatientSummarySection
+                                      sessionId={String(s.id)}
+                                      patientName={selectedPatientName}
+                                    />
+                                  </div>
                                 )}
                               </div>
-                              {isExpanded && hasNote && (
-                                <div className="bg-white border-t border-ink/[0.04]">
-                                  {isCustom ? (
-                                    <CustomNoteDocument
-                                      templateFields={s.template_fields || template?.fields || []}
-                                      values={s.custom_fields || {}}
-                                      readOnly
-                                    />
-                                  ) : (
-                                    <SoapNoteDocument
-                                      noteData={{
-                                        clinical_note: {
-                                          structured_note: s.structured_note,
-                                          detected_patterns: s.detected_patterns || [],
-                                          alerts: s.alerts || [],
-                                          session_id: String(s.id),
-                                        },
-                                        text_fallback: s.ai_response,
-                                      }}
-                                      readOnly
-                                      compact
-                                    />
-                                  )}
-                                  <PatientSummarySection
-                                    sessionId={String(s.id)}
-                                    patientName={selectedPatientName}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Right: Evolution Area */}
-                  <div className="flex-1 flex flex-col bg-white overflow-hidden">
-                    <EvolucionPanel
-                      patient={{ id: selectedPatientId, name: selectedPatientName }}
-                      messages={evolutionMessages.get(selectedPatientId) || []}
-                      profile={patientProfile}
-                      loading={evolutionLoading}
-                      onSend={handleEvolutionSend}
-                      sending={evolutionSending}
-                      error={evolutionError}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+                    {/* Right: Evolution Area */}
+                    <div className="flex-1 flex flex-col bg-white overflow-hidden">
+                      <EvolucionPanel
+                        patient={{ id: selectedPatientId, name: selectedPatientName }}
+                        messages={evolutionMessages.get(selectedPatientId) || []}
+                        profile={patientProfile}
+                        loading={evolutionLoading}
+                        onSend={handleEvolutionSend}
+                        sending={evolutionSending}
+                        error={evolutionError}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </>)}
         </div>
       </div>
@@ -1237,248 +1236,248 @@ function App() {
         </header>
 
         {activeSection === 'patients' && (<>
-        {/* No patient selected — empty state */}
-        {!hasActivePatient && <EmptyState onOpenCalendar={() => setActiveSection('agenda')} onNewPatient={() => setIsCreatingPatient(true)} />}
+          {/* No patient selected — empty state */}
+          {!hasActivePatient && <EmptyState onOpenCalendar={() => setActiveSection('agenda')} onNewPatient={() => setIsCreatingPatient(true)} />}
 
-        {/* Patient active — strip + tabs */}
-        {hasActivePatient && (
-          <div className="flex flex-col flex-1 min-h-0">
+          {/* Patient active — strip + tabs */}
+          {hasActivePatient && (
+            <div className="flex flex-col flex-1 min-h-0">
 
-            {/* Patient strip */}
-            <PatientHeader
-              patientName={selectedPatientName}
-              sessionCount={confirmedSessions.length}
-              compact
-              patientId={selectedPatientId}
-              onEditPatient={(id) => setEditingPatientId(id)}
-              onInvitePatient={(id) => setInvitingPatientId(id)}
-              portalStatus={selectedPatientPortalStatus}
-            />
+              {/* Patient strip */}
+              <PatientHeader
+                patientName={selectedPatientName}
+                sessionCount={confirmedSessions.length}
+                compact
+                patientId={selectedPatientId}
+                onEditPatient={(id) => setEditingPatientId(id)}
+                onInvitePatient={(id) => setInvitingPatientId(id)}
+                portalStatus={selectedPatientPortalStatus}
+              />
 
-            {/* Tab nav */}
-            <div className="flex border-b border-ink/[0.07] bg-white flex-shrink-0">
-              {[
-                { id: 'escribir', label: 'Escribir' },
-                { id: 'nota', label: 'Nota' },
-                { id: 'historial', label: 'Historial' },
-                { id: 'evolucion', label: 'Evolución' },
-              ].map(({ id, label }) => (
-                <button
-                  key={id}
-                  onClick={() => setMobileTab(id)}
-                  className={`flex-1 py-3 text-[12px] font-medium transition-colors border-b-2 ${mobileTab === id
-                    ? 'border-[#5a9e8a] text-[#5a9e8a]'
-                    : 'border-transparent text-ink-secondary hover:text-ink'
-                    }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+              {/* Tab nav */}
+              <div className="flex border-b border-ink/[0.07] bg-white flex-shrink-0">
+                {[
+                  { id: 'escribir', label: 'Escribir' },
+                  { id: 'nota', label: 'Nota' },
+                  { id: 'historial', label: 'Historial' },
+                  { id: 'evolucion', label: 'Evolución' },
+                ].map(({ id, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => setMobileTab(id)}
+                    className={`flex-1 py-3 text-[12px] font-medium transition-colors border-b-2 ${mobileTab === id
+                      ? 'border-[#5a9e8a] text-[#5a9e8a]'
+                      : 'border-transparent text-ink-secondary hover:text-ink'
+                      }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-            {/* Tab: Escribir */}
-            {mobileTab === 'escribir' && (
-              <div className="flex flex-col flex-1 min-h-0 bg-[#f4f4f2]">
-                <DictationPanel
-                  value={draft}
-                  onChange={setDraft}
-                  onGenerate={(d) => handleSendDictation(d)}
-                  loading={isLoading}
-                  orphanedSessions={orphanedSessions}
-                  onResumeOrphan={handleResumeOrphan}
-                  onDiscardOrphan={handleDiscardOrphan}
-                  noteFormat={noteFormat}
-                  onFormatChange={(format) => {
-                    if (format === 'custom' && (!template?.fields || template.fields.length === 0)) {
+              {/* Tab: Escribir */}
+              {mobileTab === 'escribir' && (
+                <div className="flex flex-col flex-1 min-h-0 bg-[#f4f4f2]">
+                  <DictationPanel
+                    value={draft}
+                    onChange={setDraft}
+                    onGenerate={(d) => handleSendDictation(d)}
+                    loading={isLoading}
+                    orphanedSessions={orphanedSessions}
+                    onResumeOrphan={handleResumeOrphan}
+                    onDiscardOrphan={handleDiscardOrphan}
+                    noteFormat={noteFormat}
+                    onFormatChange={(format) => {
+                      if (format === 'custom' && (!template?.fields || template.fields.length === 0)) {
+                        setIsConfiguratorFirstTime(false);
+                        setShowNoteConfigurator(true);
+                      } else {
+                        setNoteFormat(format);
+                      }
+                    }}
+                    onEditTemplate={() => {
                       setIsConfiguratorFirstTime(false);
                       setShowNoteConfigurator(true);
-                    } else {
-                      setNoteFormat(format);
-                    }
-                  }}
-                  onEditTemplate={() => {
-                    setIsConfiguratorFirstTime(false);
-                    setShowNoteConfigurator(true);
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Tab: Nota */}
-            {mobileTab === 'nota' && (
-              <div className="flex flex-col flex-1 min-h-0">
-                <div ref={mobileScrollRef} className="flex-1 overflow-y-auto px-4 py-5">
-                  {currentSessionNote === null ? (
-                    NOTE_EMPTY_STATE
-                  ) : currentSessionNote.type === 'loading' ? (
-                    <div className="flex flex-col gap-2 py-4">
-                      <div className="flex gap-2 items-center">
-                        {[0, 0.2, 0.4].map((d, i) => (
-                          <div key={i} className="w-2 h-2 rounded-full bg-sage/60 animate-pulse" style={{ animationDelay: `${d}s` }} />
-                        ))}
-                        <span className="text-ink text-sm font-medium">
-                          {Array.from(processingJobs.values())[0]?.status === 'processing' 
-                            ? (Array.from(processingJobs.values())[0]?.progress || 'Procesando...') 
-                            : 'Iniciando generación...'}
-                        </span>
-                      </div>
-                      <p className="text-ink-tertiary text-xs leading-relaxed">
-                        Analizando dictado con IA. Esto suele tomar 15 segundos.
-                      </p>
-                    </div>
-                  ) : currentSessionNote.type === 'error' ? (
-                    <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
-                      <strong>Error:</strong> {currentSessionNote.text}
-                    </div>
-                  ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData?.format === 'custom' ? (
-                    <CustomNoteDocument
-                      templateFields={currentSessionNote.noteData.template_fields || template?.fields || []}
-                      values={currentSessionNote.noteData.custom_fields || {}}
-                      onConfirm={async (editedValues) => {
-                        const sid = currentSessionNote.noteData.session_id;
-                        await confirmNote(sid, {
-                          format: 'custom',
-                          custom_fields: editedValues,
-                        });
-                        setNewlyConfirmedSessionId(sid);
-                        fetchPatientSessions(selectedPatientId);
-                        fetchConversations();
-                        setCurrentSessionNote(null);
-                        setToast('Sesión confirmada — nota guardada en historial');
-                        setTimeout(() => setToast(null), 3500);
-                      }}
-                      onDelete={async () => {
-                        const sid = currentSessionNote.noteData.session_id;
-                        await deleteSession(sid);
-                        setCurrentSessionNote(null);
-                        fetchPatientSessions(selectedPatientId);
-                      }}
-                    />
-                  ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
-                    <SoapNoteDocument
-                      noteData={currentSessionNote.noteData}
-                      onConfirm={async () => {
-                        const sid = currentSessionNote.noteData?.session_id || currentSessionNote.sessionId;
-                        if (sid) setNewlyConfirmedSessionId(sid);
-                        fetchPatientSessions(selectedPatientId);
-                        fetchConversations();
-                        setCurrentSessionNote(null);
-                        setToast('Sesión confirmada — nota guardada en historial');
-                        setTimeout(() => setToast(null), 3500);
-                      }}
-                      readOnly={currentSessionNote.readOnly}
-                      onDelete={!currentSessionNote.readOnly ? async () => {
-                        const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
-                        if (!sid) return;
-                        await deleteSession(sid);
-                        setCurrentSessionNote(null);
-                        fetchPatientSessions(selectedPatientId);
-                      } : undefined}
-                    />
-                  ) : null}
+                    }}
+                  />
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Tab: Historial */}
-            {mobileTab === 'historial' && (
-              <div className="flex-1 overflow-y-auto px-4 py-4">
-                {confirmedSessions.length === 0 ? (
-                  <p className="text-ink-tertiary text-[14px] text-center mt-10">Sin sesiones registradas aún.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {confirmedSessions.map((s, i) => {
-                      const isExpanded = expandedSessionId === String(s.id);
-                      const isCustom = s.format === 'custom';
-                      const hasNote = s.status === 'confirmed' && (
-                        s.structured_note ||
-                        (s.custom_fields && Object.keys(s.custom_fields).length > 0)
-                      );
-                      return (
-                        <div
-                          key={s.id || i}
-                          className={`rounded-xl overflow-hidden transition-all ${isExpanded
-                            ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25'
-                            : 'bg-[#f4f4f2]'
-                            }`}
-                        >
+              {/* Tab: Nota */}
+              {mobileTab === 'nota' && (
+                <div className="flex flex-col flex-1 min-h-0">
+                  <div ref={mobileScrollRef} className="flex-1 overflow-y-auto px-4 py-5">
+                    {currentSessionNote === null ? (
+                      NOTE_EMPTY_STATE
+                    ) : currentSessionNote.type === 'loading' ? (
+                      <div className="flex flex-col gap-2 py-4">
+                        <div className="flex gap-2 items-center">
+                          {[0, 0.2, 0.4].map((d, i) => (
+                            <div key={i} className="w-2 h-2 rounded-full bg-sage/60 animate-pulse" style={{ animationDelay: `${d}s` }} />
+                          ))}
+                          <span className="text-ink text-sm font-medium">
+                            {Array.from(processingJobs.values())[0]?.status === 'processing'
+                              ? (Array.from(processingJobs.values())[0]?.progress || 'Procesando...')
+                              : 'Iniciando generación...'}
+                          </span>
+                        </div>
+                        <p className="text-ink-tertiary text-xs leading-relaxed">
+                          Analizando dictado con IA. Esto suele tomar 15 segundos.
+                        </p>
+                      </div>
+                    ) : currentSessionNote.type === 'error' ? (
+                      <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 text-sm">
+                        <strong>Error:</strong> {currentSessionNote.text}
+                      </div>
+                    ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData?.format === 'custom' ? (
+                      <CustomNoteDocument
+                        templateFields={currentSessionNote.noteData.template_fields || template?.fields || []}
+                        values={currentSessionNote.noteData.custom_fields || {}}
+                        onConfirm={async (editedValues) => {
+                          const sid = currentSessionNote.noteData.session_id;
+                          await confirmNote(sid, {
+                            format: 'custom',
+                            custom_fields: editedValues,
+                          });
+                          setNewlyConfirmedSessionId(sid);
+                          fetchPatientSessions(selectedPatientId);
+                          fetchConversations();
+                          setCurrentSessionNote(null);
+                          setToast('Sesión confirmada — nota guardada en historial');
+                          setTimeout(() => setToast(null), 3500);
+                        }}
+                        onDelete={async () => {
+                          const sid = currentSessionNote.noteData.session_id;
+                          await deleteSession(sid);
+                          setCurrentSessionNote(null);
+                          fetchPatientSessions(selectedPatientId);
+                        }}
+                      />
+                    ) : currentSessionNote.type === 'bot' && currentSessionNote.noteData ? (
+                      <SoapNoteDocument
+                        noteData={currentSessionNote.noteData}
+                        onConfirm={async () => {
+                          const sid = currentSessionNote.noteData?.session_id || currentSessionNote.sessionId;
+                          if (sid) setNewlyConfirmedSessionId(sid);
+                          fetchPatientSessions(selectedPatientId);
+                          fetchConversations();
+                          setCurrentSessionNote(null);
+                          setToast('Sesión confirmada — nota guardada en historial');
+                          setTimeout(() => setToast(null), 3500);
+                        }}
+                        readOnly={currentSessionNote.readOnly}
+                        onDelete={!currentSessionNote.readOnly ? async () => {
+                          const sid = currentSessionNote.noteData?.session_id || currentSessionNote.noteData?.clinical_note?.session_id || currentSessionNote.sessionId;
+                          if (!sid) return;
+                          await deleteSession(sid);
+                          setCurrentSessionNote(null);
+                          fetchPatientSessions(selectedPatientId);
+                        } : undefined}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab: Historial */}
+              {mobileTab === 'historial' && (
+                <div className="flex-1 overflow-y-auto px-4 py-4">
+                  {confirmedSessions.length === 0 ? (
+                    <p className="text-ink-tertiary text-[14px] text-center mt-10">Sin sesiones registradas aún.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {confirmedSessions.map((s, i) => {
+                        const isExpanded = expandedSessionId === String(s.id);
+                        const isCustom = s.format === 'custom';
+                        const hasNote = s.status === 'confirmed' && (
+                          s.structured_note ||
+                          (s.custom_fields && Object.keys(s.custom_fields).length > 0)
+                        );
+                        return (
                           <div
-                            className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-black/[0.02] transition-colors"
-                            onClick={() => hasNote && handleToggleSession(String(s.id))}
+                            key={s.id || i}
+                            className={`rounded-xl overflow-hidden transition-all ${isExpanded
+                              ? 'bg-[#fafaf9] border-[1.5px] border-[#5a9e8a]/25'
+                              : 'bg-[#f4f4f2]'
+                              }`}
                           >
-                            <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[13px] font-medium text-ink">
-                                Sesión #{confirmedDisplayNum.get(String(s.id)) ?? '—'} · {formatDate(s.session_date)}
-                              </p>
-                              {s.raw_dictation && (
-                                <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
+                            <div
+                              className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-black/[0.02] transition-colors"
+                              onClick={() => hasNote && handleToggleSession(String(s.id))}
+                            >
+                              <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'confirmed' ? 'bg-[#5a9e8a]' : 'bg-[#c4935a]'}`} />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-medium text-ink">
+                                  Sesión #{confirmedDisplayNum.get(String(s.id)) ?? '—'} · {formatDate(s.session_date)}
+                                </p>
+                                {s.raw_dictation && (
+                                  <p className="text-[12px] text-ink-muted mt-0.5 line-clamp-2">{s.raw_dictation}</p>
+                                )}
+                                <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'}`}>
+                                  {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                                </span>
+                              </div>
+                              {hasNote && (
+                                <svg
+                                  className={`w-4 h-4 mt-1 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : 'text-[#9ca3af]'}`}
+                                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9l6 6 6-6" />
+                                </svg>
                               )}
-                              <span className={`inline-block mt-1 text-[10px] font-medium uppercase tracking-wide ${s.status === 'confirmed' ? 'text-[#5a9e8a]' : 'text-[#c4935a]'}`}>
-                                {s.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
-                              </span>
                             </div>
-                            {hasNote && (
-                              <svg
-                                className={`w-4 h-4 mt-1 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-[#5a9e8a]' : 'text-[#9ca3af]'}`}
-                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 9l6 6 6-6" />
-                              </svg>
+                            {isExpanded && hasNote && (
+                              <div className="border-t border-ink/[0.06]">
+                                {isCustom ? (
+                                  <CustomNoteDocument
+                                    templateFields={s.template_fields || template?.fields || []}
+                                    values={s.custom_fields || {}}
+                                    readOnly
+                                  />
+                                ) : (
+                                  <SoapNoteDocument
+                                    noteData={{
+                                      clinical_note: {
+                                        structured_note: s.structured_note,
+                                        detected_patterns: s.detected_patterns || [],
+                                        alerts: s.alerts || [],
+                                        session_id: String(s.id),
+                                      },
+                                      text_fallback: s.ai_response,
+                                    }}
+                                    readOnly
+                                    compact
+                                  />
+                                )}
+                                <PatientSummarySection
+                                  sessionId={String(s.id)}
+                                  patientName={selectedPatientName}
+                                />
+                              </div>
                             )}
                           </div>
-                          {isExpanded && hasNote && (
-                            <div className="border-t border-ink/[0.06]">
-                              {isCustom ? (
-                                <CustomNoteDocument
-                                  templateFields={s.template_fields || template?.fields || []}
-                                  values={s.custom_fields || {}}
-                                  readOnly
-                                />
-                              ) : (
-                                <SoapNoteDocument
-                                  noteData={{
-                                    clinical_note: {
-                                      structured_note: s.structured_note,
-                                      detected_patterns: s.detected_patterns || [],
-                                      alerts: s.alerts || [],
-                                      session_id: String(s.id),
-                                    },
-                                    text_fallback: s.ai_response,
-                                  }}
-                                  readOnly
-                                  compact
-                                />
-                              )}
-                              <PatientSummarySection
-                                sessionId={String(s.id)}
-                                patientName={selectedPatientName}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
-            {/* Tab: Evolución */}
-            {mobileTab === 'evolucion' && (
-              <EvolucionPanel
-                patient={{ id: selectedPatientId, name: selectedPatientName }}
-                messages={evolutionMessages.get(selectedPatientId) || []}
-                profile={patientProfile}
-                loading={evolutionLoading}
-                onSend={handleEvolutionSend}
-                sending={evolutionSending}
-                error={evolutionError}
-              />
-            )}
+              {/* Tab: Evolución */}
+              {mobileTab === 'evolucion' && (
+                <EvolucionPanel
+                  patient={{ id: selectedPatientId, name: selectedPatientName }}
+                  messages={evolutionMessages.get(selectedPatientId) || []}
+                  profile={patientProfile}
+                  loading={evolutionLoading}
+                  onSend={handleEvolutionSend}
+                  sending={evolutionSending}
+                  error={evolutionError}
+                />
+              )}
 
-          </div>
-        )}
+            </div>
+          )}
         </>)}
 
         {activeSection === 'agenda' && (
@@ -1488,11 +1487,10 @@ function App() {
                 <button
                   key={tab}
                   onClick={() => setAgendaMobileTab(tab)}
-                  className={`flex-1 py-3 text-[12px] font-medium transition-colors border-b-2 capitalize ${
-                    agendaMobileTab === tab
-                      ? 'border-[#5a9e8a] text-[#5a9e8a]'
-                      : 'border-transparent text-ink-secondary hover:text-ink'
-                  }`}
+                  className={`flex-1 py-3 text-[12px] font-medium transition-colors border-b-2 capitalize ${agendaMobileTab === tab
+                    ? 'border-[#5a9e8a] text-[#5a9e8a]'
+                    : 'border-transparent text-ink-secondary hover:text-ink'
+                    }`}
                 >
                   {tab === 'disponibilidad' ? 'Disponibilidad' : 'Calendario'}
                 </button>
@@ -1502,8 +1500,8 @@ function App() {
               <div className="flex flex-col flex-1 min-h-0 bg-[#f4f4f2]">
                 <DictationPanel
                   value=""
-                  onChange={() => {}}
-                  onGenerate={() => {}}
+                  onChange={() => { }}
+                  onGenerate={() => { }}
                   loading={false}
                   panelMode="disponibilidad"
                   onParseAvailability={handleParseAvailability}
@@ -1513,7 +1511,7 @@ function App() {
             )}
             {agendaMobileTab === 'calendario' && (
               <div className="flex-1 overflow-hidden">
-                <CalendarScreen key={agendaCalendarKey} mode="inline" onClose={() => {}} />
+                <CalendarScreen key={agendaCalendarKey} mode="inline" onClose={() => { }} />
               </div>
             )}
           </div>

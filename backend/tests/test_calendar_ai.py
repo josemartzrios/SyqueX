@@ -9,7 +9,7 @@ class TestParseAvailability:
     @pytest.mark.asyncio
     async def test_returns_slots_for_valid_text(self):
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='[{"slot_date":"2026-05-18","start_time":"09:00","duration_minutes":50},{"slot_date":"2026-05-18","start_time":"09:50","duration_minutes":50}]')]
+        mock_response.content = [MagicMock(text='[{"slot_date":"2026-05-18","start_time":"09:00","duration_minutes":60},{"slot_date":"2026-05-18","start_time":"10:00","duration_minutes":60}]')]
 
         with patch("api.calendar_ai.AsyncAnthropic") as MockClient:
             instance = MockClient.return_value
@@ -19,7 +19,7 @@ class TestParseAvailability:
         assert len(result) == 2
         assert result[0].slot_date == date(2026, 5, 18)
         assert result[0].start_time == time(9, 0)
-        assert result[0].duration_minutes == 50
+        assert result[0].duration_minutes == 60
 
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_claude_returns_empty(self):
@@ -36,7 +36,7 @@ class TestParseAvailability:
     @pytest.mark.asyncio
     async def test_parses_json_wrapped_in_markdown_code_fence(self):
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='```json\n[{"slot_date":"2026-05-18","start_time":"07:00","duration_minutes":50}]\n```')]
+        mock_response.content = [MagicMock(text='```json\n[{"slot_date":"2026-05-18","start_time":"07:00","duration_minutes":60}]\n```')]
 
         with patch("api.calendar_ai.AsyncAnthropic") as MockClient:
             instance = MockClient.return_value

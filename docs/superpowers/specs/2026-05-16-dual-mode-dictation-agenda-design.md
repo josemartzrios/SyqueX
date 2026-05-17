@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-05-16  
 **Feature:** Panel de dictado dual (nota clínica / disponibilidad) + Agenda como sección top-level  
-**Branch target:** `dev`
+**Branch target:** `feature/calendar`
 
 ---
 

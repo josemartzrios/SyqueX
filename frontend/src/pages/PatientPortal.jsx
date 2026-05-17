@@ -81,35 +81,33 @@ export default function PatientPortal() {
       {/* Header */}
       <nav className="bg-white border-b border-[#18181b]/[0.06] sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-[#5a9e8a] rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">S</span>
-              </div>
-              <span className="font-serif text-xl text-[#18181b] hidden sm:block">SyqueX</span>
+          <div className="flex justify-between items-center h-14 sm:h-16">
+
+            {/* Brand — always visible */}
+            <div className="flex items-center gap-2.5">
+              <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">SyqueX</span>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Actions */}
+            <div className="flex items-center gap-1 sm:gap-2">
+
+              {/* Tutorial — desktop only */}
               <button
                 onClick={() => setTutorialVisible(true)}
-                className="w-8 h-8 rounded-full border border-[#18181b]/[0.07] text-[#9ca3af] hover:text-[#18181b] hover:bg-[#18181b]/[0.05] transition-colors flex items-center justify-center flex-shrink-0"
+                className="hidden sm:flex w-9 h-9 rounded-full border border-[#18181b]/[0.07] text-[#9ca3af] hover:text-[#18181b] hover:bg-[#18181b]/[0.05] transition-colors items-center justify-center text-sm"
                 aria-label="Abrir tutorial"
-              >
-                ?
-              </button>
-              <button
-                onClick={() => setBookingModalOpen(true)}
-                className="text-sm font-medium bg-[#5a9e8a] hover:bg-[#4a8271] text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Agendar cita
-              </button>
+              >?</button>
+
+              {/* Logout */}
               <button
                 onClick={handleLogout}
-                className="text-sm font-medium text-[#9ca3af] hover:text-[#18181b] transition-colors"
+                className="flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-lg text-[#9ca3af] hover:text-[#18181b] hover:bg-[#18181b]/[0.05] active:scale-95 transition-all"
+                aria-label="Cerrar sesión"
               >
-                Cerrar sesión
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="hidden sm:inline text-sm font-medium">Cerrar sesión</span>
               </button>
             </div>
           </div>
@@ -139,6 +137,26 @@ export default function PatientPortal() {
 
           {/* List Section */}
           <div className="md:col-span-1 md:sticky md:top-[88px] md:max-h-[calc(100vh-104px)] md:overflow-y-auto md:pr-1">
+
+            {/* Booking CTA — explicit, always visible */}
+            <button
+              onClick={() => setBookingModalOpen(true)}
+              className="w-full mb-5 flex items-center gap-3 bg-[#5a9e8a] hover:bg-[#4a8271] active:scale-[0.98] text-white rounded-xl px-4 py-3 transition-all"
+            >
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-semibold leading-tight">Agendar cita</div>
+                <div className="text-[11px] text-white/70 leading-tight mt-0.5">Ver disponibilidad del psicólogo</div>
+              </div>
+              <svg className="w-4 h-4 ml-auto text-white/60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+
             <h1 className="text-lg font-bold text-[#18181b] mb-4">Mis Sesiones</h1>
             {error && (
               <div className="mb-4 flex items-center gap-2 bg-[#fef2f2] border border-red-200 rounded-xl px-3 py-2.5">
@@ -267,9 +285,9 @@ export default function PatientPortal() {
         patientMode
       />
 
-      <PatientBookingModal 
-        open={bookingModalOpen} 
-        onClose={() => setBookingModalOpen(false)} 
+      <PatientBookingModal
+        open={bookingModalOpen}
+        onClose={() => setBookingModalOpen(false)}
         onBookingSuccess={() => {
           setBookingSuccess(true);
           setTimeout(() => setBookingSuccess(false), 8000);

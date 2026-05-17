@@ -65,7 +65,7 @@ export default function CalendarScreen({ onClose, mode = 'modal' }) {
     setCreating(true);
     setError(null);
     try {
-      await createCalendarSlot({ slot_date: selectedDate, start_time: newTime, duration_minutes: 50 });
+      await createCalendarSlot({ slot_date: selectedDate, start_time: newTime, duration_minutes: 60 });
       await loadSlots();
     } catch (err) {
       setError(err.message || 'Error al crear horario');
@@ -153,7 +153,7 @@ export default function CalendarScreen({ onClose, mode = 'modal' }) {
       {!isPastSelected && (
         <form onSubmit={handleCreateSlot} className={`${compact ? 'mb-3' : 'mb-6'} bg-[#f4f4f2] ${compact ? 'p-3' : 'p-4'} rounded-xl border border-ink/[0.05]`}>
           <label className={`block ${compact ? 'text-[12px]' : 'text-[13px]'} font-medium text-ink-secondary mb-2`}>
-            Nuevo horario · 50 min
+            Nuevo horario · 60 min
           </label>
           <div className="flex gap-2">
             <input

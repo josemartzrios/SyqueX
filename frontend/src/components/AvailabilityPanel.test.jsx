@@ -4,8 +4,8 @@ import { describe, it, expect, vi } from 'vitest';
 import AvailabilityPanel from './AvailabilityPanel';
 
 const mockSlots = [
-  { slot_date: '2026-05-18', start_time: '09:00', duration_minutes: 50 },
-  { slot_date: '2026-05-18', start_time: '09:50', duration_minutes: 50 },
+  { slot_date: '2026-05-18', start_time: '09:00', duration_minutes: 60 },
+  { slot_date: '2026-05-18', start_time: '10:00', duration_minutes: 60 },
 ];
 
 describe('AvailabilityPanel', () => {

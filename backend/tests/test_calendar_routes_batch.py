@@ -26,7 +26,7 @@ class TestParseAvailabilityEndpoint:
     @pytest.mark.asyncio
     async def test_returns_slots_when_text_parseable(self, async_client, auth_headers):
         mock_slots = [
-            SlotProposal(slot_date=date(2026, 5, 18), start_time=time(9, 0), duration_minutes=50),
+            SlotProposal(slot_date=date(2026, 5, 18), start_time=time(9, 0), duration_minutes=60),
         ]
         with patch("api.calendar_routes.parse_availability", AsyncMock(return_value=mock_slots)):
             response = await async_client.post(
@@ -58,8 +58,8 @@ class TestCreateSlotsBatch:
         response = await async_client.post(
             "/api/v1/calendar/slots/batch",
             json={"slots": [
-                {"slot_date": "2099-01-06", "start_time": "09:00", "duration_minutes": 50},
-                {"slot_date": "2099-01-06", "start_time": "09:50", "duration_minutes": 50},
+                {"slot_date": "2099-01-06", "start_time": "09:00", "duration_minutes": 60},
+                {"slot_date": "2099-01-06", "start_time": "10:00", "duration_minutes": 60},
             ]},
             headers=auth_headers,
         )
@@ -70,7 +70,7 @@ class TestCreateSlotsBatch:
 
     @pytest.mark.asyncio
     async def test_skips_duplicate_slots(self, async_client, auth_headers, db_session):
-        payload = {"slots": [{"slot_date": "2099-02-10", "start_time": "10:00", "duration_minutes": 50}]}
+        payload = {"slots": [{"slot_date": "2099-02-10", "start_time": "10:00", "duration_minutes": 60}]}
         from sqlalchemy.exc import IntegrityError
         
         # Reset side effect

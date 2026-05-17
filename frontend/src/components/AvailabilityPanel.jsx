@@ -34,7 +34,7 @@ export default function AvailabilityPanel({ onParseAvailability, onConfirmSlots 
       setState(PANEL_STATES.PREVIEW);
     } catch {
       setState(PANEL_STATES.ERROR);
-      setErrorMsg('No pude identificar fechas u horas. Intenta: "Lunes de 9 a 2, sesiones 50 min"');
+      setErrorMsg('No pude identificar fechas u horas. Intenta: "Lunes de 9 a 2, sesiones 60 min"');
     }
   };
 
@@ -82,7 +82,7 @@ export default function AvailabilityPanel({ onParseAvailability, onConfirmSlots 
                       const globalIdx = previewSlots.indexOf(slot);
                       return (
                         <div key={idx} className="flex items-center justify-between bg-[#f4f4f2] rounded-lg px-3 py-2">
-                          <span className="text-[13px] text-ink">{slot.start_time.substring(0, 5)} · 50 min</span>
+                          <span className="text-[13px] text-ink">{slot.start_time.substring(0, 5)} · {slot.duration_minutes} min</span>
                           <button
                             onClick={() => handleRemoveSlot(globalIdx)}
                             title="Eliminar slot"

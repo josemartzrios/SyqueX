@@ -43,14 +43,14 @@ function PatientConversationItem({ conv, active, onClick, onDelete, hasDraft }) 
     >
       <div className="pr-6">
         <p
-          className={`text-[14px] font-medium truncate leading-snug ${active ? 'text-[#18181b]' : 'text-gray-600'
+          className={`text-[14px] font-medium truncate leading-snug ${active ? 'text-[#18181b]' : 'text-ink-secondary'
             }`}
         >
           {conv.patient_name}
         </p>
         {conv.session_number != null ? (
           <div className="flex items-center gap-1.5 mt-0.5">
-            <p className="text-[11px] text-gray-400">Sesión #{conv.session_number}</p>
+            <p className="text-[11px] text-ink-tertiary">Sesión #{conv.session_number}</p>
             {hasDraft ? (
               <span className="text-[10px] font-semibold text-[#c4935a] bg-[#fef3e2] rounded px-1 leading-4">
                 Borrador
@@ -62,10 +62,10 @@ function PatientConversationItem({ conv, active, onClick, onDelete, hasDraft }) 
             )}
           </div>
         ) : (
-          <p className="text-[11px] text-gray-400 mt-0.5">Sin sesiones</p>
+          <p className="text-[11px] text-ink-tertiary mt-0.5">Sin sesiones</p>
         )}
         {conv.dictation_preview && (
-          <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-1">
+          <p className="text-[11px] text-ink-tertiary mt-0.5 line-clamp-1">
             {conv.dictation_preview}
           </p>
         )}
@@ -76,7 +76,7 @@ function PatientConversationItem({ conv, active, onClick, onDelete, hasDraft }) 
         className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md transition-all opacity-0 group-hover:opacity-100
           ${confirmDelete
             ? 'bg-red-50 text-red-400 !opacity-100'
-            : 'text-gray-400 hover:text-red-400 hover:bg-red-50'
+            : 'text-ink-muted hover:text-red-400 hover:bg-red-50'
           }`}
       >
         {confirmDelete ? (
@@ -135,7 +135,7 @@ export default function PatientSidebar({
   onCancelSubscription,
 }) {
   return (
-    <aside className="w-60 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-[#f4f4f2]">
+    <aside className="w-60 flex-shrink-0 flex flex-col border-r border-black/[0.07] bg-white">
       {/* Brand Header */}
       <div className="px-5 py-4 border-b border-black/[0.07] flex items-center justify-between flex-shrink-0">
         <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">
@@ -145,14 +145,14 @@ export default function PatientSidebar({
 
       {/* Section Label: Pacientes + New button */}
       <div className="px-3 pt-3 pb-1 flex-shrink-0 flex items-center justify-between px-5">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-gray-500 font-bold px-2">
+        <span className="text-[10px] uppercase tracking-[0.12em] text-ink-tertiary font-bold px-2">
           Pacientes
         </span>
         {!isCreatingPatient && (
           <button
             onClick={onNewPatient}
             title="Nuevo paciente"
-            className="p-1 rounded-md text-gray-400 hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors"
+            className="p-1 rounded-md text-ink-tertiary hover:text-[#5a9e8a] hover:bg-black/[0.04] transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
@@ -186,7 +186,7 @@ export default function PatientSidebar({
               </button>
               <button
                 onClick={onCancelNewPatient}
-                className="px-3 text-gray-500 hover:text-gray-700 text-[13px] rounded-lg py-1.5 transition-colors"
+                className="px-3 text-ink-secondary hover:text-ink text-[13px] rounded-lg py-1.5 transition-colors"
               >
                 Cancelar
               </button>
@@ -199,8 +199,8 @@ export default function PatientSidebar({
       <div className="flex-1 overflow-y-auto pb-2">
         {conversations.length === 0 ? (
           <div className="px-4 py-6 text-center">
-            <p className="text-gray-500 text-[13px]">Sin pacientes aún.</p>
-            <p className="text-gray-400 text-xs mt-1">Crea uno para comenzar.</p>
+            <p className="text-ink-secondary text-[13px]">Sin pacientes aún.</p>
+            <p className="text-ink-tertiary text-xs mt-1">Crea uno para comenzar.</p>
           </div>
         ) : (
           conversations.map(conv => (
@@ -221,7 +221,7 @@ export default function PatientSidebar({
         <div className="border-t border-black/[0.07] flex-shrink-0">
           <button
             onClick={onCancelSubscription}
-            className="w-full text-left px-4 py-[10px] text-[12px] text-gray-400 hover:text-gray-600 hover:bg-parchment transition-colors"
+            className="w-full text-left px-4 py-[10px] text-[12px] text-ink-tertiary hover:text-ink-secondary hover:bg-parchment transition-colors"
           >
             Cancelar suscripción
           </button>

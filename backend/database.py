@@ -269,7 +269,7 @@ class AvailabilitySlot(Base):
     psychologist_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('psychologists.id', ondelete='CASCADE'), nullable=False)
     slot_date: Mapped[date] = mapped_column(Date, nullable=False)
     start_time: Mapped[time] = mapped_column(Time, nullable=False)
-    duration_minutes: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default='available', nullable=False)
     booked_by_patient_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey('patients.id', ondelete='SET NULL'), nullable=True)
     booked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -476,7 +476,7 @@ async def init_db():
                 psychologist_id UUID NOT NULL REFERENCES psychologists(id) ON DELETE CASCADE,
                 slot_date DATE NOT NULL,
                 start_time TIME NOT NULL,
-                duration_minutes INTEGER NOT NULL DEFAULT 50,
+                duration_minutes INTEGER NOT NULL DEFAULT 60,
                 status VARCHAR(20) NOT NULL DEFAULT 'available',
                 booked_by_patient_id UUID REFERENCES patients(id) ON DELETE SET NULL,
                 booked_at TIMESTAMPTZ,
