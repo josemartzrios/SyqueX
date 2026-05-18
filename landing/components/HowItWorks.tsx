@@ -4,7 +4,7 @@ const steps = [
   {
     step: '01',
     title: 'Dicta tu disponibilidad',
-    desc: 'Antes de tu primera sesión, dicta tus horas libres. La IA extrae los horarios y los publica automáticamente en el portal del paciente. Ambos reciben notificación por correo al confirmar la cita.',
+    desc: 'Cuando quieras, dicta tus horas libres. La IA extrae los horarios y los publica automáticamente en el portal del paciente. Ambos reciben notificación por correo al confirmar la cita.',
     badge: 'Dictado de voz',
   },
   {
