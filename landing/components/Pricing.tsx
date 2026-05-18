@@ -15,6 +15,7 @@ const features = [
   'Agente de evolución clínica',
   'Búsqueda semántica en historial',
   'Seguimiento del paciente con acuerdos',
+  'Agendamiento con notificación por correo',
   'Expediente conforme a NOM-004',
   'Soporte prioritario por WhatsApp',
 ]
