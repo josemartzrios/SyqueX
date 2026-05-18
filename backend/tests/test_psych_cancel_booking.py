@@ -72,3 +72,104 @@ class TestSoftCancelSlot:
 
         assert response.status_code == 204
         mock_db.delete.assert_called_once_with(mock_slot)
+
+
+class TestAvailabilityCancelledBooking:
+    @pytest.mark.asyncio
+    async def test_get_availability_returns_cancelled_booking(self):
+        patient_id = str(uuid.uuid4())
+        slot_id = uuid.uuid4()
+        psych_id = uuid.uuid4()
+
+        mock_patient = MagicMock()
+        mock_patient.psychologist_id = psych_id
+
+        mock_cancelled_slot = MagicMock()
+        mock_cancelled_slot.id = slot_id
+        mock_cancelled_slot.slot_date = date(2026, 6, 1)
+        mock_cancelled_slot.start_time = time(10, 0)
+        mock_cancelled_slot.duration_minutes = 60
+
+        mock_db = AsyncMock()
+        mock_db.get.return_value = mock_patient
+
+        available_result = MagicMock()
+        available_result.scalars.return_value.all.return_value = []
+
+        upcoming_result = MagicMock()
+        upcoming_result.scalar_one_or_none.return_value = None
+
+        cancelled_result = MagicMock()
+        cancelled_result.scalar_one_or_none.return_value = mock_cancelled_slot
+
+        mock_db.execute.side_effect = [available_result, upcoming_result, cancelled_result]
+
+        from main import app
+        from api.patient_portal import get_current_patient
+        from database import get_db
+
+        async def override_patient():
+            return patient_id
+
+        async def override_db():
+            yield mock_db
+
+        app.dependency_overrides[get_current_patient] = override_patient
+        app.dependency_overrides[get_db] = override_db
+
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+                response = await ac.get("/api/v1/portal/availability?month=2026-06")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "cancelled_booking" in data
+            assert data["cancelled_booking"]["id"] == str(slot_id)
+            assert data["upcoming_booking"] is None
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_get_availability_cancelled_booking_null_when_acknowledged(self):
+        patient_id = str(uuid.uuid4())
+        psych_id = uuid.uuid4()
+
+        mock_patient = MagicMock()
+        mock_patient.psychologist_id = psych_id
+
+        mock_db = AsyncMock()
+        mock_db.get.return_value = mock_patient
+
+        available_result = MagicMock()
+        available_result.scalars.return_value.all.return_value = []
+
+        upcoming_result = MagicMock()
+        upcoming_result.scalar_one_or_none.return_value = None
+
+        cancelled_result = MagicMock()
+        cancelled_result.scalar_one_or_none.return_value = None
+
+        mock_db.execute.side_effect = [available_result, upcoming_result, cancelled_result]
+
+        from main import app
+        from api.patient_portal import get_current_patient
+        from database import get_db
+
+        async def override_patient():
+            return patient_id
+
+        async def override_db():
+            yield mock_db
+
+        app.dependency_overrides[get_current_patient] = override_patient
+        app.dependency_overrides[get_db] = override_db
+
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+                response = await ac.get("/api/v1/portal/availability?month=2026-06")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["cancelled_booking"] is None
+        finally:
+            app.dependency_overrides.clear()

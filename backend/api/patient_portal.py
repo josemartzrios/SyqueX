@@ -120,10 +120,23 @@ async def get_availability(month: str, patient_id: str = Depends(get_current_pat
         ).order_by(AvailabilitySlot.slot_date, AvailabilitySlot.start_time).limit(1)
     )
     upcoming = up_res.scalar_one_or_none()
-    
+
+    # Get cancelled booking (psychologist-cancelled, not yet acknowledged)
+    can_res = await db.execute(
+        select(AvailabilitySlot)
+        .where(
+            AvailabilitySlot.booked_by_patient_id == puuid,
+            AvailabilitySlot.status == 'cancelled',
+            AvailabilitySlot.cancelled_by == 'psychologist',
+            AvailabilitySlot.acknowledged == False
+        ).order_by(AvailabilitySlot.slot_date.desc()).limit(1)
+    )
+    cancelled = can_res.scalar_one_or_none()
+
     return {
         "slots": [{"id": str(s.id), "slot_date": s.slot_date, "start_time": s.start_time, "duration_minutes": s.duration_minutes} for s in slots],
-        "upcoming_booking": {"id": str(upcoming.id), "slot_date": upcoming.slot_date, "start_time": upcoming.start_time, "duration_minutes": upcoming.duration_minutes} if upcoming else None
+        "upcoming_booking": {"id": str(upcoming.id), "slot_date": upcoming.slot_date, "start_time": upcoming.start_time, "duration_minutes": upcoming.duration_minutes} if upcoming else None,
+        "cancelled_booking": {"id": str(cancelled.id), "slot_date": cancelled.slot_date, "start_time": cancelled.start_time, "duration_minutes": cancelled.duration_minutes} if cancelled else None,
     }
 
 class BookRequest(BaseModel):
