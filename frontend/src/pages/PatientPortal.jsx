@@ -173,29 +173,29 @@ export default function PatientPortal() {
               error={cancelError}
             />
 
-            {/* Booking CTA — explicit, always visible */}
-            <button
-              onClick={() => setBookingModalOpen(true)}
-              className="w-full mb-5 flex items-center gap-3 bg-[#5a9e8a] hover:bg-[#4a8271] active:scale-[0.98] text-white rounded-xl px-4 py-3 transition-all"
-            >
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            {/* Booking CTA — solo visible cuando no hay cita activa */}
+            {!upcomingBooking && (
+              <button
+                onClick={() => setBookingModalOpen(true)}
+                className="w-full mb-5 flex items-center gap-3 bg-[#5a9e8a] hover:bg-[#4a8271] active:scale-[0.98] text-white rounded-xl px-4 py-3 transition-all"
+              >
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <div className="text-sm font-semibold leading-tight">Agendar cita</div>
+                  <div className="text-[11px] text-white/70 leading-tight mt-0.5">
+                    Ver disponibilidad del psicólogo
+                  </div>
+                </div>
+                <svg className="w-4 h-4 ml-auto text-white/60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
                 </svg>
-              </div>
-              <div className="text-left">
-                <div className="text-sm font-semibold leading-tight">
-                  {upcomingBooking ? 'Agendar otra cita' : 'Agendar cita'}
-                </div>
-                <div className="text-[11px] text-white/70 leading-tight mt-0.5">
-                  Ver disponibilidad
-                </div>
-              </div>
-              <svg className="w-4 h-4 ml-auto text-white/60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
+              </button>
+            )}
 
             <h1 className="text-lg font-bold text-[#18181b] mb-4">Mis Sesiones</h1>
             {error && (
