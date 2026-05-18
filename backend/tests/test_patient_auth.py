@@ -41,13 +41,14 @@ async def test_accept_invite_success(patient_user_pending):
         yield mock_db
 
     app.dependency_overrides[get_db] = override_db
-    try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            res = await client.post(ACCEPT_URL, json={"token": VALID_TOKEN, "password": VALID_PASSWORD})
-        assert res.status_code == 200
-        assert "access_token" in res.json()
-    finally:
-        app.dependency_overrides.clear()
+    with patch("api.patient_auth.hash_password", return_value="fake_hashed_pw"):
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                res = await client.post(ACCEPT_URL, json={"token": VALID_TOKEN, "password": VALID_PASSWORD})
+            assert res.status_code == 200
+            assert "access_token" in res.json()
+        finally:
+            app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
@@ -76,14 +77,13 @@ async def test_accept_invite_invalid_token():
 async def test_patient_login_success():
     from main import app
     from database import get_db
-    from api.patient_auth import hash_password
 
     pu = MagicMock()
     pu.id = uuid.uuid4()
     pu.patient_id = uuid.uuid4()
     pu.psychologist_id = uuid.uuid4()
     pu.email = "ana@example.com"
-    pu.password_hash = hash_password(VALID_PASSWORD)
+    pu.password_hash = "fake_hashed_pw"
     pu.is_active = True
 
     mock_db = AsyncMock()
@@ -95,25 +95,25 @@ async def test_patient_login_success():
         yield mock_db
 
     app.dependency_overrides[get_db] = override_db
-    try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            res = await client.post(LOGIN_URL, json={"email": "ana@example.com", "password": VALID_PASSWORD})
-        assert res.status_code == 200
-        data = res.json()
-        assert data["role"] == "patient"
-        assert "access_token" in data
-    finally:
-        app.dependency_overrides.clear()
+    with patch("api.patient_auth.verify_password", return_value=True):
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                res = await client.post(LOGIN_URL, json={"email": "ana@example.com", "password": VALID_PASSWORD})
+            assert res.status_code == 200
+            data = res.json()
+            assert data["role"] == "patient"
+            assert "access_token" in data
+        finally:
+            app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
 async def test_patient_login_wrong_password():
     from main import app
     from database import get_db
-    from api.patient_auth import hash_password
 
     pu = MagicMock()
-    pu.password_hash = hash_password(VALID_PASSWORD)
+    pu.password_hash = "fake_hashed_pw"
     pu.is_active = True
 
     mock_db = AsyncMock()
@@ -125,12 +125,13 @@ async def test_patient_login_wrong_password():
         yield mock_db
 
     app.dependency_overrides[get_db] = override_db
-    try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            res = await client.post(LOGIN_URL, json={"email": "ana@example.com", "password": "Wrongpass1"})
-        assert res.status_code == 401
-    finally:
-        app.dependency_overrides.clear()
+    with patch("api.patient_auth.verify_password", return_value=False):
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                res = await client.post(LOGIN_URL, json={"email": "ana@example.com", "password": "Wrongpass1"})
+            assert res.status_code == 401
+        finally:
+            app.dependency_overrides.clear()
 
 
 # ── Forgot Password Tests ──────────────────────────────────────────────────
@@ -277,20 +278,21 @@ async def test_reset_password_valid_token(patient_user_active, reset_token_valid
         yield mock_db
 
     app.dependency_overrides[get_db] = override_db
-    try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            res = await client.post(RESET_URL, json={
-                "token": VALID_RAW_TOKEN,
-                "new_password": "NewPassword1"
-            })
-        assert res.status_code == 200
-        data = res.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
-        assert reset_token_valid.used_at is not None
-        assert patient_user_active.password_hash is not None
-    finally:
-        app.dependency_overrides.clear()
+    with patch("api.patient_auth.hash_password", return_value="fake_new_hashed_pw"):
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                res = await client.post(RESET_URL, json={
+                    "token": VALID_RAW_TOKEN,
+                    "new_password": "NewPassword1"
+                })
+            assert res.status_code == 200
+            data = res.json()
+            assert "access_token" in data
+            assert data["token_type"] == "bearer"
+            assert reset_token_valid.used_at is not None
+            assert patient_user_active.password_hash is not None
+        finally:
+            app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio

@@ -53,7 +53,7 @@ describe('PatientIntakeModal', () => {
     expect(screen.getByText(/Art\. 8 LFPDPPP/)).toBeInTheDocument()
   })
 
-  it('submit deshabilitado hasta llenar los 4 obligatorios', async () => {
+  it('submit deshabilitado hasta llenar los 5 obligatorios', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     render(<PatientIntakeModal open={true} mode="create" onClose={noop} onSaved={noop} />)
 
@@ -73,6 +73,9 @@ describe('PatientIntakeModal', () => {
     expect(submit).toBeDisabled()
 
     await user.type(screen.getByPlaceholderText(/Ej\. 5512345678/), '5512345678')
+    expect(submit).toBeDisabled()
+
+    await user.type(screen.getByLabelText(/Correo electrónico del paciente/), 'ana@test.com')
     expect(submit).not.toBeDisabled()
   })
 
@@ -119,6 +122,7 @@ describe('PatientIntakeModal', () => {
     await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     await user.type(screen.getByPlaceholderText(/Qué trae al paciente/), 'Ansiedad')
     await user.type(screen.getByPlaceholderText(/Ej\. 5512345678/), '5512345678')
+    await user.type(screen.getByLabelText(/Correo electrónico del paciente/), 'ana@test.com')
     await user.click(screen.getByRole('button', { name: /Crear paciente/i }))
 
     await waitFor(() => {
@@ -145,6 +149,7 @@ describe('PatientIntakeModal', () => {
       reason_for_consultation: 'Orig',
       occupation: 'Antigua',
       phone: '5512345678',
+      email: 'ana@test.com',
       emergency_contact: null,
     })
     updatePatient.mockResolvedValueOnce({ id: 9, name: 'Ana', occupation: '' })
@@ -176,6 +181,7 @@ describe('PatientIntakeModal', () => {
     await user.type(screen.getByPlaceholderText('AAAA'), '1990')
     await user.type(screen.getByPlaceholderText(/Qué trae al paciente/), 'Ansiedad')
     await user.type(screen.getByPlaceholderText(/Ej\. 5512345678/), '5512345678')
+    await user.type(screen.getByLabelText(/Correo electrónico del paciente/), 'ana@test.com')
     await user.click(screen.getByRole('button', { name: /Crear paciente/i }))
 
     await waitFor(() => expect(screen.getByText('Nombre duplicado')).toBeInTheDocument())
@@ -213,6 +219,8 @@ describe('PatientIntakeModal', () => {
     await user.selectOptions(screen.getByLabelText(/Género/), 'mujer')
     // Nuevo campo: Teléfono
     await user.type(screen.getByPlaceholderText(/Ej\. 5512345678/), '5512345678')
+    // Obligatorio: Email
+    await user.type(screen.getByLabelText(/Correo electrónico del paciente/), 'ana@test.com')
 
     await user.click(screen.getByRole('button', { name: /Crear paciente/i }))
 
