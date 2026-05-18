@@ -131,9 +131,21 @@ export const acknowledgeBookingCancellation = (slotId) =>
   apiClient.post(`/portal/booking/${slotId}/acknowledge`);
 ```
 
-### `CalendarScreen.jsx` — sin cambios en UI
+### `CalendarScreen.jsx` — refetch on focus
 
 El botón "Cancelar cita" naranja con confirmación de dos pasos ya existe. Solo cambia el comportamiento del `DELETE /slots/{id}` en backend (soft-cancel en lugar de hard delete).
+
+Para que el calendario del psicólogo refleje cancelaciones del paciente sin recargar manualmente, `CalendarScreen` suscribe un listener al evento `focus` de la ventana que dispara `loadSlots()`:
+
+```js
+useEffect(() => {
+  const onFocus = () => loadSlots(currentMonth);
+  window.addEventListener('focus', onFocus);
+  return () => window.removeEventListener('focus', onFocus);
+}, [currentMonth]);
+```
+
+Cuando el psicólogo regresa al tab después de que el paciente canceló, el calendario se actualiza automáticamente mostrando el slot como disponible.
 
 ---
 
@@ -186,3 +198,4 @@ PACIENTE — da Enterado
 - `PatientPortal` muestra `CancelledBookingCard` cuando `cancelledBooking` existe
 - `PatientPortal` muestra `UpcomingBookingCard` tras acknowledge si hay upcoming_booking
 - `PatientPortal` muestra botón "Agendar cita" tras acknowledge si no hay upcoming_booking
+- `CalendarScreen` refetch on window focus actualiza slots sin reload manual
