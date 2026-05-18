@@ -215,18 +215,6 @@ export default function PatientSidebar({
           ))
         )}
       </div>
-
-
-      {canCancelSubscription && (
-        <div className="border-t border-black/[0.07] flex-shrink-0">
-          <button
-            onClick={onCancelSubscription}
-            className="w-full text-left px-4 py-[10px] text-[12px] text-ink-tertiary hover:text-ink-secondary hover:bg-parchment transition-colors"
-          >
-            Cancelar suscripción
-          </button>
-        </div>
-      )}
     </aside>
   );
 }
