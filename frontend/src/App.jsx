@@ -936,6 +936,17 @@ function App() {
               </svg>
               Cerrar sesión
             </button>
+            {billingStatus?.status === 'active' && !billingStatus?.cancel_at_period_end && (
+              <button
+                onClick={() => setIsCancelModalOpen(true)}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors text-ink-secondary hover:bg-ink/[0.04] hover:text-ink"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+                Cancelar suscripción
+              </button>
+            )}
           </div>
         </div>
 

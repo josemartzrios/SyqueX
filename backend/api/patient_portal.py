@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import or_, and_
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 import uuid
@@ -110,13 +111,21 @@ async def get_availability(month: str, patient_id: str = Depends(get_current_pat
     )
     slots = res.scalars().all()
     
-    # Get upcoming booking
+    # Get upcoming booking — exclude slots whose datetime has already passed
+    _today = date.today()
+    _now_time = datetime.now().time()
     up_res = await db.execute(
         select(AvailabilitySlot)
         .where(
             AvailabilitySlot.booked_by_patient_id == puuid,
             AvailabilitySlot.status == 'booked',
-            AvailabilitySlot.slot_date >= date.today()
+            or_(
+                AvailabilitySlot.slot_date > _today,
+                and_(
+                    AvailabilitySlot.slot_date == _today,
+                    AvailabilitySlot.start_time > _now_time
+                )
+            )
         ).order_by(AvailabilitySlot.slot_date, AvailabilitySlot.start_time).limit(1)
     )
     upcoming = up_res.scalar_one_or_none()
