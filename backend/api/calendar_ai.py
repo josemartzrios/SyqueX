@@ -15,9 +15,20 @@ Devuelve ÚNICAMENTE un array JSON con objetos de la forma:
 
 Reglas:
 - Genera citas de 60 minutos que comiencen consecutivamente dentro de cada rango horario indicado
-- Resuelve fechas relativas ("mañana", "el lunes", "esta semana") usando la fecha de hoy
-- Si el texto no contiene fechas u horas identificables, devuelve []
-- Devuelve SOLO el array JSON, sin texto adicional ni explicaciones"""
+- Resuelve fechas relativas ("mañana", "el lunes", "esta semana") usando la fecha de referencia dada
+- Para rangos o listas de días de la semana sin fecha específica: genera slots para las PRÓXIMAS 4 SEMANAS a partir de la fecha de referencia, incluyendo todos los días mencionados en ese período
+- Los rangos de días son inclusivos en toda la semana: "lunes a sábado" incluye lunes, martes, miércoles, jueves, viernes y sábado; "lunes a domingo" incluye los 7 días
+- Sábado y domingo son días completamente válidos — respeta exactamente los días que el psicólogo indique, sin excluir ningún día de la semana
+- Si el texto especifica "esta semana" genera solo esa semana; si dice "la próxima semana" genera solo esa semana
+- Si el texto no contiene días u horas identificables, devuelve []
+- Devuelve SOLO el array JSON, sin texto adicional ni explicaciones
+
+Ejemplos:
+- "lunes a viernes de 9 a 2" → slots 09:00–13:00 para cada lunes-viernes de las próximas 4 semanas
+- "lunes a sábado de 8 a 2" → slots 08:00–13:00 para cada lunes, martes, miércoles, jueves, viernes y sábado de las próximas 4 semanas
+- "sábados de 9 a 1" → slots 09:00, 10:00, 11:00, 12:00 para cada sábado de las próximas 4 semanas
+- "martes y jueves de 3 a 5pm" → slots 15:00, 16:00 para cada martes y jueves de las próximas 4 semanas
+- "mañana de 10 a 12" → slots 10:00, 11:00 solo para el día siguiente a la fecha de referencia"""
 
 
 class SlotProposal(BaseModel):
