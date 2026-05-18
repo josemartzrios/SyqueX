@@ -96,10 +96,10 @@ describe('DictationPanel', () => {
   it('renders "Editar plantilla" only when noteFormat is custom', () => {
     const onEditTemplate = vi.fn();
     const { rerender } = render(
-      <DictationPanel 
-        value="" 
-        onChange={() => {}} 
-        onGenerate={() => {}} 
+      <DictationPanel
+        value=""
+        onChange={() => {}}
+        onGenerate={() => {}}
         loading={false}
         noteFormat="soap"
         onEditTemplate={onEditTemplate}
@@ -109,10 +109,10 @@ describe('DictationPanel', () => {
     expect(screen.queryByText('Editar plantilla')).not.toBeInTheDocument();
 
     rerender(
-      <DictationPanel 
-        value="" 
-        onChange={() => {}} 
-        onGenerate={() => {}} 
+      <DictationPanel
+        value=""
+        onChange={() => {}}
+        onGenerate={() => {}}
         loading={false}
         noteFormat="custom"
         onEditTemplate={onEditTemplate}
@@ -121,8 +121,38 @@ describe('DictationPanel', () => {
 
     const editBtn = screen.getByText('Editar plantilla');
     expect(editBtn).toBeInTheDocument();
-    
+
     fireEvent.click(editBtn);
     expect(onEditTemplate).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders AvailabilityPanel when panelMode is disponibilidad', () => {
+    render(
+      <DictationPanel
+        value=""
+        onChange={() => {}}
+        onGenerate={() => {}}
+        loading={false}
+        panelMode="disponibilidad"
+        onParseAvailability={vi.fn()}
+        onConfirmSlots={vi.fn()}
+      />
+    );
+    expect(screen.getByPlaceholderText(/Describe cuándo estás disponible/)).toBeInTheDocument();
+    expect(screen.queryByText('SOAP')).not.toBeInTheDocument();
+  });
+
+  it('renders note UI when panelMode is nota (default)', () => {
+    render(
+      <DictationPanel
+        value=""
+        onChange={() => {}}
+        onGenerate={() => {}}
+        loading={false}
+        panelMode="nota"
+      />
+    );
+    expect(screen.getByText('SOAP')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/Describe cuándo estás disponible/)).not.toBeInTheDocument();
   });
 });

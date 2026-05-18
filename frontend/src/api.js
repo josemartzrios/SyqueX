@@ -302,3 +302,35 @@ export async function sendSummaryToPortal(sessionId) {
     method: 'POST',
   });
 }
+
+// --- Calendar ---
+export async function getCalendarSlots(month) {
+  return _authFetch(`${API_BASE}/calendar/slots?month=${month}`);
+}
+
+export async function createCalendarSlot(data) {
+  return _authFetch(`${API_BASE}/calendar/slots`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCalendarSlot(slotId) {
+  return _authFetch(`${API_BASE}/calendar/slots/${slotId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function parseAvailability(text, referenceDate) {
+  return _authFetch(`${API_BASE}/calendar/parse-availability`, {
+    method: 'POST',
+    body: JSON.stringify({ text, reference_date: referenceDate }),
+  });
+}
+
+export async function createCalendarSlotsBatch(slots) {
+  return _authFetch(`${API_BASE}/calendar/slots/batch`, {
+    method: 'POST',
+    body: JSON.stringify({ slots }),
+  });
+}

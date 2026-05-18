@@ -11,7 +11,7 @@ const SLIDES_DESKTOP = [
   {
     icon: '👤',
     title: 'Crea tu primer paciente',
-    body: 'Haz clic en el botón +Nuevo junto a "Pacientes" en el sidebar. Cada paciente tiene su propio historial de sesiones y notas clínicas.',
+    body: 'Haz clic en el botón Nuevo Expediente. Cada paciente tiene su propio historial de sesiones y notas clínicas.',
   },
   {
     icon: '✏️',

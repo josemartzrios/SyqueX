@@ -1213,10 +1213,18 @@ async def invite_patient(
         )
 
     # 4. Enviar email
+    logger.debug(
+        "INVITE TOKEN (dev only): /portal/invite?token=%s  — email: %s",
+        token, patient_email
+    )
     try:
         await send_patient_invite(patient_email, patient.name, psychologist.name, token)
     except Exception as e:
         logger.error(f"Error enviando invitacion a paciente {patient_email}: {e}")
+        logger.info(
+            "INVITE URL (sin email): %s/portal/invite?token=%s",
+            settings.FRONTEND_URL, token
+        )
 
     return {"message": "Invitación enviada", "expires_in_days": settings.PATIENT_INVITE_EXPIRE_DAYS}
 

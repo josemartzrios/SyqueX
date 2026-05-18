@@ -49,3 +49,20 @@ describe('patientFetch — 401 handling', () => {
     expect(window.location.reload).not.toHaveBeenCalled()
   })
 })
+
+describe('acknowledgeBookingCancellation', () => {
+  it('calls POST /portal/booking/:id/acknowledge', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok' }),
+    })
+
+    const { acknowledgeBookingCancellation } = await import('./patientApi')
+    await acknowledgeBookingCancellation('slot-abc')
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/portal/booking/slot-abc/acknowledge'),
+      expect.objectContaining({ method: 'POST' })
+    )
+  })
+})

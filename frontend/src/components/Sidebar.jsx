@@ -70,7 +70,7 @@ export default function Sidebar({ open, onClose, conversations, onSelectConversa
           )}
           <button
             onClick={onLogout}
-            className="w-full text-left px-5 py-3 text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
+            className="w-full text-left px-5 py-3 text-[13px] text-ink-secondary hover:text-ink transition-colors"
           >
             Cerrar sesión
           </button>

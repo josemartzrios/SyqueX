@@ -542,6 +542,75 @@ Export all user data as JSON (LFPDPPP compliance).
 
 ---
 
+### Calendar — `/calendar`
+
+#### `GET /calendar/slots`
+
+List calendar slots for the logged-in psychologist.
+
+**Query Parameters:**
+| Param | Type | Description |
+|---|---|---|
+| `month` | string | Format `YYYY-MM` |
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "uuid",
+    "slot_date": "2026-05-15",
+    "start_time": "10:00:00",
+    "duration_minutes": 50,
+    "status": "available",
+    "patient_name": null
+  }
+]
+```
+
+---
+
+#### `POST /calendar/slots`
+
+Create a new availability slot.
+
+**Request Body:**
+```json
+{
+  "slot_date": "2026-05-15",
+  "start_time": "10:00",
+  "duration_minutes": 50
+}
+```
+
+---
+
+#### `DELETE /calendar/slots/{slot_id}`
+
+Delete an availability slot (only if not booked).
+
+---
+
+### Patient Portal — `/portal`
+
+*(Note: Requires patient token instead of psychologist token)*
+
+#### `GET /portal/availability`
+
+Get available slots for the patient's assigned psychologist.
+
+#### `POST /portal/book`
+
+Book a specific slot for the patient.
+
+**Request Body:**
+```json
+{ "slot_id": "uuid" }
+```
+
+**Side Effects:** Sends confirmation emails with `.ics` attachments to both patient and psychologist.
+
+---
+
 ### Cron — `/cron`
 
 #### `GET /cron/daily`

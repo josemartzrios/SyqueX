@@ -5,10 +5,12 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 import uuid
 
-from database import get_db, PatientSummary
+from database import get_db, PatientSummary, AvailabilitySlot, Patient, Psychologist
 from config import settings
 from crypto import decrypt_if_set
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, time
+from pydantic import BaseModel
+from services.email import send_booking_confirmation, send_booking_cancellation
 
 router = APIRouter(tags=["patient-portal"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/patient/login")
@@ -79,3 +81,175 @@ async def get_summary(summary_id: str, patient_id: str = Depends(get_current_pat
         "sent_at": summary.sent_at,
         "viewed_at": summary.viewed_at,
     }
+
+
+@router.get("/availability")
+async def get_availability(month: str, patient_id: str = Depends(get_current_patient), db: AsyncSession = Depends(get_db)):
+    puuid = uuid.UUID(patient_id)
+    patient = await db.get(Patient, puuid)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+        
+    try:
+        y, m = map(int, month.split('-'))
+        start_date = date(y, m, 1)
+        next_m = m + 1 if m < 12 else 1
+        next_y = y if m < 12 else y + 1
+        end_date = date(next_y, next_m, 1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Mes inválido")
+
+    res = await db.execute(
+        select(AvailabilitySlot)
+        .where(
+            AvailabilitySlot.psychologist_id == patient.psychologist_id,
+            AvailabilitySlot.slot_date >= start_date,
+            AvailabilitySlot.slot_date < end_date,
+            AvailabilitySlot.status == 'available'
+        ).order_by(AvailabilitySlot.slot_date, AvailabilitySlot.start_time)
+    )
+    slots = res.scalars().all()
+    
+    # Get upcoming booking
+    up_res = await db.execute(
+        select(AvailabilitySlot)
+        .where(
+            AvailabilitySlot.booked_by_patient_id == puuid,
+            AvailabilitySlot.status == 'booked',
+            AvailabilitySlot.slot_date >= date.today()
+        ).order_by(AvailabilitySlot.slot_date, AvailabilitySlot.start_time).limit(1)
+    )
+    upcoming = up_res.scalar_one_or_none()
+
+    # Get cancelled booking (psychologist-cancelled, not yet acknowledged)
+    can_res = await db.execute(
+        select(AvailabilitySlot)
+        .where(
+            AvailabilitySlot.booked_by_patient_id == puuid,
+            AvailabilitySlot.status == 'cancelled',
+            AvailabilitySlot.cancelled_by == 'psychologist',
+            AvailabilitySlot.acknowledged == False
+        ).order_by(AvailabilitySlot.slot_date.desc()).limit(1)
+    )
+    cancelled = can_res.scalar_one_or_none()
+
+    return {
+        "slots": [{"id": str(s.id), "slot_date": s.slot_date, "start_time": s.start_time, "duration_minutes": s.duration_minutes} for s in slots],
+        "upcoming_booking": {"id": str(upcoming.id), "slot_date": upcoming.slot_date, "start_time": upcoming.start_time, "duration_minutes": upcoming.duration_minutes} if upcoming else None,
+        "cancelled_booking": {"id": str(cancelled.id), "slot_date": cancelled.slot_date, "start_time": cancelled.start_time, "duration_minutes": cancelled.duration_minutes} if cancelled else None,
+    }
+
+class BookRequest(BaseModel):
+    slot_id: str
+
+@router.post("/book")
+async def book_slot(payload: BookRequest, patient_id: str = Depends(get_current_patient), db: AsyncSession = Depends(get_db)):
+    puuid = uuid.UUID(patient_id)
+    suuid = uuid.UUID(payload.slot_id)
+
+    patient = await db.get(Patient, puuid)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    # Capturar datos antes del commit — los objetos ORM expiran tras commit()
+    # y async sessions no soportan lazy loading implícito (MissingGreenlet)
+    patient_email = patient.email
+    patient_name = patient.name
+    patient_psych_id = patient.psychologist_id
+
+    # SELECT FOR UPDATE to prevent race conditions
+    res = await db.execute(
+        select(AvailabilitySlot)
+        .where(AvailabilitySlot.id == suuid)
+        .with_for_update()
+    )
+    slot = res.scalar_one_or_none()
+
+    if not slot or slot.status != 'available' or slot.psychologist_id != patient_psych_id:
+        raise HTTPException(status_code=400, detail="El horario ya no está disponible")
+
+    slot.status = 'booked'
+    slot.booked_by_patient_id = puuid
+    slot.booked_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(slot)
+
+    # Send emails — wrapped para que un fallo de email nunca rompa el booking
+    try:
+        psych = await db.get(Psychologist, slot.psychologist_id)
+        if psych and patient_email:
+            await send_booking_confirmation(
+                patient_email, psych.email, patient_name, psych.name,
+                slot.slot_date, slot.start_time, slot.duration_minutes
+            )
+    except Exception as e:
+        # Email falla silenciosamente — el booking ya está confirmado en DB
+        import logging
+        logging.getLogger(__name__).error("Error enviando email de booking: %s", e)
+
+    return {"status": "ok", "message": "Cita confirmada"}
+
+@router.delete("/booking/{slot_id}")
+async def cancel_booking(slot_id: str, patient_id: str = Depends(get_current_patient), db: AsyncSession = Depends(get_db)):
+    puuid = uuid.UUID(patient_id)
+    suuid = uuid.UUID(slot_id)
+
+    res = await db.execute(select(AvailabilitySlot).where(AvailabilitySlot.id == suuid, AvailabilitySlot.booked_by_patient_id == puuid))
+    slot = res.scalar_one_or_none()
+
+    if not slot:
+        raise HTTPException(status_code=404, detail="Cita no encontrada")
+
+    # Capturar antes del commit — mismo patrón que book_slot
+    slot_psych_id = slot.psychologist_id
+    slot_date = slot.slot_date
+    slot_start_time = slot.start_time
+
+    slot.status = 'available'
+    slot.booked_by_patient_id = None
+    slot.booked_at = None
+
+    await db.commit()
+
+    try:
+        patient = await db.get(Patient, puuid)
+        psych = await db.get(Psychologist, slot_psych_id)
+        if psych and patient and patient.email:
+            await send_booking_cancellation(
+                patient.email, psych.email, patient.name, psych.name,
+                slot_date, slot_start_time, canceled_by="patient"
+            )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("Error enviando email de cancelación: %s", e)
+
+    return {"status": "ok"}
+
+
+@router.post("/booking/{slot_id}/acknowledge", status_code=status.HTTP_200_OK)
+async def acknowledge_cancellation(
+    slot_id: str,
+    patient_id: str = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db)
+):
+    """Mark a psychologist-cancelled booking as acknowledged by the patient."""
+    puuid = uuid.UUID(patient_id)
+    suuid = uuid.UUID(slot_id)
+
+    res = await db.execute(
+        select(AvailabilitySlot)
+        .where(
+            AvailabilitySlot.id == suuid,
+            AvailabilitySlot.booked_by_patient_id == puuid,
+            AvailabilitySlot.status == 'cancelled'
+        )
+    )
+    slot = res.scalar_one_or_none()
+
+    if not slot:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+
+    slot.acknowledged = True
+    await db.commit()
+    return {"status": "ok"}

@@ -1,5 +1,6 @@
 import resend
 from config import settings
+from datetime import date, time
 
 resend.api_key = settings.RESEND_API_KEY
 FROM_EMAIL = settings.RESEND_FROM_EMAIL or "SyqueX <hola@syquex.mx>"
@@ -123,3 +124,77 @@ async def send_patient_reset_email(to_email: str, patient_name: str, token: str)
     except Exception as e:
         print(f"Error enviando email reset paciente: {e}")
         return None
+
+
+def generate_ics(slot_date: date, start_time: time, duration_minutes: int, summary: str, description: str) -> str:
+    from datetime import datetime, timedelta
+    start_dt = datetime.combine(slot_date, start_time)
+    end_dt = start_dt + timedelta(minutes=duration_minutes)
+    
+    start_str = start_dt.strftime("%Y%m%dT%H%M%00")
+    end_str = end_dt.strftime("%Y%m%dT%H%M%00")
+    
+    return f"""BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SyqueX//Sesion//ES\r\nBEGIN:VEVENT\r\nDTSTART:{start_str}\r\nDTEND:{end_str}\r\nSUMMARY:{summary}\r\nDESCRIPTION:{description}\r\nEND:VEVENT\r\nEND:VCALENDAR"""
+
+async def send_booking_confirmation(patient_email: str, psych_email: str, patient_name: str, psych_name: str, slot_date: date, start_time: time, duration_minutes: int):
+    ics_content = generate_ics(
+        slot_date, start_time, duration_minutes, 
+        f"Sesión con {psych_name}", 
+        "Sesión de psicoterapia agendada vía SyqueX"
+    )
+    
+    if not resend.api_key:
+        print(f"Mock email: Booking confirmation to {patient_email} and {psych_email}")
+        return None
+        
+    try:
+        # Send to Patient
+        resend.Emails.send({
+            "from": FROM_EMAIL,
+            "to": patient_email,
+            "subject": "Tu sesión está confirmada",
+            "html": f"<p>Hola {patient_name}, tu sesión con {psych_name} está confirmada para el {slot_date} a las {start_time.strftime('%H:%M')}.</p>",
+            "attachments": [{"filename": "sesion.ics", "content": list(ics_content.encode('utf-8'))}]
+        })
+    except Exception as e:
+        print(f"Error enviando conf. paciente: {e}")
+        
+    try:
+        ics_content_psych = generate_ics(
+            slot_date, start_time, duration_minutes, 
+            f"Sesión con {patient_name}", 
+            "Sesión de psicoterapia agendada vía SyqueX"
+        )
+        resend.Emails.send({
+            "from": FROM_EMAIL,
+            "to": psych_email,
+            "subject": "Nueva sesión agendada",
+            "html": f"<p>El paciente {patient_name} ha agendado una sesión para el {slot_date} a las {start_time.strftime('%H:%M')}.</p>",
+            "attachments": [{"filename": "sesion.ics", "content": list(ics_content_psych.encode('utf-8'))}]
+        })
+    except Exception as e:
+        print(f"Error enviando conf. psicólogo: {e}")
+
+async def send_booking_cancellation(patient_email: str, psych_email: str, patient_name: str, psych_name: str, slot_date: date, start_time: time, canceled_by: str = "psychologist"):
+    who_patient = "tu psicólogo" if canceled_by == "psychologist" else "ti"
+    who_psych = "ti" if canceled_by == "psychologist" else "el paciente"
+    
+    if not resend.api_key:
+        print(f"Mock email: Cancellation to {patient_email} and {psych_email}")
+        return None
+
+    try:
+        resend.Emails.send({
+            "from": FROM_EMAIL,
+            "to": patient_email,
+            "subject": "Sesión cancelada",
+            "html": f"<p>Hola {patient_name}, la sesión con {psych_name} del {slot_date} a las {start_time.strftime('%H:%M')} fue cancelada por {who_patient}.</p>"
+        })
+        resend.Emails.send({
+            "from": FROM_EMAIL,
+            "to": psych_email,
+            "subject": "Sesión cancelada",
+            "html": f"<p>Hola {psych_name}, la sesión con {patient_name} del {slot_date} a las {start_time.strftime('%H:%M')} fue cancelada por {who_psych}.</p>"
+        })
+    except Exception as e:
+        print(f"Error enviando cancelaciones: {e}")

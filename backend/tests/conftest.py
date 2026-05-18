@@ -10,6 +10,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Make backend root importable from any test file
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# Mock fastembed and related that fail on CP314
+from unittest.mock import MagicMock
+sys.modules["fastembed"] = MagicMock()
+sys.modules["py_rust_stemmers"] = MagicMock()
+
 
 # ---------------------------------------------------------------------------
 # Common data fixtures
@@ -50,6 +55,10 @@ def mock_db():
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
     db.add = MagicMock()
+    db.begin_nested = MagicMock()
+    db.begin_nested.return_value.__aenter__ = AsyncMock()
+    db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)  # False = don't suppress exceptions
+    db.flush = AsyncMock()
 
     # Default execute result — returns empty scalars
     mock_result = MagicMock()
