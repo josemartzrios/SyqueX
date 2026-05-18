@@ -173,3 +173,75 @@ class TestAvailabilityCancelledBooking:
             assert data["cancelled_booking"] is None
         finally:
             app.dependency_overrides.clear()
+
+
+class TestAcknowledgeCancellation:
+    @pytest.mark.asyncio
+    async def test_acknowledge_sets_acknowledged_true(self):
+        patient_id = str(uuid.uuid4())
+        slot_id = uuid.uuid4()
+
+        mock_slot = MagicMock()
+        mock_slot.id = slot_id
+        mock_slot.status = "cancelled"
+        mock_slot.booked_by_patient_id = uuid.UUID(patient_id)
+        mock_slot.acknowledged = False
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_slot
+        mock_db.execute.return_value = mock_result
+
+        from main import app
+        from api.patient_portal import get_current_patient
+        from database import get_db
+
+        async def override_patient():
+            return patient_id
+
+        async def override_db():
+            yield mock_db
+
+        app.dependency_overrides[get_current_patient] = override_patient
+        app.dependency_overrides[get_db] = override_db
+
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+                response = await ac.post(f"/api/v1/portal/booking/{slot_id}/acknowledge")
+
+            assert response.status_code == 200
+            assert mock_slot.acknowledged == True
+            mock_db.commit.assert_called_once()
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_acknowledge_returns_404_for_wrong_patient(self):
+        patient_id = str(uuid.uuid4())
+        slot_id = uuid.uuid4()
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db.execute.return_value = mock_result
+
+        from main import app
+        from api.patient_portal import get_current_patient
+        from database import get_db
+
+        async def override_patient():
+            return patient_id
+
+        async def override_db():
+            yield mock_db
+
+        app.dependency_overrides[get_current_patient] = override_patient
+        app.dependency_overrides[get_db] = override_db
+
+        try:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+                response = await ac.post(f"/api/v1/portal/booking/{slot_id}/acknowledge")
+
+            assert response.status_code == 404
+        finally:
+            app.dependency_overrides.clear()

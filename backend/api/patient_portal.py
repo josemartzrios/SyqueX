@@ -225,3 +225,31 @@ async def cancel_booking(slot_id: str, patient_id: str = Depends(get_current_pat
         logging.getLogger(__name__).error("Error enviando email de cancelación: %s", e)
 
     return {"status": "ok"}
+
+
+@router.post("/booking/{slot_id}/acknowledge", status_code=status.HTTP_200_OK)
+async def acknowledge_cancellation(
+    slot_id: str,
+    patient_id: str = Depends(get_current_patient),
+    db: AsyncSession = Depends(get_db)
+):
+    """Mark a psychologist-cancelled booking as acknowledged by the patient."""
+    puuid = uuid.UUID(patient_id)
+    suuid = uuid.UUID(slot_id)
+
+    res = await db.execute(
+        select(AvailabilitySlot)
+        .where(
+            AvailabilitySlot.id == suuid,
+            AvailabilitySlot.booked_by_patient_id == puuid,
+            AvailabilitySlot.status == 'cancelled'
+        )
+    )
+    slot = res.scalar_one_or_none()
+
+    if not slot:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+
+    slot.acknowledged = True
+    await db.commit()
+    return {"status": "ok"}
