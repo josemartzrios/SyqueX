@@ -166,9 +166,6 @@ export default function FeatureHighlight() {
       {/* Agendamiento inteligente */}
       <section className="py-20 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto flex items-center gap-8 sm:gap-14 flex-wrap justify-center">
-          <FadeIn className="flex-none w-full sm:w-auto flex justify-center sm:block">
-            <MockAgendamiento />
-          </FadeIn>
           <FadeIn delay={0.2} className="w-full sm:flex-1 sm:min-w-[280px] max-w-lg">
             <div className="text-xs font-bold text-sage tracking-widest mb-3">
               AGENDAMIENTO INTELIGENTE
@@ -193,6 +190,9 @@ export default function FeatureHighlight() {
                 </div>
               ))}
             </div>
+          </FadeIn>
+          <FadeIn className="flex-none w-full sm:w-auto flex justify-center sm:block">
+            <MockAgendamiento />
           </FadeIn>
         </div>
       </section>
