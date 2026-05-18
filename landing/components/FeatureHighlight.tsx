@@ -115,9 +115,81 @@ function MockPortalPaciente() {
   )
 }
 
+function MockAgendamiento() {
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-lg border border-ink-muted w-full max-w-[320px]">
+      <div className="text-[10px] text-sage font-bold tracking-widest mb-3">
+        DICTADO DE DISPONIBILIDAD
+      </div>
+
+      <div className="bg-surface border border-ink-muted text-xs px-3.5 py-3 rounded-xl mb-4 leading-relaxed text-ink-secondary italic">
+        "Tengo libre martes y jueves de 4 a 6, y sábados de 9 a 12..."
+      </div>
+
+      <div className="text-[10px] text-ink-tertiary font-semibold tracking-wide mb-2">
+        Horarios detectados:
+      </div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {['MAR 4–6pm', 'JUE 4–6pm', 'SÁB 9–12pm'].map((slot) => (
+          <span
+            key={slot}
+            className="bg-sage-light text-sage text-xs font-semibold px-3 py-1 rounded-full"
+          >
+            {slot}
+          </span>
+        ))}
+      </div>
+
+      <button className="bg-sage text-white text-xs font-semibold rounded-xl py-2.5 w-full mb-3 cursor-default">
+        Publicar horarios
+      </button>
+
+      <div className="flex justify-center">
+        <span className="bg-sage-light text-sage text-xs rounded-full px-3 py-1">
+          ✓ Notificación enviada al paciente
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export default function FeatureHighlight() {
   return (
     <>
+      {/* Agendamiento inteligente */}
+      <section className="py-20 px-4 sm:px-6">
+        <div className="max-w-5xl mx-auto flex items-center gap-8 sm:gap-14 flex-wrap justify-center">
+          <FadeIn className="flex-none w-full sm:w-auto flex justify-center sm:block">
+            <MockAgendamiento />
+          </FadeIn>
+          <FadeIn delay={0.2} className="w-full sm:flex-1 sm:min-w-[280px] max-w-lg">
+            <div className="text-xs font-bold text-sage tracking-widest mb-3">
+              AGENDAMIENTO INTELIGENTE
+            </div>
+            <h2 className="font-serif text-3xl font-normal mb-4 text-ink leading-snug">
+              Dicta tus horas libres.{' '}
+              <em>El paciente agenda solo.</em>
+            </h2>
+            <p className="text-sm leading-relaxed text-ink-secondary mb-6">
+              Sin formularios ni apps externas. Dicta cuándo estás disponible y SyqueX
+              publica tus horarios en el portal del paciente automáticamente.
+            </p>
+            <div className="flex flex-col gap-3">
+              {[
+                'Dicta tu disponibilidad — la IA interpreta los horarios y tú confirmas',
+                'El paciente elige su cita desde su portal, sin idas y vueltas por WhatsApp',
+                'Ambos reciben notificación por correo al instante',
+              ].map((t) => (
+                <div key={t} className="flex gap-2.5 items-start">
+                  <CheckIcon />
+                  <span className="text-sm leading-relaxed text-ink">{t}</span>
+                </div>
+              ))}
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* Agente de evolución clínica */}
       <section className="bg-surface py-20 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto flex items-center gap-8 sm:gap-14 flex-wrap justify-center">
