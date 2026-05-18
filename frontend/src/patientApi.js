@@ -166,3 +166,9 @@ export async function cancelPatientBooking(slotId) {
     method: 'DELETE'
   })
 }
+
+export async function acknowledgeBookingCancellation(slotId) {
+  return patientFetch(`/portal/booking/${slotId}/acknowledge`, {
+    method: 'POST'
+  })
+}
