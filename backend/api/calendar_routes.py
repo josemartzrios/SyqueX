@@ -1,4 +1,5 @@
 import uuid
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -14,6 +15,8 @@ from crypto import decrypt_if_set
 from services.email import send_booking_cancellation
 from sqlalchemy.exc import IntegrityError
 from api.calendar_ai import parse_availability
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["calendar"])
 
@@ -171,6 +174,7 @@ async def parse_availability_endpoint(
 ):
     slots = await parse_availability(payload.text, payload.reference_date)
     if not slots:
+        logger.warning("parse_availability returned empty for input=%r reference_date=%r", payload.text, payload.reference_date)
         raise HTTPException(
             status_code=422,
             detail="No se pudieron identificar fechas u horas. Intenta: 'Lunes de 9 a 2, sesiones 60 min'",
