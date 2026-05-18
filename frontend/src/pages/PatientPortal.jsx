@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { clearPatientToken, getPatientSummaries, getPatientSummaryDetail, getPatientAvailability, cancelPatientBooking } from '../patientApi';
+import { clearPatientToken, getPatientSummaries, getPatientSummaryDetail, getPatientAvailability, cancelPatientBooking, acknowledgeBookingCancellation } from '../patientApi';
 import { navigateTo } from '../auth';
 import TutorialModal from '../components/TutorialModal';
 import PatientBookingModal from '../components/PatientBookingModal';
 import UpcomingBookingCard from '../components/UpcomingBookingCard';
+import CancelledBookingCard from '../components/CancelledBookingCard';
 
 export default function PatientPortal() {
   const [summaries, setSummaries] = useState([]);
@@ -18,6 +19,8 @@ export default function PatientPortal() {
   const [upcomingBooking, setUpcomingBooking]   = useState(null);
   const [cancelingBooking, setCancelingBooking] = useState(false);
   const [cancelError, setCancelError]           = useState(null);
+  const [cancelledBooking, setCancelledBooking] = useState(null);
+  const [acknowledging, setAcknowledging]       = useState(false);
   const detailRef = useRef(null);
 
   useEffect(() => {
@@ -40,7 +43,11 @@ export default function PatientPortal() {
     const today = new Date();
     const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
     return getPatientAvailability(month)
-      .then(data => { setUpcomingBooking(data.upcoming_booking ?? null); setCancelError(null); })
+      .then(data => {
+        setUpcomingBooking(data.upcoming_booking ?? null);
+        setCancelledBooking(data.cancelled_booking ?? null);
+        setCancelError(null);
+      })
       .catch(() => {});
   };
 
@@ -68,6 +75,18 @@ export default function PatientPortal() {
       setCancelError(err.message || 'No se pudo cancelar. Intenta de nuevo.');
     } finally {
       setCancelingBooking(false);
+    }
+  };
+
+  const handleAcknowledge = async (slotId) => {
+    setAcknowledging(true);
+    try {
+      await acknowledgeBookingCancellation(slotId);
+      setCancelledBooking(null);
+    } catch {
+      // Card stays visible if request fails — patient can retry
+    } finally {
+      setAcknowledging(false);
     }
   };
 
@@ -165,16 +184,24 @@ export default function PatientPortal() {
           {/* List Section */}
           <div className="md:col-span-1 md:sticky md:top-[88px] md:max-h-[calc(100vh-104px)] md:overflow-y-auto md:pr-1">
 
-            {/* Próxima cita del paciente */}
-            <UpcomingBookingCard
-              booking={upcomingBooking}
-              onCancel={handleCancelBooking}
-              canceling={cancelingBooking}
-              error={cancelError}
-            />
+            {/* Próxima cita / cancelación */}
+            {cancelledBooking ? (
+              <CancelledBookingCard
+                booking={cancelledBooking}
+                onAcknowledge={handleAcknowledge}
+                acknowledging={acknowledging}
+              />
+            ) : (
+              <UpcomingBookingCard
+                booking={upcomingBooking}
+                onCancel={handleCancelBooking}
+                canceling={cancelingBooking}
+                error={cancelError}
+              />
+            )}
 
-            {/* Booking CTA — solo visible cuando no hay cita activa */}
-            {!upcomingBooking && (
+            {/* Booking CTA — solo visible cuando no hay cita activa ni cancelación pendiente */}
+            {!cancelledBooking && !upcomingBooking && (
               <button
                 onClick={() => setBookingModalOpen(true)}
                 className="w-full mb-5 flex items-center gap-3 bg-[#5a9e8a] hover:bg-[#4a8271] active:scale-[0.98] text-white rounded-xl px-4 py-3 transition-all"
