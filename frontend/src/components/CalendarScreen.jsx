@@ -21,6 +21,14 @@ export default function CalendarScreen({ onClose, mode = 'modal' }) {
     setError(null);
   }, [currentMonthStr]);
 
+  // Refetch slots when the psychologist returns to this tab,
+  // so patient cancellations made while away are reflected immediately.
+  useEffect(() => {
+    const onFocus = () => loadSlots();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [currentMonthStr]);
+
   useEffect(() => {
     setError(null);
   }, [selectedDate, newTime]);
@@ -315,14 +323,15 @@ export default function CalendarScreen({ onClose, mode = 'modal' }) {
 }
 
 function SlotItem({ slot, onDelete, isPast }) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const isBooked = slot.status === 'booked';
 
-  const handleDeleteClick = () => {
-    if (confirmDelete) {
+  const handleActionClick = () => {
+    if (confirming) {
       onDelete();
     } else {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
+      setConfirming(true);
+      setTimeout(() => setConfirming(false), 3000);
     }
   };
 
@@ -331,23 +340,35 @@ function SlotItem({ slot, onDelete, isPast }) {
       <div>
         <div className="font-medium text-ink text-sm flex items-center gap-2">
           {slot.start_time.substring(0, 5)}
-          <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wide ${slot.status === 'available' ? 'bg-[#5a9e8a]/10 text-[#3d7a68]' : 'bg-orange-100 text-orange-800'}`}>
-            {slot.status === 'available' ? 'Disponible' : 'Reservado'}
+          <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wide ${isBooked ? 'bg-orange-100 text-orange-800' : 'bg-[#5a9e8a]/10 text-[#3d7a68]'}`}>
+            {isBooked ? 'Reservado' : 'Disponible'}
           </span>
         </div>
-        {slot.status === 'booked' && (
+        {isBooked && (
           <div className="text-xs text-ink-secondary mt-1">Cita con: {slot.patient_name}</div>
         )}
       </div>
-      {!isPast && slot.status === 'available' && (
+      {!isPast && (
         <button
-          onClick={handleDeleteClick}
-          className={`p-1.5 rounded-lg transition-all duration-200 ${confirmDelete ? 'bg-red-50 text-red-600 ring-1 ring-red-200' : 'text-red-400 hover:text-red-600 hover:bg-red-50'}`}
-          title={confirmDelete ? 'Confirmar eliminación' : 'Eliminar horario'}
+          onClick={handleActionClick}
+          title={confirming ? 'Confirmar' : isBooked ? 'Cancelar cita' : 'Eliminar horario'}
+          className={`p-1.5 rounded-lg transition-all duration-200 ${
+            confirming
+              ? isBooked
+                ? 'bg-orange-50 text-orange-600 ring-1 ring-orange-200'
+                : 'bg-red-50 text-red-600 ring-1 ring-red-200'
+              : isBooked
+                ? 'text-orange-400 hover:text-orange-600 hover:bg-orange-50'
+                : 'text-red-400 hover:text-red-600 hover:bg-red-50'
+          }`}
         >
-          {confirmDelete ? (
+          {confirming ? (
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+            </svg>
+          ) : isBooked ? (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           ) : (
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

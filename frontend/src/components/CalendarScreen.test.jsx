@@ -30,3 +30,17 @@ describe('CalendarScreen', () => {
     expect(container.firstChild.className).not.toContain('fixed');
   });
 });
+
+describe('CalendarScreen — focus refetch', () => {
+  it('recarga los slots al enfocar la ventana', async () => {
+    const { getCalendarSlots } = await import('../api');
+    render(<CalendarScreen onClose={() => {}} />);
+
+    const callsBefore = getCalendarSlots.mock.calls.length;
+    window.dispatchEvent(new Event('focus'));
+
+    await new Promise(r => setTimeout(r, 0));
+
+    expect(getCalendarSlots.mock.calls.length).toBeGreaterThan(callsBefore);
+  });
+});
