@@ -40,27 +40,25 @@ const BOLD_INLINE_RE = /\*\*([^*]+)\*\*/;
 // ── Static JSX (hoisted outside components to avoid recreation on render) ──
 const EmptyState = ({ onOpenCalendar, onNewPatient }) => (
   <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-8">
-    <div className="w-16 h-16 rounded-3xl bg-sage/10 text-sage flex items-center justify-center mb-2">
-      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-      </svg>
+    <div className="w-16 h-16 rounded-3xl  text-sage flex items-center justify-center mb-2">
+      <img src="/icons/logotransparente.png" alt="SyqueX" className="w-16 h-16 object-contain" />
     </div>
     <div>
       <p className="text-ink text-lg font-medium">Bienvenido a SyqueX</p>
-      <p className="text-ink-tertiary text-sm mt-1 max-w-sm">Selecciona un paciente en el menú lateral o comienza una nueva consulta.</p>
+      <p className="text-ink-tertiary text-sm mt-1 max-w-sm">Selecciona un paciente en el menú lateral o comienza una consulta con un nuevo expediente.</p>
     </div>
     <div className="flex items-center gap-3 mt-4">
-      <button onClick={onOpenCalendar} className="px-5 py-2.5 rounded-xl border border-ink/[0.08] hover:bg-black/[0.02] text-ink-secondary text-sm font-medium transition-colors flex items-center gap-2">
-        <svg className="w-4 h-4 text-ink-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-        Mi Agenda
-      </button>
       <button onClick={onNewPatient} className="px-5 py-2.5 rounded-xl bg-sage hover:bg-sage-dark text-white text-sm font-medium transition-colors flex items-center gap-2 shadow-sm">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
         </svg>
         Nuevo Expediente
+      </button>
+      <button onClick={onOpenCalendar} className="px-5 py-2.5 rounded-xl border border-ink/[0.08] hover:bg-black/[0.02] text-ink-secondary text-sm font-medium transition-colors flex items-center gap-2">
+        <svg className="w-4 h-4 text-ink-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        Mi Agenda
       </button>
     </div>
   </div>

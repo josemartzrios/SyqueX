@@ -93,9 +93,14 @@ async def create_slot(
     try:
         await db.commit()
         await db.refresh(slot)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Ya existe un horario a las esa hora para este día")
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail="El slot ya existe o es inválido")
+        import logging
+        logging.getLogger(__name__).error("Error inesperado al crear slot: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Error interno al crear el horario")
         
     return SlotOut(
         id=slot.id, slot_date=slot.slot_date, start_time=slot.start_time, 

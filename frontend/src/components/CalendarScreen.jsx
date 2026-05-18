@@ -64,8 +64,9 @@ export default function CalendarScreen({ onClose, mode = 'modal' }) {
     e.preventDefault();
     if (!selectedDate) return;
 
+    const normalizedNewTime = newTime.substring(0, 5);
     const existingTimes = (slotsByDate[selectedDate] || []).map(s => s.start_time.substring(0, 5));
-    if (existingTimes.includes(newTime)) {
+    if (existingTimes.includes(normalizedNewTime)) {
       setError(`Ya existe un horario a las ${newTime} para este día.`);
       return;
     }
@@ -73,7 +74,7 @@ export default function CalendarScreen({ onClose, mode = 'modal' }) {
     setCreating(true);
     setError(null);
     try {
-      await createCalendarSlot({ slot_date: selectedDate, start_time: newTime, duration_minutes: 60 });
+      await createCalendarSlot({ slot_date: selectedDate, start_time: normalizedNewTime, duration_minutes: 60 });
       await loadSlots();
     } catch (err) {
       setError(err.message || 'Error al crear horario');
