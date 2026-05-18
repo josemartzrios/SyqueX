@@ -52,7 +52,8 @@ async def get_slots(
         .where(
             AvailabilitySlot.psychologist_id == psychologist.id,
             AvailabilitySlot.slot_date >= start_date,
-            AvailabilitySlot.slot_date < end_date
+            AvailabilitySlot.slot_date < end_date,
+            AvailabilitySlot.status != 'cancelled'
         )
         .order_by(AvailabilitySlot.slot_date, AvailabilitySlot.start_time)
     )
@@ -116,12 +117,15 @@ async def delete_slot(
         patient = await db.get(Patient, slot.booked_by_patient_id)
         if patient and patient.email:
             await send_booking_cancellation(
-                patient.email, psychologist.email, patient.name, psychologist.name, 
+                patient.email, psychologist.email, patient.name, psychologist.name,
                 slot.slot_date, slot.start_time, canceled_by="psychologist"
             )
-            
-    await db.delete(slot)
-    await db.commit()
+        slot.status = 'cancelled'
+        slot.cancelled_by = 'psychologist'
+        await db.commit()
+    else:
+        await db.delete(slot)
+        await db.commit()
 
 
 # --- Schemas nuevos ---
