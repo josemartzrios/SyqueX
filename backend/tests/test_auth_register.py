@@ -20,19 +20,20 @@ from database import get_db
 
 @pytest.mark.asyncio
 async def test_register_success():
-    with patch("api.auth.stripe") as mock_stripe:
+    with patch("api.auth.stripe") as mock_stripe, \
+         patch("api.auth.hash_password", return_value="fake_hashed_pw"):
         mock_stripe.customers.create.return_value = MagicMock(id="cus_test123")
         # setup mock db session
-        
+
         async def override_get_db():
             mock_session = AsyncMock()
             mock_scalar = MagicMock()
             mock_scalar.scalar_one_or_none.return_value = None
             mock_session.execute.return_value = mock_scalar
             yield mock_session
-        
+
         app.dependency_overrides[get_db] = override_get_db
-        
+
         try:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 res = await client.post(REGISTER_URL, json=VALID_PAYLOAD)

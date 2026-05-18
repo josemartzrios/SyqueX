@@ -52,7 +52,9 @@ async def test_generate_summary_custom_returns_three_fields():
 
 
 @pytest.mark.asyncio
-async def test_generate_summary_invalid_json_returns_empty_fields():
+async def test_generate_summary_invalid_json_raises():
+    """Invalid JSON from Claude propagates as JSONDecodeError (caller handles 500)."""
+    import json
     mock_response = MagicMock()
     mock_response.content = [MagicMock(type="text", text="No puedo procesar esto.")]
 
@@ -62,6 +64,5 @@ async def test_generate_summary_invalid_json_returns_empty_fields():
         mock_client.messages.create = AsyncMock(return_value=mock_response)
 
         from agent.agent import generate_patient_summary
-        result = await generate_patient_summary(SOAP_NOTE)
-
-    assert result == {"topics_worked": "", "homework": "", "next_session_date": None}
+        with pytest.raises(json.JSONDecodeError):
+            await generate_patient_summary(SOAP_NOTE)

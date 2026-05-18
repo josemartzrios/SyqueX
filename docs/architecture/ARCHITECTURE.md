@@ -15,6 +15,7 @@ SyqueX is a **clinical AI assistant for mental health professionals** (psycholog
 |---|---|
 | **Dictation → SOAP** | Free-text dictation is processed by Claude into structured Subjective/Objective/Assessment/Plan notes |
 | **Semantic History Search** | pgvector HNSW indexes enable cosine-similarity search across all clinical notes |
+| **Native Patient Scheduling** | Integrated calendar system for psychologists with direct booking via the Patient Portal, including .ics notifications |
 | **Patient Evolution Tracking** | Longitudinal AI analysis across sessions detects recurring themes, risk factors, and progress |
 | **LFPDPPP Compliance** | Audit logging, data export, soft-delete, and local embeddings (no data egress for vectors) |
 | **SaaS Billing** | Stripe-powered trial → subscription lifecycle with webhook-driven state management |
@@ -216,6 +217,12 @@ graph TB
         ChatInput["ChatInput"]
         NewPatientModal["NewPatientModal"]
         PasswordStrength["PasswordStrength"]
+        CalendarScreen["CalendarScreen"]
+    end
+
+    subgraph "Patient Portal"
+        Portal["PatientPortal"]
+        BookingModal["PatientBookingModal"]
     end
 
     subgraph "Data Layer"

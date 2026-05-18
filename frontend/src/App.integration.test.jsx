@@ -11,6 +11,7 @@ vi.mock('./api', () => ({
   getPatientSessions: vi.fn(),
   getPatientProfile: vi.fn(),
   processSession: vi.fn(),
+  openJobStream: vi.fn(() => () => {}),
   archivePatientSessions: vi.fn(),
   createPatient: vi.fn(),
   setAuthCallbacks: vi.fn(),
@@ -49,7 +50,11 @@ describe('App - Evolución Tab Logic', () => {
     api.getPatientProfile.mockResolvedValue({
       profile: { recurring_themes: ['Theme A'], risk_factors: [] }
     })
-    api.processSession.mockResolvedValue({ text_fallback: 'Respuesta simulada', session_id: 'new-id' })
+    api.processSession.mockResolvedValue({ job_id: 'test-job' })
+    api.openJobStream.mockImplementation((jobId, onMessage) => {
+      Promise.resolve().then(() => onMessage({ status: 'completed', result: { text_fallback: 'Respuesta simulada' } }))
+      return () => {}
+    })
   })
 
   it('lazy loads evolution chat and profile only when Evolución tab is clicked', async () => {
@@ -235,15 +240,23 @@ describe('App - Nota panel empty state', () => {
       }
     ])
     api.getPatientProfile.mockResolvedValue({ profile: { recurring_themes: [], risk_factors: [] } })
-    api.processSession.mockResolvedValue({
-      session_id: 'new-sess',
-      clinical_note: {
-        structured_note: { subjective: 'Nueva S', objective: 'O', assessment: 'A', plan: 'P' },
-        detected_patterns: [],
-        alerts: [],
-        session_id: 'new-sess',
-      },
-      text_fallback: '**S — Nueva sesión**',
+    api.processSession.mockResolvedValue({ job_id: 'nota-job' })
+    api.openJobStream.mockImplementation((jobId, onMessage) => {
+      Promise.resolve().then(() => onMessage({
+        status: 'completed',
+        result: {
+          session_id: 'new-sess',
+          format: 'soap',
+          clinical_note: {
+            structured_note: { subjective: 'Nueva S', objective: 'O', assessment: 'A', plan: 'P' },
+            detected_patterns: [],
+            alerts: [],
+            session_id: 'new-sess',
+          },
+          text_fallback: '**S — Nueva sesión**',
+        },
+      }))
+      return () => {}
     })
   })
 
@@ -266,12 +279,10 @@ describe('App - Nota panel empty state', () => {
   it('shows loading state while generating note', async () => {
     // Delay the API response so we can assert on the loading state
     api.processSession.mockImplementation(
-      () => new Promise(resolve => setTimeout(() => resolve({
-        session_id: 'new-sess',
-        clinical_note: { structured_note: {}, detected_patterns: [], alerts: [], session_id: 'new-sess' },
-        text_fallback: '',
-      }), 200))
+      () => new Promise(resolve => setTimeout(() => resolve({ job_id: 'nota-job' }), 200))
     )
+    // openJobStream never calls back so loading persists during the test assertion
+    api.openJobStream.mockImplementation(() => () => {})
 
     render(<App />)
     const user = userEvent.setup()
@@ -288,7 +299,7 @@ describe('App - Nota panel empty state', () => {
     await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
 
     // handleSendDictation auto-switches to Nota tab — loading indicator must appear
-    expect((await screen.findAllByText(/Generando nota/i))[0]).toBeInTheDocument()
+    expect((await screen.findAllByText(/Iniciando generación/i))[0]).toBeInTheDocument()
     expect(screen.queryAllByText('Aún no hay nota generada').length).toBe(0)
   })
 
@@ -308,7 +319,7 @@ describe('App - Nota panel empty state', () => {
 
     // Wait for loading to resolve
     await waitFor(() => {
-      expect(screen.queryByText(/Generando nota/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Iniciando generación/i)).not.toBeInTheDocument()
     })
     // Empty state gone, note content visible
     expect(screen.queryAllByText('Aún no hay nota generada').length).toBe(0)
@@ -333,7 +344,7 @@ describe('App - Nota panel empty state', () => {
     await user.click((await screen.findAllByRole('button', { name: /generar nota/i }))[0])
 
     await waitFor(() => {
-      expect(screen.queryAllByText(/Anomalía de conexión: Server unreachable/).length).toBeGreaterThan(0)
+      expect(screen.queryAllByText(/Error al iniciar proceso: Server unreachable/).length).toBeGreaterThan(0)
     })
   })
 

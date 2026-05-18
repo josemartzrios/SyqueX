@@ -159,7 +159,8 @@ class TestCancelSubscription:
 class TestStripeWebhook:
     @pytest.mark.asyncio
     async def test_webhook_updates_cancel_at_period_end(self, app, mock_db, active_sub, monkeypatch):
-        monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+        import config as _config
+        monkeypatch.setattr(_config.settings, "STRIPE_WEBHOOK_SECRET", "whsec_test")
         mock_db.execute.return_value = _result(None) # For ProcessedStripeEvent check
         
         # We need to mock the second execute call inside the webhook

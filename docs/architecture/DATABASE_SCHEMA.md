@@ -141,6 +141,18 @@ erDiagram
         jsonb extra
     }
 
+    availability_slots {
+        uuid id PK
+        uuid psychologist_id FK
+        date slot_date
+        time start_time
+        integer duration_minutes
+        varchar status
+        uuid patient_id FK
+        timestamptz booked_at
+        timestamptz created_at
+    }
+
     processed_stripe_events {
         varchar id PK
         timestamptz created_at
@@ -268,6 +280,28 @@ Longitudinal clinical summary. One-to-one with patients.
 
 **Indexes:**
 - `idx_patient_profiles_patient_id`
+
+---
+
+### `availability_slots`
+
+Psychologist calendar slots for booking.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `psychologist_id` | UUID | FK → psychologists.id (CASCADE) | |
+| `slot_date` | DATE | NOT NULL | e.g. 2026-05-15 |
+| `start_time` | TIME | NOT NULL | e.g. 10:00 |
+| `duration_minutes` | INTEGER | NOT NULL | Default 50 |
+| `status` | VARCHAR(20) | NOT NULL, CHECK `IN ('available','booked','cancelled')` | |
+| `patient_id` | UUID | FK → patients.id (SET NULL) | |
+| `booked_at` | TIMESTAMPTZ | NULLABLE | |
+| `created_at` | TIMESTAMPTZ | NOT NULL | |
+
+**Indexes:**
+- `idx_availability_slots_psychologist_date` — lookup by date
+- `uq_psychologist_slot` — UNIQUE (psychologist_id, slot_date, start_time)
 
 ---
 

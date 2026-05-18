@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { clearPatientToken, getPatientSummaries, getPatientSummaryDetail } from '../patientApi';
+import { clearPatientToken, getPatientSummaries, getPatientSummaryDetail, getPatientAvailability, cancelPatientBooking, acknowledgeBookingCancellation } from '../patientApi';
 import { navigateTo } from '../auth';
 import TutorialModal from '../components/TutorialModal';
+import PatientBookingModal from '../components/PatientBookingModal';
+import UpcomingBookingCard from '../components/UpcomingBookingCard';
+import CancelledBookingCard from '../components/CancelledBookingCard';
 
 export default function PatientPortal() {
   const [summaries, setSummaries] = useState([]);
@@ -11,6 +14,13 @@ export default function PatientPortal() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState(null);
   const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [upcomingBooking, setUpcomingBooking]   = useState(null);
+  const [cancelingBooking, setCancelingBooking] = useState(false);
+  const [cancelError, setCancelError]           = useState(null);
+  const [cancelledBooking, setCancelledBooking] = useState(null);
+  const [acknowledging, setAcknowledging]       = useState(false);
   const detailRef = useRef(null);
 
   useEffect(() => {
@@ -29,6 +39,20 @@ export default function PatientPortal() {
     loadSummaries();
   }, []);
 
+  const loadUpcomingBooking = () => {
+    const today = new Date();
+    const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    return getPatientAvailability(month)
+      .then(data => {
+        setUpcomingBooking(data.upcoming_booking ?? null);
+        setCancelledBooking(data.cancelled_booking ?? null);
+        setCancelError(null);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => { loadUpcomingBooking(); }, []);
+
   const loadSummaries = async () => {
     setLoading(true);
     try {
@@ -38,6 +62,31 @@ export default function PatientPortal() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelBooking = async (slotId) => {
+    setCancelingBooking(true);
+    setCancelError(null);
+    try {
+      await cancelPatientBooking(slotId);
+      setUpcomingBooking(null);
+    } catch (err) {
+      setCancelError(err.message || 'No se pudo cancelar. Intenta de nuevo.');
+    } finally {
+      setCancelingBooking(false);
+    }
+  };
+
+  const handleAcknowledge = async (slotId) => {
+    setAcknowledging(true);
+    try {
+      await acknowledgeBookingCancellation(slotId);
+      setCancelledBooking(null);
+    } catch {
+      // Card stays visible if request fails — patient can retry
+    } finally {
+      setAcknowledging(false);
     }
   };
 
@@ -78,26 +127,33 @@ export default function PatientPortal() {
       {/* Header */}
       <nav className="bg-white border-b border-[#18181b]/[0.06] sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-[#5a9e8a] rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">S</span>
-              </div>
-              <span className="font-serif text-xl text-[#18181b] hidden sm:block">SyqueX</span>
+          <div className="flex justify-between items-center h-14 sm:h-16">
+
+            {/* Brand — always visible */}
+            <div className="flex items-center gap-2.5">
+              <span className="font-semibold text-[#18181b] text-[15px] tracking-tight">SyqueX</span>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Actions */}
+            <div className="flex items-center gap-1 sm:gap-2">
+
+              {/* Tutorial — desktop only */}
               <button
                 onClick={() => setTutorialVisible(true)}
-                className="w-8 h-8 rounded-full border border-[#18181b]/[0.07] text-[#9ca3af] hover:text-[#18181b] hover:bg-[#18181b]/[0.05] transition-colors flex items-center justify-center flex-shrink-0"
+                className="hidden sm:flex w-9 h-9 rounded-full border border-[#18181b]/[0.07] text-[#9ca3af] hover:text-[#18181b] hover:bg-[#18181b]/[0.05] transition-colors items-center justify-center text-sm"
                 aria-label="Abrir tutorial"
-              >
-                ?
-              </button>
+              >?</button>
+
+              {/* Logout */}
               <button
                 onClick={handleLogout}
-                className="text-sm font-medium text-[#9ca3af] hover:text-[#18181b] transition-colors"
+                className="flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-lg text-[#9ca3af] hover:text-[#18181b] hover:bg-[#18181b]/[0.05] active:scale-95 transition-all"
+                aria-label="Cerrar sesión"
               >
-                Cerrar sesión
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="hidden sm:inline text-sm font-medium">Cerrar sesión</span>
               </button>
             </div>
           </div>
@@ -105,10 +161,69 @@ export default function PatientPortal() {
       </nav>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {bookingSuccess && (
+          <div className="mb-6 bg-[#f0fdf4] border border-[#bbf7d0] rounded-xl p-4 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-[#22c55e] flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-[#166534] font-semibold">¡Cita confirmada exitosamente!</h3>
+              <p className="text-[#15803d] text-sm mt-1">
+                Hemos enviado un correo con los detalles de tu cita y un archivo de calendario (.ics) para que la guardes.
+              </p>
+            </div>
+            <button onClick={() => setBookingSuccess(false)} className="ml-auto text-[#166534] hover:bg-[#dcfce7] p-1.5 rounded-lg transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
 
           {/* List Section */}
           <div className="md:col-span-1 md:sticky md:top-[88px] md:max-h-[calc(100vh-104px)] md:overflow-y-auto md:pr-1">
+
+            {/* Próxima cita / cancelación */}
+            {cancelledBooking ? (
+              <CancelledBookingCard
+                booking={cancelledBooking}
+                onAcknowledge={handleAcknowledge}
+                acknowledging={acknowledging}
+              />
+            ) : (
+              <UpcomingBookingCard
+                booking={upcomingBooking}
+                onCancel={handleCancelBooking}
+                canceling={cancelingBooking}
+                error={cancelError}
+              />
+            )}
+
+            {/* Booking CTA — solo visible cuando no hay cita activa ni cancelación pendiente */}
+            {!cancelledBooking && !upcomingBooking && (
+              <button
+                onClick={() => setBookingModalOpen(true)}
+                className="w-full mb-5 flex items-center gap-3 bg-[#5a9e8a] hover:bg-[#4a8271] active:scale-[0.98] text-white rounded-xl px-4 py-3 transition-all"
+              >
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <div className="text-sm font-semibold leading-tight">Agendar cita</div>
+                  <div className="text-[11px] text-white/70 leading-tight mt-0.5">
+                    Ver disponibilidad del psicólogo
+                  </div>
+                </div>
+                <svg className="w-4 h-4 ml-auto text-white/60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
+
             <h1 className="text-lg font-bold text-[#18181b] mb-4">Mis Sesiones</h1>
             {error && (
               <div className="mb-4 flex items-center gap-2 bg-[#fef2f2] border border-red-200 rounded-xl px-3 py-2.5">
@@ -194,17 +309,6 @@ export default function PatientPortal() {
                     </section>
                   )}
 
-                  {selectedSummary.next_session_date && (
-                    <section>
-                      <div className="text-[10px] text-[#5a9e8a] font-bold tracking-widest mb-1">PRÓXIMA SESIÓN</div>
-                      <div className="text-sm font-semibold text-[#18181b]">
-                        {new Date(selectedSummary.next_session_date).toLocaleDateString('es-ES', {
-                          day: 'numeric',
-                          month: 'long'
-                        })}
-                      </div>
-                    </section>
-                  )}
                 </div>
 
                 <div className="bg-[#f4f4f2]/30 px-8 py-4 border-t border-[#18181b]/[0.04]">
@@ -235,6 +339,16 @@ export default function PatientPortal() {
         onClose={() => setTutorialVisible(false)}
         isMobile={false}
         patientMode
+      />
+
+      <PatientBookingModal
+        open={bookingModalOpen}
+        onClose={() => setBookingModalOpen(false)}
+        onBookingSuccess={() => {
+          setBookingSuccess(true);
+          setTimeout(() => setBookingSuccess(false), 8000);
+          loadUpcomingBooking();
+        }}
       />
     </div>
   );

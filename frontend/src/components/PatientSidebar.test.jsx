@@ -14,26 +14,12 @@ const defaultProps = {
   onNewPatientNameChange: vi.fn(),
   onSavePatient: vi.fn(),
   onCancelNewPatient: vi.fn(),
-  onLogout: vi.fn(),
 }
 
 describe('PatientSidebar — logout button', () => {
-  it('renders "Cerrar sesión" button', () => {
+  it('does not render "Cerrar sesión" (moved to App.jsx desktop sidebar bottom strip)', () => {
     render(<PatientSidebar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /cerrar sesión/i })).toBeInTheDocument()
-  })
-
-  it('calls onLogout when the button is clicked', async () => {
-    const onLogout = vi.fn()
-    render(<PatientSidebar {...defaultProps} onLogout={onLogout} />)
-    await userEvent.click(screen.getByRole('button', { name: /cerrar sesión/i }))
-    expect(onLogout).toHaveBeenCalledOnce()
-  })
-
-  it('does not crash when onLogout is not provided', () => {
-    const props = { ...defaultProps }
-    delete props.onLogout
-    expect(() => render(<PatientSidebar {...props} />)).not.toThrow()
+    expect(screen.queryByRole('button', { name: /cerrar sesión/i })).not.toBeInTheDocument()
   })
 })
 

@@ -28,9 +28,8 @@ export function clearPatientToken() {
 async function patientFetch(path, options = {}) {
   const token = getPatientToken()
   const headers = { ...options.headers }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
+  if (options.body) headers['Content-Type'] = 'application/json'
+  if (token) headers['Authorization'] = `Bearer ${token}`
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -46,7 +45,11 @@ async function patientFetch(path, options = {}) {
     let msg = 'Error en el portal'
     try {
       const data = await res.json()
-      msg = data.detail || msg
+      if (Array.isArray(data.detail)) {
+        msg = data.detail.map(e => e.msg).join('; ')
+      } else {
+        msg = data.detail || msg
+      }
     } catch (e) {
       msg = await res.text() || msg
     }
@@ -144,4 +147,28 @@ export async function resetPatientPassword(token, newPassword) {
   const data = await res.json()
   setPatientToken(data.access_token)
   return data
+}
+
+// --- Booking ---
+export async function getPatientAvailability(month) {
+  return patientFetch(`/portal/availability?month=${month}`)
+}
+
+export async function bookPatientSlot(slotId) {
+  return patientFetch('/portal/book', {
+    method: 'POST',
+    body: JSON.stringify({ slot_id: slotId })
+  })
+}
+
+export async function cancelPatientBooking(slotId) {
+  return patientFetch(`/portal/booking/${slotId}`, {
+    method: 'DELETE'
+  })
+}
+
+export async function acknowledgeBookingCancellation(slotId) {
+  return patientFetch(`/portal/booking/${slotId}/acknowledge`, {
+    method: 'POST'
+  })
 }
