@@ -140,13 +140,20 @@ function MockAgendamiento() {
         ))}
       </div>
 
-      <button className="bg-sage text-white text-xs font-semibold rounded-xl py-2.5 w-full mb-3 cursor-default">
+      <button
+        disabled
+        aria-hidden="true"
+        className="bg-sage text-white text-xs font-semibold rounded-xl py-2.5 w-full mb-3 cursor-default opacity-100"
+      >
         Publicar horarios
       </button>
 
       <div className="flex justify-center">
-        <span className="bg-sage-light text-sage text-xs rounded-full px-3 py-1">
-          ✓ Notificación enviada al paciente
+        <span className="bg-sage-light text-sage text-xs rounded-full px-3 py-1 flex items-center gap-1">
+          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 6l3 3 5-5" stroke="#5a9e8a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Notificación enviada al paciente
         </span>
       </div>
     </div>
