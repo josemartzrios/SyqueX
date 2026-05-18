@@ -22,6 +22,10 @@ export const metadata: Metadata = {
     description: 'Notas personalizadas o SOAP generadas con IA en segundos.',
     images: ['/og-image.png'],
   },
+  icons: {
+    icon: '/logotransparente.png',
+    apple: '/logotransparente.png',
+  },
 }
 
 export default function RootLayout({

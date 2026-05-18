@@ -44,7 +44,7 @@ Badge: "Dictado de voz"
 - Label: `AGENDAMIENTO INTELIGENTE`
 - Título serif: `"Dicta tus horas libres. El paciente agenda solo."`
 - 3 bullets con `CheckIcon`:
-  1. "Dicta tu disponibilidad — la IA extrae y publica los horarios automáticamente"
+  1. "Dicta tu disponibilidad — la IA interpreta los horarios y tu confirmas"
   2. "El paciente elige su cita desde su portal, sin idas y vueltas por WhatsApp"
   3. "Ambos reciben notificación por correo al instante"
 

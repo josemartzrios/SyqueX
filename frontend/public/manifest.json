@@ -9,17 +9,17 @@
   "theme_color": "#5a9e8a",
   "icons": [
     {
-      "src": "/icons/logored.png",
+      "src": "/icons/logored.png?v=2",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icons/logored.png",
+      "src": "/icons/logored.png?v=2",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "/icons/logored.png",
+      "src": "/icons/logored.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
