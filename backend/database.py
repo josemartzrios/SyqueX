@@ -273,6 +273,8 @@ class AvailabilitySlot(Base):
     status: Mapped[str] = mapped_column(String(20), default='available', nullable=False)
     booked_by_patient_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey('patients.id', ondelete='SET NULL'), nullable=True)
     booked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_by: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    acknowledged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
