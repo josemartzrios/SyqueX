@@ -309,17 +309,6 @@ export default function PatientPortal() {
                     </section>
                   )}
 
-                  {selectedSummary.next_session_date && (
-                    <section>
-                      <div className="text-[10px] text-[#5a9e8a] font-bold tracking-widest mb-1">PRÓXIMA SESIÓN</div>
-                      <div className="text-sm font-semibold text-[#18181b]">
-                        {new Date(selectedSummary.next_session_date).toLocaleDateString('es-ES', {
-                          day: 'numeric',
-                          month: 'long'
-                        })}
-                      </div>
-                    </section>
-                  )}
                 </div>
 
                 <div className="bg-[#f4f4f2]/30 px-8 py-4 border-t border-[#18181b]/[0.04]">

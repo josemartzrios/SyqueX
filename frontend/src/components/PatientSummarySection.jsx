@@ -9,7 +9,6 @@ const INK = '#18181b'
 const SECTIONS = [
   { key: 'topics_worked', label: 'Temas trabajados', color: SAGE, isDate: false },
   { key: 'homework', label: 'Tarea para esta semana', color: AMBER, isDate: false },
-  { key: 'next_session_date', label: 'Próxima sesión', color: SAGE, isDate: true },
 ]
 
 /**
@@ -25,7 +24,7 @@ const SECTIONS = [
 export default function PatientSummarySection({ sessionId, patientName }) {
   // phase: 'idle' | 'loading' | 'editing' | 'sent'
   const [phase, setPhase] = useState('idle')
-  const [fields, setFields] = useState({ topics_worked: '', homework: '', next_session_date: '' })
+  const [fields, setFields] = useState({ topics_worked: '', homework: '' })
   const [activeField, setActiveField] = useState(null)
   const [sentAt, setSentAt] = useState(null)
   const [error, setError] = useState(null)
@@ -39,7 +38,6 @@ export default function PatientSummarySection({ sessionId, patientName }) {
         setFields({
           topics_worked: data.topics_worked || '',
           homework: data.homework || '',
-          next_session_date: data.next_session_date || '',
         })
         if (data.sent_at) {
           setSentAt(data.sent_at)
@@ -59,7 +57,6 @@ export default function PatientSummarySection({ sessionId, patientName }) {
       setFields({
         topics_worked: data.topics_worked || '',
         homework: data.homework || '',
-        next_session_date: data.next_session_date || '',
       })
       setPhase('editing')
     } catch (err) {
