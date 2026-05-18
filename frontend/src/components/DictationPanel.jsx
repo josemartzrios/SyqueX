@@ -33,7 +33,7 @@ export default function DictationPanel({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <div className="px-5 pt-5 pb-3 flex-shrink-0">
+      <div className="flex-1 overflow-y-auto px-5 pt-5 pb-3">
         <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-3">
           Escribir · {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
         </p>

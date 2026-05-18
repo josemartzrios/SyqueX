@@ -59,7 +59,7 @@ export default function AvailabilityPanel({ onParseAvailability, onConfirmSlots 
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <div className="px-5 pt-5 pb-3 flex-shrink-0">
+      <div className="flex-1 overflow-y-auto px-5 pt-5 pb-3">
         <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-3">
           Disponibilidad · {today}
         </p>
@@ -73,7 +73,7 @@ export default function AvailabilityPanel({ onParseAvailability, onConfirmSlots 
               ← Editar texto
             </button>
             <p className="text-[10px] font-bold uppercase tracking-[0.10em] text-ink-muted mb-3">INTERPRETADO</p>
-            <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
+            <div className="space-y-4 pr-1">
               {Object.entries(grouped).map(([dateStr, slots]) => (
                 <div key={dateStr}>
                   <p className="text-[13px] font-medium text-ink mb-1.5 capitalize">{formatDate(dateStr)}</p>
