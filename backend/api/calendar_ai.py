@@ -107,7 +107,7 @@ async def parse_availability(text: str, reference_date: str) -> List[SlotProposa
     try:
         response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
+            max_tokens=4096,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
         )
