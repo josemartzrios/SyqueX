@@ -297,6 +297,12 @@ export async function invitePatient(patientId) {
   });
 }
 
+export async function resendPatientInvite(patientId) {
+  return await _authFetch(`${API_BASE}/patients/${patientId}/portal/resend-invite`, {
+    method: 'POST',
+  });
+}
+
 export async function sendSummaryToPortal(sessionId) {
   return await _authFetch(`${API_BASE}/sessions/${sessionId}/summary/send`, {
     method: 'POST',
