@@ -307,6 +307,25 @@ Top banner showing trial days remaining with activation button.
 
 ---
 
+#### `PatientInviteModal`
+
+Modal for inviting or resending an invitation to the patient portal.
+
+| Prop | Type | Description |
+|---|---|---|
+| `open` | `boolean` | Controls visibility |
+| `patient` | `object` | Patient object — must include `id`, `name`, `portal_status` |
+| `onClose` | `() => void` | Close modal callback |
+| `onSuccess` | `() => void` | Called on successful first invite |
+| `onStatusUpdate` | `(status) => void` | Called with `'active'` or `'invited'` on 409 |
+
+**Behavior:** Branches on `patient.portal_status`:
+- `null` → shows "Enviar invitación" (calls `invitePatient`)
+- `'invited'` → shows "Reenviar invitación" (calls `resendPatientInvite`)
+- `'active'` → no action available (caller should not open modal)
+
+---
+
 #### `NewPatientModal`
 
 Modal dialog for creating a new patient.
@@ -370,6 +389,15 @@ sequenceDiagram
     Backend-->>api_js: JSON response
     api_js-->>Component: parsed data
 ```
+
+**Portal invite functions:**
+
+| Function | Endpoint | Description |
+|---|---|---|
+| `invitePatient(patientId)` | `POST /patients/{id}/portal/invite` | Send first invitation |
+| `resendPatientInvite(patientId)` | `POST /patients/{id}/portal/resend-invite` | Resend invitation (overwrites old token) |
+
+---
 
 ### 4.2 Auth Module (`auth.js`)
 
