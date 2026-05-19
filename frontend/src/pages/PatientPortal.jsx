@@ -24,9 +24,17 @@ export default function PatientPortal() {
   const detailRef = useRef(null);
 
   useEffect(() => {
-    // El body global tiene overflow:hidden para el app del psicólogo — lo sobreescribimos aquí
     document.body.style.overflow = 'auto';
     return () => { document.body.style.overflow = 'hidden'; };
+  }, []);
+
+  // Swap manifest so "Add to Home Screen" saves /portal, not /
+  useEffect(() => {
+    const link = document.querySelector('link[rel="manifest"]');
+    if (!link) return;
+    const original = link.getAttribute('href');
+    link.setAttribute('href', '/portal-manifest.json');
+    return () => link.setAttribute('href', original);
   }, []);
 
   useEffect(() => {
