@@ -344,6 +344,45 @@ Semantic search across the patient's clinical note history.
 ]
 ```
 
+#### `POST /patients/{patient_id}/portal/invite`
+
+Invite a patient to the patient portal. Creates a `PatientUser` record and sends an email with a one-time setup link (valid 7 days).
+
+**Auth:** Psychologist JWT
+
+**Errors:**
+| Status | Condition |
+|---|---|
+| 400 | Patient has no email registered |
+| 409 | Patient already has a pending or active invitation |
+
+**Response:** `200 OK`
+```json
+{ "message": "Invitación enviada", "expires_in_days": 7 }
+```
+
+---
+
+#### `POST /patients/{patient_id}/portal/resend-invite`
+
+Resend the portal invitation to a patient who has not yet accepted. Overwrites the previous invite token (invalidating it) and sends a new email.
+
+**Auth:** Psychologist JWT
+
+**Rate limit:** 3 resends per (psychologist, patient) pair per 60 minutes.
+
+**Errors:**
+| Status | Condition |
+|---|---|
+| 404 | No prior invitation exists — use `/portal/invite` instead |
+| 409 | Patient already activated their account |
+| 429 | Rate limit exceeded |
+
+**Response:** `200 OK`
+```json
+{ "message": "Invitación reenviada", "expires_in_days": 7 }
+```
+
 ---
 
 ### Sessions — `/sessions`

@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 import uuid
 import logging
 import base64
@@ -1155,6 +1156,27 @@ async def list_conversations(
 # Patient Portal Endpoints (Psychologist side)
 # ---------------------------------------------------------------------------
 
+# --- Resend invite rate limiting (in-memory, per psychologist+patient) ---
+_resend_invite_attempts: dict = defaultdict(list)
+_RESEND_MAX = 3
+_RESEND_WINDOW_MINUTES = 60
+
+
+def _check_resend_rate(psychologist_id: uuid.UUID, patient_id: uuid.UUID) -> None:
+    from datetime import timedelta
+    key = (str(psychologist_id), str(patient_id))
+    now = datetime.now(timezone.utc)
+    window = now - timedelta(minutes=_RESEND_WINDOW_MINUTES)
+    _resend_invite_attempts[key] = [t for t in _resend_invite_attempts[key] if t > window]
+    if len(_resend_invite_attempts[key]) >= _RESEND_MAX:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Demasiados reenvíos. Intenta en 60 minutos.",
+            headers={"Retry-After": "3600"},
+        )
+    _resend_invite_attempts[key].append(now)
+
+
 @router.post("/patients/{patient_id}/portal/invite", tags=["portal"])
 async def invite_patient(
     patient_id: str,
@@ -1227,6 +1249,51 @@ async def invite_patient(
         )
 
     return {"message": "Invitación enviada", "expires_in_days": settings.PATIENT_INVITE_EXPIRE_DAYS}
+
+
+@router.post("/patients/{patient_id}/portal/resend-invite", tags=["portal"])
+async def resend_patient_invite(
+    patient_id: str,
+    psychologist: Psychologist = Depends(get_current_psychologist),
+    db: AsyncSession = Depends(get_db_with_user),
+):
+    import secrets
+    from api.auth import hash_token
+    from services.email import send_patient_invite
+    from datetime import timedelta
+
+    patient = await _get_owned_patient(db, psychologist.id, patient_id)
+
+    _check_resend_rate(psychologist.id, patient.id)
+
+    res = await db.execute(select(PatientUser).where(PatientUser.patient_id == patient.id))
+    patient_user = res.scalar_one_or_none()
+
+    if not patient_user:
+        raise HTTPException(
+            status_code=404,
+            detail="Este paciente no tiene invitación previa. Usa el flujo de invitar.",
+        )
+
+    if patient_user.is_active:
+        raise HTTPException(
+            status_code=409,
+            detail="El paciente ya activó su cuenta en el portal.",
+        )
+
+    token = secrets.token_urlsafe(32)
+    patient_user.invite_token = hash_token(token)
+    patient_user.invite_token_expires_at = datetime.now(timezone.utc) + timedelta(days=settings.PATIENT_INVITE_EXPIRE_DAYS)
+    patient_user.invited_at = datetime.now(timezone.utc)
+
+    await db.commit()
+
+    try:
+        await send_patient_invite(patient.email, patient.name, psychologist.name, token)
+    except Exception as e:
+        logger.error(f"Error reenviando invitacion a {patient.email}: {e}")
+
+    return {"message": "Invitación reenviada", "expires_in_days": settings.PATIENT_INVITE_EXPIRE_DAYS}
 
 
 @router.post("/sessions/{session_id}/summary/send", tags=["portal"])
