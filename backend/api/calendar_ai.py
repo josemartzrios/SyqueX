@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import date, time
 from typing import List
 from pydantic import BaseModel, field_validator
@@ -7,6 +8,49 @@ from anthropic import AsyncAnthropic
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+# Matches "X a Y" where both are bare numbers (no am/pm attached).
+# Used to detect ambiguous time ranges before sending to Claude.
+_TIME_RANGE_RE = re.compile(
+    r'(?<!\d)(\d{1,2})(?!\s*[aApP][mM])\s+a\s+(\d{1,2})(?!\s*[aApP][mM])'
+)
+
+
+def _normalize_times(text: str) -> str:
+    """
+    Pre-process ambiguous time ranges deterministically before sending to Claude.
+
+    When end_hour < start_hour with no am/pm (e.g. "8 a 4", "9 a 3"), the end
+    is always PM in a clinical scheduling context. Convert to 24h so Claude has
+    no room for misinterpretation: "8 a 4" → "8 a 16".
+
+    Also converts explicit am/pm suffixes to 24h: "7am" → "7", "4pm" → "16".
+    Leaves alone: "lunes a viernes" (no digits), "9 a 14" (end >= start),
+    "8 a 4pm" / "7am a 4" (already has am/pm marker).
+    """
+    def _replace(m: re.Match) -> str:
+        start, end = int(m.group(1)), int(m.group(2))
+        if end < start and 1 <= end <= 11:
+            return f"{m.group(1)} a {end + 12}"
+        return m.group(0)
+
+    normalized = _TIME_RANGE_RE.sub(_replace, text)
+
+    # Convert "Xam"/"Xpm" suffixes to bare 24h numbers
+    def _ampm(m: re.Match) -> str:
+        h = int(m.group(1))
+        suffix = m.group(2).lower()
+        if suffix == "pm" and h != 12:
+            h += 12
+        elif suffix == "am" and h == 12:
+            h = 0
+        return str(h)
+
+    normalized = re.sub(r'(\d{1,2})\s*([aApP][mM])', _ampm, normalized)
+
+    if normalized != text:
+        logger.debug("_normalize_times: %r → %r", text, normalized)
+    return normalized
 
 _SYSTEM_PROMPT = """Eres un asistente de agenda para psicólogos. Cuando el psicólogo describe su disponibilidad en texto libre en español, extrae los días y horarios y genera slots de citas de 60 minutos consecutivos.
 
@@ -57,7 +101,8 @@ class SlotProposal(BaseModel):
 async def parse_availability(text: str, reference_date: str) -> List[SlotProposal]:
     """Llama a Claude para extraer slots de disponibilidad desde texto libre."""
     client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    user_message = f"Hoy es {reference_date}.\nDisponibilidad: \"{text}\""
+    normalized = _normalize_times(text)
+    user_message = f"Hoy es {reference_date}.\nDisponibilidad: \"{normalized}\""
 
     try:
         response = await client.messages.create(
